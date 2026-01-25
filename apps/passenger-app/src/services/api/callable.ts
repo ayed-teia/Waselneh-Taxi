@@ -28,7 +28,7 @@ export async function callFunction<TRequest, TResponse>(
  * Ping callable function - for testing connectivity
  */
 export async function ping(message?: string) {
-  return callFunction<{ message?: string }, { pong: boolean; message: string; timestamp: string }>(
+  return callFunction<{ message?: string | undefined }, { pong: boolean; message: string; timestamp: string }>(
     'ping',
     { message }
   );

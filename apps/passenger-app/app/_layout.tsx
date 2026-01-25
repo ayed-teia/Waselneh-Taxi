@@ -6,7 +6,7 @@ import { getFirebaseAuth } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
 
 export default function RootLayout() {
-  const { setUser, setLoading } = useAuthStore();
+  const { setUser } = useAuthStore();
 
   useEffect(() => {
     const auth = getFirebaseAuth();

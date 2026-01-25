@@ -1,17 +1,21 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
+import Constants from 'expo-constants';
 
 /**
  * Firebase configuration
  * Replace with your actual Firebase config from Firebase Console
+ * Environment variables are loaded via Expo Constants
  */
+const expoConfig = Constants.expoConfig?.extra ?? {};
+
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'your-api-key',
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'your-project.firebaseapp.com',
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'your-project-id',
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || 'your-project.appspot.com',
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '123456789',
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '1:123456789:web:abc123',
+  apiKey: (expoConfig.firebaseApiKey as string) || 'your-api-key',
+  authDomain: (expoConfig.firebaseAuthDomain as string) || 'your-project.firebaseapp.com',
+  projectId: (expoConfig.firebaseProjectId as string) || 'your-project-id',
+  storageBucket: (expoConfig.firebaseStorageBucket as string) || 'your-project.appspot.com',
+  messagingSenderId: (expoConfig.firebaseMessagingSenderId as string) || '123456789',
+  appId: (expoConfig.firebaseAppId as string) || '1:123456789:web:abc123',
 };
 
 let app: FirebaseApp;

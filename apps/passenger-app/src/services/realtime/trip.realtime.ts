@@ -40,8 +40,8 @@ export function subscribeToTrip(
  */
 export function subscribeToActiveTrip(
   userId: string,
-  onData: (trip: unknown) => void,
-  onError: (error: Error) => void
+  _onData: (trip: unknown) => void,
+  _onError: (error: Error) => void
 ): Unsubscribe {
   // Placeholder - in production this would query for active trips
   // where passengerId == userId and status in ['pending', 'accepted', 'in_progress']
