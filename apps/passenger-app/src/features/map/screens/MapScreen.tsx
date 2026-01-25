@@ -1,11 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 
 /**
  * Placeholder Map Screen
  * Real Mapbox implementation will be added later
  */
 export function MapScreen() {
+  const router = useRouter();
+
   return (
     <View style={styles.container}>
       {/* Placeholder for map */}
@@ -37,6 +40,15 @@ export function MapScreen() {
             <Text style={styles.quickActionText}>Saved</Text>
           </View>
         </View>
+
+        {/* Estimate Trip button */}
+        <TouchableOpacity
+          style={styles.estimateButton}
+          onPress={() => router.push('/estimate')}
+        >
+          <Text style={styles.estimateButtonIcon}>🧮</Text>
+          <Text style={styles.estimateButtonText}>Estimate Trip Price</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -116,5 +128,23 @@ const styles = StyleSheet.create({
   quickActionText: {
     fontSize: 12,
     color: '#666666',
+  },
+  estimateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 20,
+    gap: 8,
+  },
+  estimateButtonIcon: {
+    fontSize: 20,
+  },
+  estimateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

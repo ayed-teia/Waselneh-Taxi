@@ -57,6 +57,13 @@ export class InternalError extends AppError {
   }
 }
 
+export class ExternalServiceError extends AppError {
+  constructor(message: string, public readonly service: string) {
+    super('unavailable', `${service}: ${message}`);
+    this.name = 'ExternalServiceError';
+  }
+}
+
 export function handleError(error: unknown): HttpsError {
   if (error instanceof AppError) {
     return error.toHttpsError();

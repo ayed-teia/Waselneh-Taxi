@@ -17,6 +17,9 @@ export const TRIP_REQUEST_TIMEOUT_SECONDS = defineInt('TRIP_REQUEST_TIMEOUT_SECO
   default: 120,
 });
 
+/** Mapbox Access Token for directions API */
+export const MAPBOX_ACCESS_TOKEN = defineString('MAPBOX_ACCESS_TOKEN', { default: '' });
+
 export const env = {
   get region() {
     return REGION.value();
@@ -33,6 +36,9 @@ export const env = {
   get tripRequestTimeoutSeconds() {
     return TRIP_REQUEST_TIMEOUT_SECONDS.value();
   },
+  get mapboxAccessToken() {
+    return MAPBOX_ACCESS_TOKEN.value();
+  },
   get isDevelopment() {
     return this.environment === 'development';
   },
@@ -40,3 +46,4 @@ export const env = {
     return this.environment === 'production';
   },
 };
+
