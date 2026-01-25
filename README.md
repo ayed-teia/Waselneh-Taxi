@@ -42,3 +42,11 @@ Smart taxi line system for West Bank cities (Nablus, Ramallah, Jenin).
 
 
 
+Layer	Tech
+Mobile Apps	React Native (Expo) + TypeScript
+Web Dashboard	React + Vite + TypeScript
+Backend	Firebase Cloud Functions (Node.js) + TypeScript
+Validation	Zod
+Realtime	Firestore + FCM
+Maps	Mapbox
+Monorepo	pnpm workspaces
