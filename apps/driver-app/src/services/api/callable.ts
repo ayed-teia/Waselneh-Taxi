@@ -38,8 +38,12 @@ export async function ping(message?: string) {
  * Accept a trip request (driver action)
  * All business logic handled by Cloud Function
  */
-export async function acceptTripRequest(requestId: string) {
-  return callFunction<{ requestId: string }, { success: boolean; tripId: string }>(
+export interface AcceptTripRequestResponse {
+  tripId: string;
+}
+
+export async function acceptTripRequest(requestId: string): Promise<AcceptTripRequestResponse> {
+  return callFunction<{ requestId: string }, AcceptTripRequestResponse>(
     'acceptTripRequest',
     { requestId }
   );

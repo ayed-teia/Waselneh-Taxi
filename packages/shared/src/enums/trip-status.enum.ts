@@ -3,6 +3,8 @@ import { z } from 'zod';
 export const TripStatus = {
   /** Trip request created by passenger */
   PENDING: 'pending',
+  /** Driver assigned to trip (after matching) */
+  DRIVER_ASSIGNED: 'driver_assigned',
   /** Driver accepted the trip */
   ACCEPTED: 'accepted',
   /** Driver arrived at pickup location */
@@ -25,6 +27,7 @@ export type TripStatus = (typeof TripStatus)[keyof typeof TripStatus];
 
 export const TripStatusSchema = z.enum([
   'pending',
+  'driver_assigned',
   'accepted',
   'driver_arrived',
   'in_progress',
@@ -38,6 +41,7 @@ export const TripStatusSchema = z.enum([
 /** Statuses that indicate the trip is still active */
 export const ACTIVE_TRIP_STATUSES: TripStatus[] = [
   TripStatus.PENDING,
+  TripStatus.DRIVER_ASSIGNED,
   TripStatus.ACCEPTED,
   TripStatus.DRIVER_ARRIVED,
   TripStatus.IN_PROGRESS,

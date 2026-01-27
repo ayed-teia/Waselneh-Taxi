@@ -8,10 +8,12 @@ import {
   Easing,
 } from 'react-native';
 import { Button } from '../../../ui';
+import { subscribeToTripRequest } from '../../../services/realtime';
 
 interface SearchingDriverScreenProps {
   requestId: string;
   onCancel: () => void;
+  onDriverAssigned: (tripId: string) => void;
   distanceKm: number;
   durationMin: number;
   priceIls: number;
@@ -24,12 +26,34 @@ interface SearchingDriverScreenProps {
 export function SearchingDriverScreen({
   requestId,
   onCancel,
+  onDriverAssigned,
   distanceKm,
   durationMin,
   priceIls,
 }: SearchingDriverScreenProps) {
   const [dots, setDots] = useState('');
   const [pulseAnim] = useState(new Animated.Value(1));
+  const [isMatched, setIsMatched] = useState(false);
+
+  // Subscribe to trip request status changes
+  useEffect(() => {
+    const unsubscribe = subscribeToTripRequest(
+      requestId,
+      (request) => {
+        if (request?.status === 'matched' && request.matchedTripId) {
+          setIsMatched(true);
+          // Small delay to show matched state before navigating
+          setTimeout(() => {
+            onDriverAssigned(request.matchedTripId!);
+          }, 500);
+        }
+      },
+      (error) => {
+        console.error('Error subscribing to trip request:', error);
+      }
+    );
+    return () => unsubscribe();
+  }, [requestId, onDriverAssigned]);
 
   // Animate loading dots
   useEffect(() => {
@@ -65,9 +89,13 @@ export function SearchingDriverScreen({
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Finding Your Driver{dots}</Text>
+        <Text style={styles.title}>
+          {isMatched ? 'Driver Found! 🎉' : `Finding Your Driver${dots}`}
+        </Text>
         <Text style={styles.subtitle}>
-          Please wait while we connect you with a nearby driver
+          {isMatched
+            ? 'A driver has accepted your request'
+            : 'Please wait while we connect you with a nearby driver'}
         </Text>
       </View>
 
@@ -76,16 +104,19 @@ export function SearchingDriverScreen({
         <Animated.View
           style={[
             styles.iconContainer,
-            { transform: [{ scale: pulseAnim }] },
+            isMatched && styles.matchedIconContainer,
+            { transform: [{ scale: isMatched ? 1 : pulseAnim }] },
           ]}
         >
-          <Text style={styles.carIcon}>🚕</Text>
+          <Text style={styles.carIcon}>{isMatched ? '✅' : '🚕'}</Text>
         </Animated.View>
-        <ActivityIndicator
-          size="large"
-          color="#007AFF"
-          style={styles.spinner}
-        />
+        {!isMatched && (
+          <ActivityIndicator
+            size="large"
+            color="#007AFF"
+            style={styles.spinner}
+          />
+        )}
       </View>
 
       {/* Trip summary card */}
@@ -117,11 +148,13 @@ export function SearchingDriverScreen({
 
       {/* Cancel button */}
       <View style={styles.cancelContainer}>
-        <Button
-          title="Cancel Request"
-          onPress={onCancel}
-          variant="secondary"
-        />
+        {!isMatched && (
+          <Button
+            title="Cancel Request"
+            onPress={onCancel}
+            variant="secondary"
+          />
+        )}
       </View>
     </View>
   );
@@ -163,6 +196,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
+  },
+  matchedIconContainer: {
+    backgroundColor: '#E8F5E9',
   },
   carIcon: {
     fontSize: 40,

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { StatusToggle } from '../../../ui';
 import { useDriverStore } from '../../../store';
 
@@ -12,6 +13,7 @@ interface HomeScreenProps {
  * Shows status toggle, map placeholder, and nearby trip requests
  */
 export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
+  const router = useRouter();
   const { status, isUpdatingStatus, currentLocation } = useDriverStore();
 
   return (
@@ -37,15 +39,20 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
 
         {status === 'online' && (
           <View style={styles.requestsSection}>
-            <Text style={styles.sectionTitle}>Nearby Requests</Text>
-            <ScrollView style={styles.requestsList}>
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No trip requests nearby</Text>
-                <Text style={styles.emptySubtext}>
-                  Stay online to receive new requests
+            <Text style={styles.sectionTitle}>Trip Requests</Text>
+            <TouchableOpacity
+              style={styles.inboxButton}
+              onPress={() => router.push('/inbox')}
+            >
+              <Text style={styles.inboxButtonIcon}>📥</Text>
+              <View style={styles.inboxButtonText}>
+                <Text style={styles.inboxButtonTitle}>View Inbox</Text>
+                <Text style={styles.inboxButtonSubtitle}>
+                  See pending trip requests
                 </Text>
               </View>
-            </ScrollView>
+              <Text style={styles.inboxButtonArrow}>›</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -102,24 +109,34 @@ const styles = StyleSheet.create({
     color: '#1C1C1E',
     marginBottom: 12,
   },
-  requestsList: {
-    maxHeight: 200,
-  },
-  emptyState: {
+  inboxButton: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 24,
+    padding: 16,
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  emptyText: {
-    fontSize: 16,
-    color: '#3C3C43',
-    fontWeight: '500',
+  inboxButtonIcon: {
+    fontSize: 28,
+    marginRight: 12,
   },
-  emptySubtext: {
+  inboxButtonText: {
+    flex: 1,
+  },
+  inboxButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  inboxButtonSubtitle: {
     fontSize: 14,
     color: '#8E8E93',
-    marginTop: 4,
+    marginTop: 2,
+  },
+  inboxButtonArrow: {
+    fontSize: 24,
+    color: '#C7C7CC',
+    fontWeight: '300',
   },
   offlineMessage: {
     marginTop: 16,

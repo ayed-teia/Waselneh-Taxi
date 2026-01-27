@@ -29,6 +29,14 @@ export default function Searching() {
     router.replace('/home');
   };
 
+  const handleDriverAssigned = (tripId: string) => {
+    // Navigate to trip screen when driver is assigned
+    router.replace({
+      pathname: '/trip',
+      params: { tripId },
+    });
+  };
+
   return (
     <SearchingDriverScreen
       requestId={params.requestId}
@@ -36,6 +44,7 @@ export default function Searching() {
       durationMin={parseFloat(params.durationMin || '0')}
       priceIls={parseInt(params.priceIls || '0', 10)}
       onCancel={handleCancel}
+      onDriverAssigned={handleDriverAssigned}
     />
   );
 }

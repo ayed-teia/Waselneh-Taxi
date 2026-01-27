@@ -10,12 +10,86 @@ function getFirestoreDb() {
 }
 
 /**
+ * Trip request data from Firestore
+ */
+export interface TripRequestData {
+  id: string;
+  passengerId: string;
+  pickup: { lat: number; lng: number };
+  dropoff: { lat: number; lng: number };
+  estimatedDistanceKm: number;
+  estimatedDurationMin: number;
+  estimatedPriceIls: number;
+  status: string;
+  matchedDriverId?: string;
+  matchedTripId?: string;
+  matchedAt?: Date;
+  createdAt: Date;
+}
+
+/**
+ * Trip data from Firestore
+ */
+export interface TripData {
+  id: string;
+  passengerId: string;
+  driverId: string;
+  pickup: { lat: number; lng: number };
+  dropoff: { lat: number; lng: number };
+  estimatedDistanceKm: number;
+  estimatedDurationMin: number;
+  estimatedPriceIls: number;
+  status: string;
+  createdAt: Date;
+  matchedAt?: Date;
+}
+
+/**
+ * Subscribe to a trip request document (read-only)
+ * Used to track when request is matched to a driver
+ */
+export function subscribeToTripRequest(
+  requestId: string,
+  onData: (request: TripRequestData | null) => void,
+  onError: (error: Error) => void
+): Unsubscribe {
+  const db = getFirestoreDb();
+  const requestRef = doc(db, 'tripRequests', requestId);
+
+  return onSnapshot(
+    requestRef,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        onData({
+          id: snapshot.id,
+          passengerId: data.passengerId,
+          pickup: data.pickup,
+          dropoff: data.dropoff,
+          estimatedDistanceKm: data.estimatedDistanceKm,
+          estimatedDurationMin: data.estimatedDurationMin,
+          estimatedPriceIls: data.estimatedPriceIls,
+          status: data.status,
+          matchedDriverId: data.matchedDriverId,
+          matchedTripId: data.matchedTripId,
+          matchedAt: data.matchedAt?.toDate(),
+          createdAt: data.createdAt?.toDate(),
+        });
+      } else {
+        onData(null);
+      }
+    },
+    onError
+  );
+}
+
+/**
  * Subscribe to a trip document (read-only)
  * All writes must go through Cloud Functions
  */
 export function subscribeToTrip(
   tripId: string,
-  onData: (trip: unknown) => void,
+  onData: (trip: TripData | null) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
   const db = getFirestoreDb();
@@ -25,7 +99,20 @@ export function subscribeToTrip(
     tripRef,
     (snapshot) => {
       if (snapshot.exists()) {
-        onData({ id: snapshot.id, ...snapshot.data() });
+        const data = snapshot.data();
+        onData({
+          id: snapshot.id,
+          passengerId: data.passengerId,
+          driverId: data.driverId,
+          pickup: data.pickup,
+          dropoff: data.dropoff,
+          estimatedDistanceKm: data.estimatedDistanceKm,
+          estimatedDurationMin: data.estimatedDurationMin,
+          estimatedPriceIls: data.estimatedPriceIls,
+          status: data.status,
+          createdAt: data.createdAt?.toDate(),
+          matchedAt: data.matchedAt?.toDate(),
+        });
       } else {
         onData(null);
       }
@@ -52,3 +139,4 @@ export function subscribeToActiveTrip(
     console.log('Unsubscribed from active trip');
   };
 }
+

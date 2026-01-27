@@ -18,6 +18,8 @@ export function ActiveTripScreen({ tripId, status, onCancel }: ActiveTripScreenP
     switch (status) {
       case 'pending':
         return { text: 'Finding a driver...', icon: '🔍' };
+      case 'driver_assigned':
+        return { text: 'Driver assigned!', icon: '🎉' };
       case 'accepted':
         return { text: 'Driver is on the way', icon: '🚗' };
       case 'driver_arrived':
@@ -32,7 +34,7 @@ export function ActiveTripScreen({ tripId, status, onCancel }: ActiveTripScreenP
   };
 
   const statusDisplay = getStatusDisplay(status);
-  const canCancel = status === 'pending' || status === 'accepted';
+  const canCancel = status === 'pending' || status === 'driver_assigned' || status === 'accepted';
 
   return (
     <View style={styles.container}>
