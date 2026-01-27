@@ -6,35 +6,42 @@ import { Button } from '../../../ui';
 interface ActiveTripScreenProps {
   tripId: string;
   status: TripStatus;
+  estimatedPriceIls?: number;
   onCancel: () => void;
+  onGoHome?: () => void;
 }
 
 /**
  * Active Trip Screen - shows trip progress
  * All data comes from Firestore realtime subscription (read-only)
  */
-export function ActiveTripScreen({ tripId, status, onCancel }: ActiveTripScreenProps) {
+export function ActiveTripScreen({ 
+  tripId, 
+  status, 
+  estimatedPriceIls,
+  onCancel,
+  onGoHome 
+}: ActiveTripScreenProps) {
   const getStatusDisplay = (status: TripStatus) => {
     switch (status) {
       case 'pending':
-        return { text: 'Finding a driver...', icon: '🔍' };
+        return { text: 'Finding a driver...', icon: '🔍', description: 'Please wait while we find you a driver' };
       case 'driver_assigned':
-        return { text: 'Driver assigned!', icon: '🎉' };
-      case 'accepted':
-        return { text: 'Driver is on the way', icon: '🚗' };
+        return { text: 'Driver assigned!', icon: '🎉', description: 'Your driver is on the way to pick you up' };
       case 'driver_arrived':
-        return { text: 'Driver has arrived', icon: '📍' };
+        return { text: 'Driver has arrived', icon: '📍', description: 'Your driver is waiting at the pickup location' };
       case 'in_progress':
-        return { text: 'Trip in progress', icon: '🛣️' };
+        return { text: 'Trip in progress', icon: '🛣️', description: 'Enjoy your ride!' };
       case 'completed':
-        return { text: 'Trip completed', icon: '✅' };
+        return { text: 'Trip completed', icon: '✅', description: 'Thank you for riding with us!' };
       default:
-        return { text: 'Unknown status', icon: '❓' };
+        return { text: 'Unknown status', icon: '❓', description: '' };
     }
   };
 
   const statusDisplay = getStatusDisplay(status);
-  const canCancel = status === 'pending' || status === 'driver_assigned' || status === 'accepted';
+  const canCancel = status === 'pending' || status === 'driver_assigned';
+  const isCompleted = status === 'completed';
 
   return (
     <View style={styles.container}>
@@ -47,15 +54,25 @@ export function ActiveTripScreen({ tripId, status, onCancel }: ActiveTripScreenP
       <View style={styles.tripCard}>
         <View style={styles.statusContainer}>
           <Text style={styles.statusIcon}>{statusDisplay.icon}</Text>
-          <Text style={styles.statusText}>{statusDisplay.text}</Text>
+          <View style={styles.statusTextContainer}>
+            <Text style={styles.statusText}>{statusDisplay.text}</Text>
+            <Text style={styles.statusDescription}>{statusDisplay.description}</Text>
+          </View>
         </View>
 
         <View style={styles.tripDetails}>
           <Text style={styles.tripId}>Trip: {tripId.slice(0, 8)}...</Text>
+          {estimatedPriceIls && (
+            <Text style={styles.priceText}>Fare: ₪{estimatedPriceIls}</Text>
+          )}
         </View>
 
         {canCancel && (
           <Button title="Cancel Trip" variant="outline" onPress={onCancel} />
+        )}
+
+        {isCompleted && onGoHome && (
+          <Button title="Back to Home" onPress={onGoHome} />
         )}
       </View>
     </View>
@@ -89,17 +106,25 @@ const styles = StyleSheet.create({
   },
   statusContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 16,
   },
   statusIcon: {
     fontSize: 32,
     marginRight: 12,
   },
+  statusTextContainer: {
+    flex: 1,
+  },
   statusText: {
     fontSize: 20,
     fontWeight: '600',
     color: '#333333',
+  },
+  statusDescription: {
+    fontSize: 14,
+    color: '#666666',
+    marginTop: 4,
   },
   tripDetails: {
     paddingVertical: 16,
@@ -110,5 +135,11 @@ const styles = StyleSheet.create({
   tripId: {
     fontSize: 14,
     color: '#999999',
+  },
+  priceText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#34C759',
+    marginTop: 8,
   },
 });

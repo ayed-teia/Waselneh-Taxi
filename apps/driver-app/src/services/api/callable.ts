@@ -50,12 +50,51 @@ export async function acceptTripRequest(requestId: string): Promise<AcceptTripRe
 }
 
 /**
- * Update trip status (driver action)
- * Valid transitions: accepted -> driver_arrived -> in_progress -> completed
+ * Lifecycle response type
  */
-export async function updateTripStatus(tripId: string, status: string) {
-  return callFunction<{ tripId: string; status: string }, { success: boolean }>(
-    'updateTripStatus',
-    { tripId, status }
+export interface LifecycleResponse {
+  success: boolean;
+  status: string;
+}
+
+/**
+ * Mark driver as arrived at pickup location
+ * Valid transition: driver_assigned → driver_arrived
+ */
+export async function driverArrived(tripId: string): Promise<LifecycleResponse> {
+  return callFunction<{ tripId: string }, LifecycleResponse>(
+    'driverArrived',
+    { tripId }
+  );
+}
+
+/**
+ * Start the trip (passenger picked up)
+ * Valid transition: driver_arrived → in_progress
+ */
+export async function startTrip(tripId: string): Promise<LifecycleResponse> {
+  return callFunction<{ tripId: string }, LifecycleResponse>(
+    'startTrip',
+    { tripId }
+  );
+}
+
+/**
+ * Complete trip response type
+ */
+export interface CompleteTripResponse {
+  success: boolean;
+  status: string;
+  finalPriceIls: number;
+}
+
+/**
+ * Complete the trip (passenger dropped off)
+ * Valid transition: in_progress → completed
+ */
+export async function completeTrip(tripId: string): Promise<CompleteTripResponse> {
+  return callFunction<{ tripId: string }, CompleteTripResponse>(
+    'completeTrip',
+    { tripId }
   );
 }

@@ -1,22 +1,31 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { TripStatus } from '@taxi-line/shared';
 import { Button } from '../../../ui';
+import { driverArrived, startTrip, completeTrip } from '../../../services/api';
 
 interface ActiveTripScreenProps {
   tripId: string;
   status: TripStatus;
-  onUpdateStatus: (newStatus: TripStatus) => void;
+  estimatedPriceIls?: number;
+  onTripCompleted: () => void;
 }
 
 /**
  * Active Trip Screen for Driver
- * Shows current trip details and allows status updates
+ * Shows current trip details and allows status updates via Cloud Functions
  */
-export function ActiveTripScreen({ tripId, status, onUpdateStatus }: ActiveTripScreenProps) {
+export function ActiveTripScreen({ 
+  tripId, 
+  status, 
+  estimatedPriceIls,
+  onTripCompleted 
+}: ActiveTripScreenProps) {
+  const [isUpdating, setIsUpdating] = useState(false);
+
   const getStatusDisplay = (tripStatus: TripStatus) => {
     switch (tripStatus) {
-      case 'accepted':
+      case 'driver_assigned':
         return { text: 'Heading to pickup', icon: '🚗', action: 'Arrived at Pickup' };
       case 'driver_arrived':
         return { text: 'Waiting for passenger', icon: '📍', action: 'Start Trip' };
@@ -29,21 +38,37 @@ export function ActiveTripScreen({ tripId, status, onUpdateStatus }: ActiveTripS
     }
   };
 
-  const getNextStatus = (currentStatus: TripStatus): TripStatus | null => {
-    switch (currentStatus) {
-      case 'accepted':
-        return TripStatus.DRIVER_ARRIVED;
-      case 'driver_arrived':
-        return TripStatus.IN_PROGRESS;
-      case 'in_progress':
-        return TripStatus.COMPLETED;
-      default:
-        return null;
+  const handleAction = useCallback(async () => {
+    setIsUpdating(true);
+    try {
+      switch (status) {
+        case 'driver_assigned':
+          await driverArrived(tripId);
+          break;
+        case 'driver_arrived':
+          await startTrip(tripId);
+          break;
+        case 'in_progress':
+          const result = await completeTrip(tripId);
+          Alert.alert(
+            'Trip Completed!',
+            `Final fare: ₪${result.finalPriceIls}`,
+            [{ text: 'OK', onPress: onTripCompleted }]
+          );
+          return; // Don't reset isUpdating, we're navigating away
+        default:
+          return;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update trip';
+      Alert.alert('Error', message);
+    } finally {
+      setIsUpdating(false);
     }
-  };
+  }, [tripId, status, onTripCompleted]);
 
   const statusDisplay = getStatusDisplay(status);
-  const nextStatus = getNextStatus(status);
+  const hasAction = status === 'driver_assigned' || status === 'driver_arrived' || status === 'in_progress';
 
   return (
     <View style={styles.container}>
@@ -63,6 +88,10 @@ export function ActiveTripScreen({ tripId, status, onUpdateStatus }: ActiveTripS
         <View style={styles.tripDetails}>
           <Text style={styles.tripId}>Trip: {tripId.slice(0, 8)}...</Text>
           
+          {estimatedPriceIls && (
+            <Text style={styles.priceText}>Fare: ₪{estimatedPriceIls}</Text>
+          )}
+          
           {/* Placeholder passenger info */}
           <View style={styles.passengerInfo}>
             <Text style={styles.passengerName}>👤 Passenger Name</Text>
@@ -70,10 +99,12 @@ export function ActiveTripScreen({ tripId, status, onUpdateStatus }: ActiveTripS
           </View>
         </View>
 
-        {nextStatus && statusDisplay.action && (
+        {hasAction && statusDisplay.action && (
           <Button
-            title={statusDisplay.action}
-            onPress={() => onUpdateStatus(nextStatus)}
+            title={isUpdating ? 'Updating...' : statusDisplay.action}
+            onPress={handleAction}
+            disabled={isUpdating}
+            loading={isUpdating}
           />
         )}
 
@@ -141,6 +172,12 @@ const styles = StyleSheet.create({
   tripId: {
     fontSize: 14,
     color: '#8E8E93',
+    marginBottom: 12,
+  },
+  priceText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#34C759',
     marginBottom: 12,
   },
   passengerInfo: {

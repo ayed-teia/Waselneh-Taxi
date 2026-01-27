@@ -26,13 +26,6 @@ export default function Trip() {
       (tripData) => {
         setTrip(tripData);
         setLoading(false);
-        
-        // If trip is completed or cancelled, navigate home after delay
-        if (tripData?.status === 'completed' || tripData?.status === 'cancelled') {
-          setTimeout(() => {
-            router.replace('/home');
-          }, 3000);
-        }
       },
       (err) => {
         setError(err.message);
@@ -41,7 +34,7 @@ export default function Trip() {
     );
 
     return () => unsubscribe();
-  }, [tripId, router]);
+  }, [tripId]);
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
@@ -53,13 +46,8 @@ export default function Trip() {
     return <Redirect href="/home" />;
   }
 
-  const handleCancel = () => {
-    // TODO: Call Cloud Function to cancel trip
-    console.log('Cancel trip - will call Cloud Function');
-    router.replace('/home');
-  };
-
-  const handleGoHome = () => {
+  const handleTripCompleted = () => {
+    // Navigate back to home after trip is completed
     router.replace('/home');
   };
 
@@ -86,8 +74,7 @@ export default function Trip() {
       tripId={tripId}
       status={trip.status as TripStatus}
       estimatedPriceIls={trip.estimatedPriceIls}
-      onCancel={handleCancel}
-      onGoHome={handleGoHome}
+      onTripCompleted={handleTripCompleted}
     />
   );
 }

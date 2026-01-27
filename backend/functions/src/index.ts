@@ -24,6 +24,9 @@ export {
   createTripRequest,
   dispatchTripRequest,
   acceptTripRequest,
+  driverArrived,
+  startTrip,
+  completeTrip,
 } from './api/callable';
 
 // ============================================================================
