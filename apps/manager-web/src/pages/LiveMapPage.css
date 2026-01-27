@@ -26,6 +26,7 @@
 .stats-bar {
   display: flex;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .stat {
@@ -35,6 +36,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-width: 100px;
 }
 
 .stat-value {
@@ -46,6 +48,76 @@
 .stat-label {
   font-size: 0.875rem;
   color: #888;
+}
+
+/* Filters */
+.filters-bar {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1rem 1.5rem;
+  background: #1a1a1a;
+  border-radius: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  color: #ccc;
+}
+
+.filter-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #4ade80;
+}
+
+.filter-label {
+  color: #888;
+  margin-right: 0.5rem;
+}
+
+.filter-select {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  color: #fff;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.filter-select:hover {
+  border-color: #666;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #4ade80;
+}
+
+.reset-filters-btn {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.reset-filters-btn:hover {
+  background: #444;
 }
 
 .empty-state {
@@ -137,6 +209,83 @@
 
 .driver-list td {
   color: #fff;
+}
+
+.driver-name {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.driver-avatar {
+  font-size: 1.5rem;
+}
+
+.driver-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.driver-info .name {
+  font-weight: 500;
+}
+
+.driver-id-small {
+  font-size: 0.75rem;
+  color: #666;
+  font-family: monospace;
+}
+
+.line-badge {
+  background: #2d3748;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #a0aec0;
+}
+
+.no-line {
+  color: #555;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.status-badge.online {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.status-badge.offline {
+  color: #888;
+  background: rgba(136, 136, 136, 0.1);
+}
+
+.coordinates {
+  font-family: monospace;
+  font-size: 0.875rem;
+  color: #a0aec0;
+}
+
+.last-update {
+  display: flex;
+  flex-direction: column;
+}
+
+.relative-time {
+  font-weight: 500;
+}
+
+.absolute-time {
+  font-size: 0.75rem;
+  color: #666;
 }
 
 .driver-id {

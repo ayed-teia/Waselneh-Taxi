@@ -1,8 +1,18 @@
-import { collection, onSnapshot, query, Unsubscribe } from 'firebase/firestore';
+import { collection, onSnapshot, query, Unsubscribe, doc, getDoc } from 'firebase/firestore';
 import { getFirestoreDb } from './firebase';
 
 /**
- * Driver live location data
+ * Driver profile info (from drivers collection)
+ */
+export interface DriverProfile {
+  name?: string;
+  phone?: string;
+  lineId?: string;
+  vehiclePlate?: string;
+}
+
+/**
+ * Driver live location data with profile info
  */
 export interface DriverLiveLocation {
   driverId: string;
@@ -11,6 +21,46 @@ export interface DriverLiveLocation {
   heading: number | null;
   speed: number | null;
   updatedAt: Date | null;
+  // Profile data (fetched from drivers collection)
+  name?: string;
+  lineId?: string;
+  isOnline: boolean;
+}
+
+/**
+ * Cache for driver profiles to avoid repeated fetches
+ */
+const profileCache = new Map<string, DriverProfile>();
+
+/**
+ * Fetch driver profile from drivers collection
+ */
+async function fetchDriverProfile(driverId: string): Promise<DriverProfile | null> {
+  // Check cache first
+  if (profileCache.has(driverId)) {
+    return profileCache.get(driverId)!;
+  }
+
+  try {
+    const db = getFirestoreDb();
+    const driverDoc = await getDoc(doc(db, 'drivers', driverId));
+    
+    if (driverDoc.exists()) {
+      const data = driverDoc.data();
+      const profile: DriverProfile = {
+        name: data.name ?? data.displayName ?? undefined,
+        phone: data.phone ?? undefined,
+        lineId: data.lineId ?? undefined,
+        vehiclePlate: data.vehiclePlate ?? undefined,
+      };
+      profileCache.set(driverId, profile);
+      return profile;
+    }
+  } catch (error) {
+    console.warn('Failed to fetch driver profile:', driverId, error);
+  }
+  
+  return null;
 }
 
 /**
@@ -27,17 +77,40 @@ export function subscribeToAllDriverLocations(
 
   return onSnapshot(
     q,
-    (snapshot) => {
-      const drivers: DriverLiveLocation[] = snapshot.docs.map((doc) => ({
-        driverId: doc.id,
-        lat: doc.data().lat,
-        lng: doc.data().lng,
-        heading: doc.data().heading ?? null,
-        speed: doc.data().speed ?? null,
-        updatedAt: doc.data().updatedAt?.toDate() ?? null,
-      }));
+    async (snapshot) => {
+      const driversPromises = snapshot.docs.map(async (docSnap) => {
+        const data = docSnap.data();
+        const profile = await fetchDriverProfile(docSnap.id);
+        
+        return {
+          driverId: docSnap.id,
+          lat: data.lat,
+          lng: data.lng,
+          heading: data.heading ?? null,
+          speed: data.speed ?? null,
+          updatedAt: data.updatedAt?.toDate() ?? null,
+          name: profile?.name,
+          lineId: profile?.lineId,
+          isOnline: true, // If in driverLive, they're online
+        };
+      });
+      
+      const drivers = await Promise.all(driversPromises);
       onData(drivers);
     },
     onError
   );
+}
+
+/**
+ * Get unique line IDs from driver list
+ */
+export function getUniqueLineIds(drivers: DriverLiveLocation[]): string[] {
+  const lineIds = new Set<string>();
+  drivers.forEach(driver => {
+    if (driver.lineId) {
+      lineIds.add(driver.lineId);
+    }
+  });
+  return Array.from(lineIds).sort();
 }
