@@ -1,13 +1,6 @@
 import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
-import { getFirebaseFunctions } from '../firebase';
+import { getFunctionsAsync } from '../firebase';
 import { LatLng } from '@taxi-line/shared';
-
-/**
- * Get Firebase Functions instance
- */
-function getCallableFunctions() {
-  return getFirebaseFunctions();
-}
 
 /**
  * Generic callable function wrapper with type safety
@@ -16,7 +9,7 @@ export async function callFunction<TRequest, TResponse>(
   functionName: string,
   data: TRequest
 ): Promise<TResponse> {
-  const functions = getCallableFunctions();
+  const functions = await getFunctionsAsync();
   const callable = httpsCallable<TRequest, TResponse>(functions, functionName);
   const result: HttpsCallableResult<TResponse> = await callable(data);
   return result.data;

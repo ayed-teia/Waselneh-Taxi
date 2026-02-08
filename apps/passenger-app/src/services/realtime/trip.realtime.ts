@@ -1,13 +1,5 @@
-import { getFirestore, doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
-import { initializeFirebase } from '../firebase';
-
-/**
- * Get Firestore instance
- */
-function getFirestoreDb() {
-  const app = initializeFirebase();
-  return getFirestore(app);
-}
+import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
+import { getFirestoreAsync } from '../firebase';
 
 /**
  * Trip request data from Firestore
@@ -43,6 +35,8 @@ export interface TripData {
   status: string;
   createdAt: Date;
   matchedAt?: Date;
+  arrivedAt?: Date;
+  startedAt?: Date;
   completedAt?: Date;
 }
 
@@ -55,34 +49,45 @@ export function subscribeToTripRequest(
   onData: (request: TripRequestData | null) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  const db = getFirestoreDb();
-  const requestRef = doc(db, 'tripRequests', requestId);
+  let unsubscribe: Unsubscribe | null = null;
 
-  return onSnapshot(
-    requestRef,
-    (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        onData({
-          id: snapshot.id,
-          passengerId: data.passengerId,
-          pickup: data.pickup,
-          dropoff: data.dropoff,
-          estimatedDistanceKm: data.estimatedDistanceKm,
-          estimatedDurationMin: data.estimatedDurationMin,
-          estimatedPriceIls: data.estimatedPriceIls,
-          status: data.status,
-          matchedDriverId: data.matchedDriverId,
-          matchedTripId: data.matchedTripId,
-          matchedAt: data.matchedAt?.toDate(),
-          createdAt: data.createdAt?.toDate(),
-        });
-      } else {
-        onData(null);
-      }
-    },
-    onError
-  );
+  getFirestoreAsync()
+    .then((db) => {
+      const requestRef = doc(db, 'tripRequests', requestId);
+
+      unsubscribe = onSnapshot(
+        requestRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            onData({
+              id: snapshot.id,
+              passengerId: data.passengerId,
+              pickup: data.pickup,
+              dropoff: data.dropoff,
+              estimatedDistanceKm: data.estimatedDistanceKm,
+              estimatedDurationMin: data.estimatedDurationMin,
+              estimatedPriceIls: data.estimatedPriceIls,
+              status: data.status,
+              matchedDriverId: data.matchedDriverId,
+              matchedTripId: data.matchedTripId,
+              matchedAt: data.matchedAt?.toDate(),
+              createdAt: data.createdAt?.toDate(),
+            });
+          } else {
+            onData(null);
+          }
+        },
+        onError
+      );
+    })
+    .catch(onError);
+
+  return () => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  };
 }
 
 /**
@@ -94,33 +99,53 @@ export function subscribeToTrip(
   onData: (trip: TripData | null) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  const db = getFirestoreDb();
-  const tripRef = doc(db, 'trips', tripId);
+  let unsubscribe: Unsubscribe | null = null;
 
-  return onSnapshot(
-    tripRef,
-    (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        onData({
-          id: snapshot.id,
-          passengerId: data.passengerId,
-          driverId: data.driverId,
-          pickup: data.pickup,
-          dropoff: data.dropoff,
-          estimatedDistanceKm: data.estimatedDistanceKm,
-          estimatedDurationMin: data.estimatedDurationMin,
-          estimatedPriceIls: data.estimatedPriceIls,
-          status: data.status,
-          createdAt: data.createdAt?.toDate(),
-          matchedAt: data.matchedAt?.toDate(),
-        });
-      } else {
-        onData(null);
-      }
-    },
-    onError
-  );
+  console.log('🔔 [TripSubscription] Starting for tripId:', tripId);
+
+  getFirestoreAsync()
+    .then((db) => {
+      const tripRef = doc(db, 'trips', tripId);
+
+      unsubscribe = onSnapshot(
+        tripRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            console.log('📡 [TripSubscription] Update received:', { tripId, status: data.status });
+            onData({
+              id: snapshot.id,
+              passengerId: data.passengerId,
+              driverId: data.driverId,
+              pickup: data.pickup,
+              dropoff: data.dropoff,
+              estimatedDistanceKm: data.estimatedDistanceKm,
+              estimatedDurationMin: data.estimatedDurationMin,
+              estimatedPriceIls: data.estimatedPriceIls,
+              finalPriceIls: data.finalPriceIls,
+              status: data.status,
+              createdAt: data.createdAt?.toDate(),
+              matchedAt: data.matchedAt?.toDate(),
+              arrivedAt: data.arrivedAt?.toDate(),
+              startedAt: data.startedAt?.toDate(),
+              completedAt: data.completedAt?.toDate(),
+            });
+          } else {
+            console.log('⚠️ [TripSubscription] Trip not found:', tripId);
+            onData(null);
+          }
+        },
+        onError
+      );
+    })
+    .catch(onError);
+
+  return () => {
+    console.log('🔇 [TripSubscription] Unsubscribing from tripId:', tripId);
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  };
 }
 
 /**

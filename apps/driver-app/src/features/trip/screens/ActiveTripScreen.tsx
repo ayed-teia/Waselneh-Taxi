@@ -25,7 +25,7 @@ export function ActiveTripScreen({
 
   const getStatusDisplay = (tripStatus: TripStatus) => {
     switch (tripStatus) {
-      case 'driver_assigned':
+      case 'accepted':
         return { text: 'Heading to pickup', icon: '🚗', action: 'Arrived at Pickup' };
       case 'driver_arrived':
         return { text: 'Waiting for passenger', icon: '📍', action: 'Start Trip' };
@@ -40,16 +40,24 @@ export function ActiveTripScreen({
 
   const handleAction = useCallback(async () => {
     setIsUpdating(true);
+    console.log(`🚗 [ActiveTrip] Action triggered for status: ${status}`);
+    
     try {
       switch (status) {
-        case 'driver_assigned':
+        case 'accepted':
+          console.log('📍 [ActiveTrip] Calling driverArrived...');
           await driverArrived(tripId);
+          console.log('✅ [ActiveTrip] Driver marked as arrived');
           break;
         case 'driver_arrived':
+          console.log('🛣️ [ActiveTrip] Calling startTrip...');
           await startTrip(tripId);
+          console.log('✅ [ActiveTrip] Trip started');
           break;
         case 'in_progress':
+          console.log('🏁 [ActiveTrip] Calling completeTrip...');
           const result = await completeTrip(tripId);
+          console.log('✅ [ActiveTrip] Trip completed, fare:', result.finalPriceIls);
           Alert.alert(
             'Trip Completed!',
             `Final fare: ₪${result.finalPriceIls}`,
@@ -57,10 +65,12 @@ export function ActiveTripScreen({
           );
           return; // Don't reset isUpdating, we're navigating away
         default:
+          console.log('⚠️ [ActiveTrip] Unknown status, no action');
           return;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update trip';
+      console.error('❌ [ActiveTrip] Action failed:', message);
       Alert.alert('Error', message);
     } finally {
       setIsUpdating(false);
@@ -68,7 +78,7 @@ export function ActiveTripScreen({
   }, [tripId, status, onTripCompleted]);
 
   const statusDisplay = getStatusDisplay(status);
-  const hasAction = status === 'driver_assigned' || status === 'driver_arrived' || status === 'in_progress';
+  const hasAction = status === 'accepted' || status === 'driver_arrived' || status === 'in_progress';
 
   return (
     <View style={styles.container}>

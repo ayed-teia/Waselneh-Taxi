@@ -1,15 +1,5 @@
-import { getFunctions, httpsCallable, HttpsCallableResult } from 'firebase/functions';
-import { initializeFirebase } from '../firebase';
-
-const REGION = 'europe-west1';
-
-/**
- * Get Firebase Functions instance
- */
-function getCallableFunctions() {
-  const app = initializeFirebase();
-  return getFunctions(app, REGION);
-}
+import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
+import { getFunctionsAsync } from '../firebase';
 
 /**
  * Generic callable function wrapper with type safety
@@ -18,7 +8,7 @@ export async function callFunction<TRequest, TResponse>(
   functionName: string,
   data: TRequest
 ): Promise<TResponse> {
-  const functions = getCallableFunctions();
+  const functions = await getFunctionsAsync();
   const callable = httpsCallable<TRequest, TResponse>(functions, functionName);
   const result: HttpsCallableResult<TResponse> = await callable(data);
   return result.data;

@@ -7,7 +7,7 @@ import {
   QuerySnapshot,
   DocumentData,
 } from 'firebase/firestore';
-import { getFirebaseFirestore } from '../firebase';
+import { getFirestoreAsync } from '../firebase';
 
 /**
  * Inbox item from driver's inbox subcollection
@@ -33,34 +33,47 @@ export function subscribeToInbox(
   onData: (items: InboxItem[]) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  const db = getFirebaseFirestore();
-  const inboxRef = collection(db, 'drivers', driverId, 'inbox');
+  let unsubscribe: Unsubscribe | null = null;
 
-  // Query inbox ordered by creation time (newest first)
-  const q = query(
-    inboxRef,
-    orderBy('createdAt', 'desc')
-  );
+  // Start async subscription
+  getFirestoreAsync()
+    .then((db) => {
+      const inboxRef = collection(db, 'drivers', driverId, 'inbox');
 
-  return onSnapshot(
-    q,
-    (snapshot: QuerySnapshot<DocumentData>) => {
-      const items: InboxItem[] = snapshot.docs.map((docSnap) => {
-        const data = docSnap.data();
-        return {
-          id: docSnap.id,
-          requestId: data.requestId,
-          passengerId: data.passengerId,
-          pickup: data.pickup,
-          dropoff: data.dropoff,
-          estimatedDistanceKm: data.estimatedDistanceKm,
-          estimatedDurationMin: data.estimatedDurationMin,
-          estimatedPriceIls: data.estimatedPriceIls,
-          createdAt: data.createdAt?.toDate() ?? null,
-        };
-      });
-      onData(items);
-    },
-    onError
-  );
+      // Query inbox ordered by creation time (newest first)
+      const q = query(
+        inboxRef,
+        orderBy('createdAt', 'desc')
+      );
+
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot: QuerySnapshot<DocumentData>) => {
+          const items: InboxItem[] = snapshot.docs.map((docSnap) => {
+            const data = docSnap.data();
+            return {
+              id: docSnap.id,
+              requestId: data.requestId,
+              passengerId: data.passengerId,
+              pickup: data.pickup,
+              dropoff: data.dropoff,
+              estimatedDistanceKm: data.estimatedDistanceKm,
+              estimatedDurationMin: data.estimatedDurationMin,
+              estimatedPriceIls: data.estimatedPriceIls,
+              createdAt: data.createdAt?.toDate() ?? null,
+            };
+          });
+          onData(items);
+        },
+        onError
+      );
+    })
+    .catch(onError);
+
+  // Return unsubscribe function
+  return () => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  };
 }

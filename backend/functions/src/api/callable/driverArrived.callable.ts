@@ -8,6 +8,31 @@ import { logger } from '../../core/logger';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
+ * ============================================================================
+ * DRIVER ARRIVED - Cloud Function
+ * ============================================================================
+ * 
+ * Called when driver arrives at pickup location.
+ * 
+ * FLOW: ACCEPTED → DRIVER_ARRIVED
+ * 
+ * ============================================================================
+ * QA VERIFICATION CHECKLIST:
+ * ============================================================================
+ * 
+ * ✅ ARRIVED FLOW:
+ *    LOG: "📍 [DriverArrived] START - driverId: {id}, tripId: {id}"
+ *    LOG: "🔒 [DriverArrived] Current status: accepted ✓"
+ *    LOG: "📝 [DriverArrived] Trip status → driver_arrived"
+ *    LOG: "✅ [DriverArrived] COMPLETE"
+ * 
+ * ✅ INVALID STATUS:
+ *    LOG: "⚠️ [DriverArrived] Invalid status: {status}"
+ * 
+ * ============================================================================
+ */
+
+/**
  * Request schema for driver arrived
  */
 const DriverArrivedSchema = z.object({
@@ -25,12 +50,12 @@ interface DriverArrivedResponse {
 /**
  * Mark driver as arrived at pickup location
  * 
- * Valid transition: DRIVER_ASSIGNED → DRIVER_ARRIVED
+ * Valid transition: ACCEPTED → DRIVER_ARRIVED
  * 
  * Validates:
  * - Driver is authenticated
  * - Driver owns the trip (trip.driverId === auth.uid)
- * - Trip status is DRIVER_ASSIGNED
+ * - Trip status is ACCEPTED
  */
 export const driverArrived = onCall<unknown, Promise<DriverArrivedResponse>>(
   {
@@ -59,42 +84,54 @@ export const driverArrived = onCall<unknown, Promise<DriverArrivedResponse>>(
 
       const { tripId } = parsed.data;
 
-      logger.info('Driver marking arrived', { driverId, tripId });
+      logger.info('📍 [DriverArrived] START', { driverId, tripId });
 
       const db = getFirestore();
       const tripRef = db.collection('trips').doc(tripId);
-      const tripDoc = await tripRef.get();
 
-      if (!tripDoc.exists) {
-        throw new NotFoundError('Trip', tripId);
-      }
+      // Use transaction to prevent race conditions
+      const newStatus = await db.runTransaction(async (transaction) => {
+        const tripDoc = await transaction.get(tripRef);
 
-      const tripData = tripDoc.data()!;
+        if (!tripDoc.exists) {
+          logger.warn('🚫 [DriverArrived] Trip not found', { tripId });
+          throw new NotFoundError('Trip', tripId);
+        }
 
-      // Validate driver ownership
-      if (tripData.driverId !== driverId) {
-        throw new ForbiddenError('You are not assigned to this trip');
-      }
+        const tripData = tripDoc.data()!;
 
-      // Validate current status
-      if (tripData.status !== TripStatus.DRIVER_ASSIGNED) {
-        throw new ForbiddenError(
-          `Cannot mark arrived from status '${tripData.status}'. Expected '${TripStatus.DRIVER_ASSIGNED}'.`
-        );
-      }
+        // Validate driver ownership
+        if (tripData.driverId !== driverId) {
+          logger.warn('🚫 [DriverArrived] Driver not assigned to trip', { driverId, tripId, assignedDriver: tripData.driverId });
+          throw new ForbiddenError('You are not assigned to this trip');
+        }
 
-      // Update trip status
-      await tripRef.update({
-        status: TripStatus.DRIVER_ARRIVED,
-        arrivedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
+        // Validate current status - must be ACCEPTED
+        if (tripData.status !== TripStatus.ACCEPTED) {
+          logger.warn('⚠️ [DriverArrived] Invalid status', { tripId, currentStatus: tripData.status, expected: TripStatus.ACCEPTED });
+          throw new ForbiddenError(
+            `Cannot mark arrived from status '${tripData.status}'. Expected '${TripStatus.ACCEPTED}'.`
+          );
+        }
+
+        logger.info('🔒 [DriverArrived] Current status: accepted ✓', { tripId });
+
+        // Update trip status within transaction
+        transaction.update(tripRef, {
+          status: TripStatus.DRIVER_ARRIVED,
+          arrivedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        return TripStatus.DRIVER_ARRIVED;
       });
 
-      logger.info('Driver arrived at pickup', { tripId, driverId });
+      logger.info('📝 [DriverArrived] Trip status → driver_arrived', { tripId });
+      logger.info('✅ [DriverArrived] COMPLETE', { tripId, driverId });
 
       return {
         success: true,
-        status: TripStatus.DRIVER_ARRIVED,
+        status: newStatus,
       };
     } catch (error) {
       throw handleError(error);

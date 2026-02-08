@@ -10,7 +10,7 @@ import {
   DocumentData,
   doc,
 } from 'firebase/firestore';
-import { getFirebaseFirestore } from '../firebase';
+import { getFirestoreAsync } from '../firebase';
 
 /**
  * Trip data from Firestore
@@ -40,28 +40,39 @@ export function subscribeToTripRequests(
   onData: (requests: unknown[]) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  const db = getFirebaseFirestore();
-  const requestsRef = collection(db, 'tripRequests');
+  let unsubscribe: Unsubscribe | null = null;
 
-  // Query for pending requests, ordered by creation time
-  const q = query(
-    requestsRef,
-    where('status', '==', 'pending'),
-    orderBy('createdAt', 'desc'),
-    limit(20)
-  );
+  getFirestoreAsync()
+    .then((db) => {
+      const requestsRef = collection(db, 'tripRequests');
 
-  return onSnapshot(
-    q,
-    (snapshot: QuerySnapshot<DocumentData>) => {
-      const requests = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }));
-      onData(requests);
-    },
-    onError
-  );
+      // Query for pending requests, ordered by creation time
+      const q = query(
+        requestsRef,
+        where('status', '==', 'pending'),
+        orderBy('createdAt', 'desc'),
+        limit(20)
+      );
+
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot: QuerySnapshot<DocumentData>) => {
+          const requests = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          }));
+          onData(requests);
+        },
+        onError
+      );
+    })
+    .catch(onError);
+
+  return () => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  };
 }
 
 /**
@@ -72,45 +83,56 @@ export function subscribeToActiveTrip(
   onData: (trip: TripData | null) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  const db = getFirebaseFirestore();
-  const tripsRef = collection(db, 'trips');
+  let unsubscribe: Unsubscribe | null = null;
 
-  // Query for driver's active trip (includes driver_assigned)
-  const q = query(
-    tripsRef,
-    where('driverId', '==', driverId),
-    where('status', 'in', ['driver_assigned', 'driver_arrived', 'in_progress']),
-    limit(1)
-  );
+  getFirestoreAsync()
+    .then((db) => {
+      const tripsRef = collection(db, 'trips');
 
-  return onSnapshot(
-    q,
-    (snapshot: QuerySnapshot<DocumentData>) => {
-      if (!snapshot.empty) {
-        const docSnap = snapshot.docs[0]!;
-        const data = docSnap.data();
-        onData({
-          id: docSnap.id,
-          passengerId: data.passengerId,
-          driverId: data.driverId,
-          pickup: data.pickup,
-          dropoff: data.dropoff,
-          estimatedDistanceKm: data.estimatedDistanceKm,
-          estimatedDurationMin: data.estimatedDurationMin,
-          estimatedPriceIls: data.estimatedPriceIls,
-          status: data.status,
-          createdAt: data.createdAt?.toDate(),
-          matchedAt: data.matchedAt?.toDate(),
-          arrivedAt: data.arrivedAt?.toDate(),
-          startedAt: data.startedAt?.toDate(),
-          completedAt: data.completedAt?.toDate(),
-        });
-      } else {
-        onData(null);
-      }
-    },
-    onError
-  );
+      // Query for driver's active trip (includes accepted)
+      const q = query(
+        tripsRef,
+        where('driverId', '==', driverId),
+        where('status', 'in', ['accepted', 'driver_arrived', 'in_progress']),
+        limit(1)
+      );
+
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot: QuerySnapshot<DocumentData>) => {
+          if (!snapshot.empty) {
+            const docSnap = snapshot.docs[0]!;
+            const data = docSnap.data();
+            onData({
+              id: docSnap.id,
+              passengerId: data.passengerId,
+              driverId: data.driverId,
+              pickup: data.pickup,
+              dropoff: data.dropoff,
+              estimatedDistanceKm: data.estimatedDistanceKm,
+              estimatedDurationMin: data.estimatedDurationMin,
+              estimatedPriceIls: data.estimatedPriceIls,
+              status: data.status,
+              createdAt: data.createdAt?.toDate(),
+              matchedAt: data.matchedAt?.toDate(),
+              arrivedAt: data.arrivedAt?.toDate(),
+              startedAt: data.startedAt?.toDate(),
+              completedAt: data.completedAt?.toDate(),
+            });
+          } else {
+            onData(null);
+          }
+        },
+        onError
+      );
+    })
+    .catch(onError);
+
+  return () => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  };
 }
 
 /**
@@ -121,34 +143,45 @@ export function subscribeToTrip(
   onData: (trip: TripData | null) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  const db = getFirebaseFirestore();
-  const tripRef = doc(db, 'trips', tripId);
+  let unsubscribe: Unsubscribe | null = null;
 
-  return onSnapshot(
-    tripRef,
-    (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        onData({
-          id: snapshot.id,
-          passengerId: data.passengerId,
-          driverId: data.driverId,
-          pickup: data.pickup,
-          dropoff: data.dropoff,
-          estimatedDistanceKm: data.estimatedDistanceKm,
-          estimatedDurationMin: data.estimatedDurationMin,
-          estimatedPriceIls: data.estimatedPriceIls,
-          status: data.status,
-          createdAt: data.createdAt?.toDate(),
-          matchedAt: data.matchedAt?.toDate(),
-          arrivedAt: data.arrivedAt?.toDate(),
-          startedAt: data.startedAt?.toDate(),
-          completedAt: data.completedAt?.toDate(),
-        });
-      } else {
-        onData(null);
-      }
-    },
-    onError
-  );
+  getFirestoreAsync()
+    .then((db) => {
+      const tripRef = doc(db, 'trips', tripId);
+
+      unsubscribe = onSnapshot(
+        tripRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            onData({
+              id: snapshot.id,
+              passengerId: data.passengerId,
+              driverId: data.driverId,
+              pickup: data.pickup,
+              dropoff: data.dropoff,
+              estimatedDistanceKm: data.estimatedDistanceKm,
+              estimatedDurationMin: data.estimatedDurationMin,
+              estimatedPriceIls: data.estimatedPriceIls,
+              status: data.status,
+              createdAt: data.createdAt?.toDate(),
+              matchedAt: data.matchedAt?.toDate(),
+              arrivedAt: data.arrivedAt?.toDate(),
+              startedAt: data.startedAt?.toDate(),
+              completedAt: data.completedAt?.toDate(),
+            });
+          } else {
+            onData(null);
+          }
+        },
+        onError
+      );
+    })
+    .catch(onError);
+
+  return () => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  };
 }

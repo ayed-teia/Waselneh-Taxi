@@ -180,17 +180,26 @@ service cloud.firestore {
     // Path: /trips/{tripId}
     // 
     // Trip documents containing full trip lifecycle data.
-    // - Only participants (passenger and assigned driver) can read
+    // - Passengers can read their own trips (passengerId == uid)
+    // - Drivers can read trips assigned to them (driverId == uid)
+    // - Managers can read all trips for support and reporting
     // - NO direct client writes - all modifications through Cloud Functions
     // - This ensures trip state machine integrity and proper fare calculation
     // =========================================================================
     match /trips/{tripId} {
-      // Only trip participants can read their trip data
-      // Managers can read all trips for support and reporting
-      allow read: if isTripParticipant() || isManager();
+      // Passengers can read trips where they are the passenger
+      // Drivers can read trips where they are assigned
+      // Managers can read all trips
+      allow read: if isManager() || (
+        isAuthenticated() && (
+          resource.data.passengerId == request.auth.uid ||
+          resource.data.driverId == request.auth.uid
+        )
+      );
       
       // NO direct writes allowed - all trip operations go through Cloud Functions
-      // This protects: trip status transitions, fare modifications, timestamps
+      // Protected fields: status transitions, fare, timestamps, driver assignment
+      // Cloud Functions use Admin SDK which bypasses these rules
       allow write: if false;
     }
     
@@ -246,12 +255,20 @@ service cloud.firestore {
     // Ratings Collection
     // Path: /ratings/{tripId}
     // 
-    // Trip ratings and reviews from passengers and drivers.
-    // - Can only be written after trip is completed
-    // - Participants can read ratings for their trips
+    // Trip ratings submitted by passengers after trip completion.
+    // - Ratings are created via Cloud Functions (submitRating) for validation
+    // - Passengers can read ratings they submitted
+    // - Drivers can read ratings for trips where they were the driver
+    // - Managers can read all ratings for analytics
+    // - NO direct client writes - Cloud Functions handle validation:
+    //   * Passenger owns the trip
+    //   * Trip status is 'completed'
+    //   * No duplicate ratings
     // =========================================================================
     match /ratings/{tripId} {
-      // Trip participants and managers can read ratings
+      // Passengers can read their own ratings
+      // Drivers can read ratings for their trips
+      // Managers can read all
       allow read: if isManager() || (
         isAuthenticated() && (
           resource.data.passengerId == request.auth.uid ||
@@ -259,26 +276,14 @@ service cloud.firestore {
         )
       );
       
-      // Allow write only if:
-      // 1. User is authenticated
-      // 2. User is a participant in the trip
-      // 3. The corresponding trip exists and is completed
-      // Note: We check the trip document to verify completion status
-      allow create: if isAuthenticated() &&
-        exists(/databases/$(database)/documents/trips/$(tripId)) &&
-        get(/databases/$(database)/documents/trips/$(tripId)).data.status == 'completed' &&
-        (
-          get(/databases/$(database)/documents/trips/$(tripId)).data.passengerId == request.auth.uid ||
-          get(/databases/$(database)/documents/trips/$(tripId)).data.driverId == request.auth.uid
-        );
-      
-      // Updates allowed only by the original rater or manager
-      allow update: if isManager() || (
-        isAuthenticated() && resource.data.raterId == request.auth.uid
-      );
-      
-      // No deletes allowed - ratings are permanent
-      allow delete: if false;
+      // NO direct writes - ratings are created via submitRating Cloud Function
+      // Cloud Functions use Admin SDK which bypasses these rules
+      // This ensures:
+      // - Only passengers can rate their own completed trips
+      // - Trip must be in 'completed' status
+      // - No duplicate ratings per trip
+      // - Trip status is updated to 'rated' atomically
+      allow write: if false;
     }
     
     // =========================================================================

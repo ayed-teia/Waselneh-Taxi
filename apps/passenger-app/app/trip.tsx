@@ -41,8 +41,9 @@ export default function Trip() {
           setShowRating(true);
         }
         
-        // If trip is cancelled, navigate home after delay
-        if (tripData?.status === 'cancelled') {
+        // If trip is cancelled or no driver, navigate home after delay
+        const cancelledStatuses = ['cancelled_by_passenger', 'cancelled_by_driver', 'cancelled_by_system', 'no_driver_available'];
+        if (tripData && cancelledStatuses.includes(tripData.status)) {
           setTimeout(() => {
             router.replace('/home');
           }, 3000);
@@ -64,12 +65,14 @@ export default function Trip() {
       return;
     }
 
-    // Only track driver for active trips
-    const activeStatuses = ['driver_assigned', 'driver_arrived', 'in_progress'];
+    // Only track driver for active trips (accepted, arrived, in_progress)
+    const activeStatuses = ['accepted', 'driver_arrived', 'in_progress'];
     if (!activeStatuses.includes(trip.status)) {
       setDriverLocation(null);
       return;
     }
+
+    console.log('📍 [Trip] Starting driver location subscription:', trip.driverId);
 
     const unsubscribe = subscribeToDriverLocation(
       trip.driverId,
@@ -81,7 +84,10 @@ export default function Trip() {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      console.log('📍 [Trip] Stopping driver location subscription');
+      unsubscribe();
+    };
   }, [trip?.driverId, trip?.status]);
 
   // Redirect to login if not authenticated

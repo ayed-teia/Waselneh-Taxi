@@ -29,22 +29,29 @@ export function ActiveTripScreen({
     switch (status) {
       case 'pending':
         return { text: 'Finding a driver...', icon: '🔍', description: 'Please wait while we find you a driver' };
-      case 'driver_assigned':
-        return { text: 'Driver assigned!', icon: '🎉', description: 'Your driver is on the way to pick you up' };
+      case 'accepted':
+        return { text: 'Driver on the way!', icon: '🚗', description: 'Your driver is heading to pick you up' };
       case 'driver_arrived':
         return { text: 'Driver has arrived', icon: '📍', description: 'Your driver is waiting at the pickup location' };
       case 'in_progress':
         return { text: 'Trip in progress', icon: '🛣️', description: 'Enjoy your ride!' };
       case 'completed':
         return { text: 'Trip completed', icon: '✅', description: 'Thank you for riding with us!' };
+      case 'cancelled_by_passenger':
+      case 'cancelled_by_driver':
+      case 'cancelled_by_system':
+        return { text: 'Trip cancelled', icon: '❌', description: 'This trip has been cancelled' };
+      case 'no_driver_available':
+        return { text: 'No driver available', icon: '😞', description: 'Sorry, no drivers are available right now' };
       default:
         return { text: 'Unknown status', icon: '❓', description: '' };
     }
   };
 
   const statusDisplay = getStatusDisplay(status);
-  const canCancel = status === 'pending' || status === 'driver_assigned';
+  const canCancel = status === 'pending' || status === 'accepted';
   const isCompleted = status === 'completed';
+  const isCancelled = status === 'cancelled_by_passenger' || status === 'cancelled_by_driver' || status === 'cancelled_by_system' || status === 'no_driver_available';
 
   return (
     <View style={styles.container}>
@@ -87,7 +94,7 @@ export function ActiveTripScreen({
           <Button title="Cancel Trip" variant="outline" onPress={onCancel} />
         )}
 
-        {isCompleted && onGoHome && (
+        {(isCompleted || isCancelled) && onGoHome && (
           <Button title="Back to Home" onPress={onGoHome} />
         )}
       </View>

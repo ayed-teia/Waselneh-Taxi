@@ -8,6 +8,31 @@ import { logger } from '../../core/logger';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
+ * ============================================================================
+ * START TRIP - Cloud Function
+ * ============================================================================
+ * 
+ * Called when driver picks up passenger and starts the trip.
+ * 
+ * FLOW: DRIVER_ARRIVED → IN_PROGRESS
+ * 
+ * ============================================================================
+ * QA VERIFICATION CHECKLIST:
+ * ============================================================================
+ * 
+ * ✅ START TRIP FLOW:
+ *    LOG: "🛣️ [StartTrip] START - driverId: {id}, tripId: {id}"
+ *    LOG: "🔒 [StartTrip] Current status: driver_arrived ✓"
+ *    LOG: "📝 [StartTrip] Trip status → in_progress"
+ *    LOG: "✅ [StartTrip] COMPLETE"
+ * 
+ * ✅ INVALID STATUS:
+ *    LOG: "⚠️ [StartTrip] Invalid status: {status}"
+ * 
+ * ============================================================================
+ */
+
+/**
  * Request schema for start trip
  */
 const StartTripSchema = z.object({
@@ -59,42 +84,54 @@ export const startTrip = onCall<unknown, Promise<StartTripResponse>>(
 
       const { tripId } = parsed.data;
 
-      logger.info('Driver starting trip', { driverId, tripId });
+      logger.info('🛣️ [StartTrip] START', { driverId, tripId });
 
       const db = getFirestore();
       const tripRef = db.collection('trips').doc(tripId);
-      const tripDoc = await tripRef.get();
 
-      if (!tripDoc.exists) {
-        throw new NotFoundError('Trip', tripId);
-      }
+      // Use transaction to prevent race conditions
+      const newStatus = await db.runTransaction(async (transaction) => {
+        const tripDoc = await transaction.get(tripRef);
 
-      const tripData = tripDoc.data()!;
+        if (!tripDoc.exists) {
+          logger.warn('🚫 [StartTrip] Trip not found', { tripId });
+          throw new NotFoundError('Trip', tripId);
+        }
 
-      // Validate driver ownership
-      if (tripData.driverId !== driverId) {
-        throw new ForbiddenError('You are not assigned to this trip');
-      }
+        const tripData = tripDoc.data()!;
 
-      // Validate current status
-      if (tripData.status !== TripStatus.DRIVER_ARRIVED) {
-        throw new ForbiddenError(
-          `Cannot start trip from status '${tripData.status}'. Expected '${TripStatus.DRIVER_ARRIVED}'.`
-        );
-      }
+        // Validate driver ownership
+        if (tripData.driverId !== driverId) {
+          logger.warn('🚫 [StartTrip] Driver not assigned to trip', { driverId, tripId, assignedDriver: tripData.driverId });
+          throw new ForbiddenError('You are not assigned to this trip');
+        }
 
-      // Update trip status
-      await tripRef.update({
-        status: TripStatus.IN_PROGRESS,
-        startedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
+        // Validate current status
+        if (tripData.status !== TripStatus.DRIVER_ARRIVED) {
+          logger.warn('⚠️ [StartTrip] Invalid status', { tripId, currentStatus: tripData.status, expected: TripStatus.DRIVER_ARRIVED });
+          throw new ForbiddenError(
+            `Cannot start trip from status '${tripData.status}'. Expected '${TripStatus.DRIVER_ARRIVED}'.`
+          );
+        }
+
+        logger.info('🔒 [StartTrip] Current status: driver_arrived ✓', { tripId });
+
+        // Update trip status within transaction
+        transaction.update(tripRef, {
+          status: TripStatus.IN_PROGRESS,
+          startedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        return TripStatus.IN_PROGRESS;
       });
 
-      logger.info('Trip started', { tripId, driverId });
+      logger.info('📝 [StartTrip] Trip status → in_progress', { tripId });
+      logger.info('✅ [StartTrip] COMPLETE', { tripId, driverId });
 
       return {
         success: true,
-        status: TripStatus.IN_PROGRESS,
+        status: newStatus,
       };
     } catch (error) {
       throw handleError(error);

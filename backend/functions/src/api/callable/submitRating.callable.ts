@@ -8,6 +8,33 @@ import { logger } from '../../core/logger';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
+ * ============================================================================
+ * SUBMIT RATING - Cloud Function
+ * ============================================================================
+ * 
+ * Called when passenger rates a completed trip.
+ * 
+ * FLOW: COMPLETED → RATED
+ * 
+ * ============================================================================
+ * QA VERIFICATION CHECKLIST:
+ * ============================================================================
+ * 
+ * ✅ RATING FLOW:
+ *    LOG: "⭐ [SubmitRating] START - passengerId: {id}, tripId: {id}, rating: {N}"
+ *    LOG: "🔒 [SubmitRating] Passenger owns trip ✓"
+ *    LOG: "🔒 [SubmitRating] Trip status: completed ✓"
+ *    LOG: "📝 [SubmitRating] Rating saved to ratings/{tripId}"
+ *    LOG: "📝 [SubmitRating] Trip status → rated"
+ *    LOG: "🎉 [SubmitRating] COMPLETE"
+ * 
+ * ✅ DUPLICATE RATING:
+ *    LOG: "⚠️ [SubmitRating] Rating already exists"
+ * 
+ * ============================================================================
+ */
+
+/**
  * Request schema for submitting a rating
  */
 const SubmitRatingSchema = z.object({
@@ -62,62 +89,79 @@ export const submitRating = onCall<unknown, Promise<SubmitRatingResponse>>(
 
       const { tripId, rating, comment } = parsed.data;
 
-      logger.info('Passenger submitting rating', { passengerId, tripId, rating });
+      logger.info('⭐ [SubmitRating] START', { passengerId, tripId, rating });
 
       const db = getFirestore();
-      
-      // Get the trip
       const tripRef = db.collection('trips').doc(tripId);
-      const tripDoc = await tripRef.get();
-
-      if (!tripDoc.exists) {
-        throw new NotFoundError('Trip', tripId);
-      }
-
-      const tripData = tripDoc.data()!;
-
-      // Validate caller is the passenger
-      if (tripData.passengerId !== passengerId) {
-        throw new ForbiddenError('You are not the passenger of this trip');
-      }
-
-      // Validate trip is completed
-      if (tripData.status !== TripStatus.COMPLETED) {
-        throw new ForbiddenError(
-          `Cannot rate trip with status '${tripData.status}'. Trip must be completed.`
-        );
-      }
-
-      // Check if rating already exists
       const ratingRef = db.collection('ratings').doc(tripId);
-      const existingRating = await ratingRef.get();
 
-      if (existingRating.exists) {
-        throw new ForbiddenError('A rating has already been submitted for this trip');
-      }
+      // Use transaction to ensure atomicity
+      const ratingId = await db.runTransaction(async (transaction) => {
+        // Get the trip
+        const tripDoc = await transaction.get(tripRef);
 
-      // Create the rating
-      const ratingData = {
-        tripId,
-        passengerId,
-        driverId: tripData.driverId,
-        rating,
-        comment: comment || null,
-        createdAt: FieldValue.serverTimestamp(),
-      };
+        if (!tripDoc.exists) {
+          logger.warn('🚫 [SubmitRating] Trip not found', { tripId });
+          throw new NotFoundError('Trip', tripId);
+        }
 
-      await ratingRef.set(ratingData);
+        const tripData = tripDoc.data()!;
 
-      logger.info('Rating submitted successfully', { 
-        tripId, 
-        passengerId, 
-        driverId: tripData.driverId,
-        rating 
+        // Validate caller is the passenger
+        if (tripData.passengerId !== passengerId) {
+          logger.warn('🚫 [SubmitRating] Passenger mismatch', { passengerId, tripPassengerId: tripData.passengerId });
+          throw new ForbiddenError('You are not the passenger of this trip');
+        }
+
+        logger.info('🔒 [SubmitRating] Passenger owns trip ✓', { tripId });
+
+        // Validate trip is completed (not already rated)
+        if (tripData.status !== TripStatus.COMPLETED) {
+          logger.warn('⚠️ [SubmitRating] Invalid trip status', { tripId, status: tripData.status });
+          throw new ForbiddenError(
+            `Cannot rate trip with status '${tripData.status}'. Trip must be completed.`
+          );
+        }
+
+        logger.info('🔒 [SubmitRating] Trip status: completed ✓', { tripId });
+
+        // Check if rating already exists
+        const existingRating = await transaction.get(ratingRef);
+
+        if (existingRating.exists) {
+          logger.warn('⚠️ [SubmitRating] Rating already exists', { tripId });
+          throw new ForbiddenError('A rating has already been submitted for this trip');
+        }
+
+        // Create the rating
+        const ratingData = {
+          tripId,
+          passengerId,
+          driverId: tripData.driverId,
+          rating,
+          comment: comment || null,
+          createdAt: FieldValue.serverTimestamp(),
+        };
+
+        transaction.set(ratingRef, ratingData);
+        logger.info('📝 [SubmitRating] Rating saved to ratings/' + tripId, { rating });
+
+        // Update trip status to rated
+        transaction.update(tripRef, {
+          status: TripStatus.RATED,
+          ratedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        logger.info('📝 [SubmitRating] Trip status → rated', { tripId });
+
+        return tripId;
       });
+
+      logger.info('🎉 [SubmitRating] COMPLETE', { tripId, passengerId, rating });
 
       return {
         success: true,
-        ratingId: tripId,
+        ratingId,
       };
     } catch (error) {
       throw handleError(error);

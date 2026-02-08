@@ -13,6 +13,8 @@ export const TripStatus = {
   IN_PROGRESS: 'in_progress',
   /** Trip completed successfully */
   COMPLETED: 'completed',
+  /** Trip rated by passenger */
+  RATED: 'rated',
   /** Trip cancelled by passenger */
   CANCELLED_BY_PASSENGER: 'cancelled_by_passenger',
   /** Trip cancelled by driver */
@@ -32,6 +34,7 @@ export const TripStatusSchema = z.enum([
   'driver_arrived',
   'in_progress',
   'completed',
+  'rated',
   'cancelled_by_passenger',
   'cancelled_by_driver',
   'cancelled_by_system',
@@ -50,6 +53,7 @@ export const ACTIVE_TRIP_STATUSES: TripStatus[] = [
 /** Statuses that indicate the trip has ended */
 export const TERMINAL_TRIP_STATUSES: TripStatus[] = [
   TripStatus.COMPLETED,
+  TripStatus.RATED,
   TripStatus.CANCELLED_BY_PASSENGER,
   TripStatus.CANCELLED_BY_DRIVER,
   TripStatus.CANCELLED_BY_SYSTEM,

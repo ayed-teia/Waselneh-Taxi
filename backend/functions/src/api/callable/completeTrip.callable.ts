@@ -8,6 +8,32 @@ import { logger } from '../../core/logger';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
+ * ============================================================================
+ * COMPLETE TRIP - Cloud Function
+ * ============================================================================
+ * 
+ * Called when driver drops off passenger and completes the trip.
+ * 
+ * FLOW: IN_PROGRESS → COMPLETED
+ * 
+ * ============================================================================
+ * QA VERIFICATION CHECKLIST:
+ * ============================================================================
+ * 
+ * ✅ COMPLETE TRIP FLOW:
+ *    LOG: "🏁 [CompleteTrip] START - driverId: {id}, tripId: {id}"
+ *    LOG: "🔒 [CompleteTrip] Current status: in_progress ✓"
+ *    LOG: "💵 [CompleteTrip] Final price: ₪{amount}"
+ *    LOG: "📝 [CompleteTrip] Trip status → completed"
+ *    LOG: "🎉 [CompleteTrip] COMPLETE"
+ * 
+ * ✅ INVALID STATUS:
+ *    LOG: "⚠️ [CompleteTrip] Invalid status: {status}"
+ * 
+ * ============================================================================
+ */
+
+/**
  * Request schema for complete trip
  */
 const CompleteTripSchema = z.object({
@@ -62,47 +88,60 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
 
       const { tripId } = parsed.data;
 
-      logger.info('Driver completing trip', { driverId, tripId });
+      logger.info('🏁 [CompleteTrip] START', { driverId, tripId });
 
       const db = getFirestore();
       const tripRef = db.collection('trips').doc(tripId);
-      const tripDoc = await tripRef.get();
 
-      if (!tripDoc.exists) {
-        throw new NotFoundError('Trip', tripId);
-      }
+      // Use transaction to prevent race conditions
+      const result = await db.runTransaction(async (transaction) => {
+        const tripDoc = await transaction.get(tripRef);
 
-      const tripData = tripDoc.data()!;
+        if (!tripDoc.exists) {
+          logger.warn('🚫 [CompleteTrip] Trip not found', { tripId });
+          throw new NotFoundError('Trip', tripId);
+        }
 
-      // Validate driver ownership
-      if (tripData.driverId !== driverId) {
-        throw new ForbiddenError('You are not assigned to this trip');
-      }
+        const tripData = tripDoc.data()!;
 
-      // Validate current status
-      if (tripData.status !== TripStatus.IN_PROGRESS) {
-        throw new ForbiddenError(
-          `Cannot complete trip from status '${tripData.status}'. Expected '${TripStatus.IN_PROGRESS}'.`
-        );
-      }
+        // Validate driver ownership
+        if (tripData.driverId !== driverId) {
+          logger.warn('🚫 [CompleteTrip] Driver not assigned to trip', { driverId, tripId, assignedDriver: tripData.driverId });
+          throw new ForbiddenError('You are not assigned to this trip');
+        }
 
-      // For v1, final price = estimated price
-      const finalPriceIls = tripData.estimatedPriceIls;
+        // Validate current status
+        if (tripData.status !== TripStatus.IN_PROGRESS) {
+          logger.warn('⚠️ [CompleteTrip] Invalid status', { tripId, currentStatus: tripData.status, expected: TripStatus.IN_PROGRESS });
+          throw new ForbiddenError(
+            `Cannot complete trip from status '${tripData.status}'. Expected '${TripStatus.IN_PROGRESS}'.`
+          );
+        }
 
-      // Update trip status
-      await tripRef.update({
-        status: TripStatus.COMPLETED,
-        finalPriceIls,
-        completedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
+        logger.info('🔒 [CompleteTrip] Current status: in_progress ✓', { tripId });
+
+        // For v1, final price = estimated price
+        const finalPriceIls = tripData.estimatedPriceIls;
+        logger.info('💵 [CompleteTrip] Final price: ₪' + finalPriceIls, { tripId, finalPriceIls });
+
+        // Update trip status within transaction
+        transaction.update(tripRef, {
+          status: TripStatus.COMPLETED,
+          finalPriceIls,
+          completedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        return { status: TripStatus.COMPLETED, finalPriceIls };
       });
 
-      logger.info('Trip completed', { tripId, driverId, finalPriceIls });
+      logger.info('📝 [CompleteTrip] Trip status → completed', { tripId });
+      logger.info('🎉 [CompleteTrip] COMPLETE', { tripId, driverId, finalPriceIls: result.finalPriceIls });
 
       return {
         success: true,
-        status: TripStatus.COMPLETED,
-        finalPriceIls,
+        status: result.status,
+        finalPriceIls: result.finalPriceIls,
       };
     } catch (error) {
       throw handleError(error);
