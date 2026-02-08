@@ -2,6 +2,40 @@ import * as Location from 'expo-location';
 import { updateDriverLocation, removeDriverLocation, LocationUpdate } from './driver-location.service';
 
 /**
+ * ============================================================================
+ * DRIVER LIVE LOCATION TRACKING SERVICE
+ * ============================================================================
+ * 
+ * QA VERIFICATION CHECKLIST:
+ * 
+ * ✅ ONLINE FLOW:
+ *    1. Driver toggles Online → startLocationTracking(driverId) called
+ *    2. LOG: "🚀 [LocationTracking] WATCHER STARTED for driver: {driverId}"
+ *    3. First location received → driverLive/{driverId} document CREATED
+ *    4. LOG: "📍 [LocationTracking] Location update #{count}: {lat}, {lng}"
+ * 
+ * ✅ LOCATION UPDATES:
+ *    1. GPS position changes (every ~2 seconds or 5 meters)
+ *    2. driverLive/{driverId} document UPDATED with new coordinates
+ *    3. LOG: Throttled to every 10th update to reduce console spam
+ *    4. Manager dashboard receives update via onSnapshot
+ * 
+ * ✅ OFFLINE FLOW:
+ *    1. Driver toggles Offline → stopLocationTracking() called
+ *    2. LOG: "🛑 [LocationTracking] WATCHER STOPPED for driver: {driverId}"
+ *    3. driverLive/{driverId} document DELETED
+ *    4. Manager dashboard removes marker via onSnapshot
+ * 
+ * ✅ GUARDS AGAINST ISSUES:
+ *    - Duplicate listener check: trackingState.isTracking
+ *    - Same driver check: trackingState.driverId === driverId
+ *    - Cleanup on stop: watchId.remove() + state reset
+ *    - Error handling: catch blocks with logging, no crashes
+ * 
+ * ============================================================================
+ */
+
+/**
  * Location tracking configuration
  */
 const LOCATION_TRACKING_CONFIG = {
@@ -11,16 +45,19 @@ const LOCATION_TRACKING_CONFIG = {
   distanceInterval: 5,
   /** Accuracy setting for battery efficiency */
   accuracy: Location.Accuracy.Balanced,
+  /** Log every Nth update (throttle logs) */
+  logEveryNthUpdate: 10,
 };
 
 /**
- * Location tracking state
+ * Location tracking state - SINGLETON to prevent duplicates
  */
 interface TrackingState {
   isTracking: boolean;
   watchId: Location.LocationSubscription | null;
   driverId: string | null;
   lastUpdate: Date | null;
+  updateCount: number;
 }
 
 const trackingState: TrackingState = {
@@ -28,6 +65,7 @@ const trackingState: TrackingState = {
   watchId: null,
   driverId: null,
   lastUpdate: null,
+  updateCount: 0,
 };
 
 /**
@@ -92,17 +130,20 @@ export async function getCurrentLocation(): Promise<LocationUpdate | null> {
 
 /**
  * Start location tracking for a driver
- * Updates are sent to Firestore every 2 seconds
+ * Updates are sent to Firestore every ~2 seconds
+ * 
+ * QA: This should log "WATCHER STARTED" and create driverLive/{driverId} document
  */
 export async function startLocationTracking(driverId: string): Promise<boolean> {
-  // Already tracking
+  // GUARD: Prevent duplicate listeners for same driver
   if (trackingState.isTracking && trackingState.driverId === driverId) {
-    console.log('Location tracking already active for driver:', driverId);
+    console.log('⚠️ [LocationTracking] Already tracking this driver, skipping duplicate:', driverId);
     return true;
   }
 
-  // Stop any existing tracking
+  // GUARD: Stop any existing tracking before starting new one
   if (trackingState.isTracking) {
+    console.log('⚠️ [LocationTracking] Stopping existing tracker before starting new one');
     await stopLocationTracking();
   }
 
@@ -110,18 +151,22 @@ export async function startLocationTracking(driverId: string): Promise<boolean> 
     // Check permissions
     const hasPermission = await requestLocationPermissions();
     if (!hasPermission) {
-      console.error('Location permissions not granted');
+      console.error('❌ [LocationTracking] Location permissions not granted');
       return false;
     }
 
     // Check if location services are enabled
     const enabled = await isLocationEnabled();
     if (!enabled) {
-      console.error('Location services are disabled');
+      console.error('❌ [LocationTracking] Location services are disabled');
       return false;
     }
 
-    console.log('Starting location tracking for driver:', driverId);
+    console.log('🚀 [LocationTracking] WATCHER STARTED for driver:', driverId);
+    console.log('   Config: interval=' + LOCATION_TRACKING_CONFIG.updateInterval + 'ms, distance=' + LOCATION_TRACKING_CONFIG.distanceInterval + 'm');
+
+    // Reset update counter
+    trackingState.updateCount = 0;
 
     // Start watching location
     const watchId = await Location.watchPositionAsync(
@@ -141,8 +186,16 @@ export async function startLocationTracking(driverId: string): Promise<boolean> 
         try {
           await updateDriverLocation(driverId, update);
           trackingState.lastUpdate = new Date();
+          trackingState.updateCount++;
+
+          // Throttled logging - log every Nth update to reduce spam
+          if (trackingState.updateCount === 1) {
+            console.log('📍 [LocationTracking] First location update sent! Document created.');
+          } else if (trackingState.updateCount % LOCATION_TRACKING_CONFIG.logEveryNthUpdate === 0) {
+            console.log(`📍 [LocationTracking] Update #${trackingState.updateCount}: ${update.lat.toFixed(5)}, ${update.lng.toFixed(5)}`);
+          }
         } catch (error) {
-          console.error('Error updating driver location:', error);
+          console.error('❌ [LocationTracking] Firestore write failed:', error);
         }
       }
     );
@@ -151,10 +204,10 @@ export async function startLocationTracking(driverId: string): Promise<boolean> 
     trackingState.watchId = watchId;
     trackingState.driverId = driverId;
 
-    console.log('Location tracking started successfully');
+    console.log('✅ [LocationTracking] Watcher registered successfully');
     return true;
   } catch (error) {
-    console.error('Error starting location tracking:', error);
+    console.error('❌ [LocationTracking] Failed to start tracking:', error);
     return false;
   }
 }
@@ -162,32 +215,44 @@ export async function startLocationTracking(driverId: string): Promise<boolean> 
 /**
  * Stop location tracking
  * Also removes the driver's live location from Firestore
+ * 
+ * QA: This should log "WATCHER STOPPED" and delete driverLive/{driverId} document
  */
 export async function stopLocationTracking(): Promise<void> {
+  // GUARD: Don't try to stop if not tracking
   if (!trackingState.isTracking) {
+    console.log('⚠️ [LocationTracking] Stop called but not tracking - no-op');
     return;
   }
 
-  console.log('Stopping location tracking');
+  const driverId = trackingState.driverId;
+  const updateCount = trackingState.updateCount;
+
+  console.log('🛑 [LocationTracking] WATCHER STOPPED for driver:', driverId);
+  console.log(`   Total updates sent: ${updateCount}`);
 
   try {
-    // Stop the location watcher
+    // Stop the location watcher FIRST to prevent new writes
     if (trackingState.watchId) {
       trackingState.watchId.remove();
+      console.log('   ✓ GPS watcher removed');
     }
 
     // Remove driver's live location from Firestore
-    if (trackingState.driverId) {
-      await removeDriverLocation(trackingState.driverId);
+    if (driverId) {
+      await removeDriverLocation(driverId);
+      console.log('   ✓ Firestore document deleted');
     }
   } catch (error) {
-    console.error('Error stopping location tracking:', error);
+    console.error('❌ [LocationTracking] Error during cleanup:', error);
   } finally {
-    // Reset state
+    // ALWAYS reset state to prevent stuck tracking
     trackingState.isTracking = false;
     trackingState.watchId = null;
     trackingState.driverId = null;
     trackingState.lastUpdate = null;
+    trackingState.updateCount = 0;
+    console.log('   ✓ Tracking state reset');
   }
 }
 

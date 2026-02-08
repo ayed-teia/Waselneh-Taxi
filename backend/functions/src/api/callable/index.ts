@@ -3,6 +3,7 @@ export * from './estimateTrip.callable';
 export * from './createTripRequest.callable';
 export * from './dispatchTripRequest.callable';
 export * from './acceptTripRequest.callable';
+export * from './rejectTripRequest.callable';
 export * from './driverArrived.callable';
 export * from './startTrip.callable';
 export * from './completeTrip.callable';

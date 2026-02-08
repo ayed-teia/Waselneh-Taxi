@@ -1,20 +1,19 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { 
-  initializeAuth,
-  getAuth,
-  getReactNativePersistence,
-  connectAuthEmulator,
-  Auth
-} from 'firebase/auth';
-import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { getFunctions, Functions, connectFunctionsEmulator } from 'firebase/functions';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+
+// Types only - NO direct imports of firebase modules at module level!
+import type { FirebaseApp } from 'firebase/app';
+import type { Auth } from 'firebase/auth';
+import type { Firestore } from 'firebase/firestore';
+import type { Functions } from 'firebase/functions';
 
 /**
  * Firebase configuration for Passenger App
- * Environment variables are loaded via Expo Constants
+ * 
+ * CRITICAL: All Firebase services are lazy-initialized to avoid
+ * "Component X has not been registered yet" errors in React Native.
+ * Firebase components register asynchronously, so we defer all
+ * initialization until the services are actually needed.
  */
 const expoConfig = Constants.expoConfig?.extra ?? {};
 
@@ -41,88 +40,242 @@ const EMULATOR_PORTS = {
 const FUNCTIONS_REGION = 'europe-west1';
 
 // ============================================================================
-// INITIALIZE FIREBASE AT MODULE SCOPE (ONCE)
+// LAZY FIREBASE APP INITIALIZATION
 // ============================================================================
 
-// Initialize Firebase App
-const app: FirebaseApp = getApps().length === 0 
-  ? initializeApp(firebaseConfig) 
-  : getApp();
+let _app: FirebaseApp | null = null;
+let _appPromise: Promise<FirebaseApp> | null = null;
 
-if (useEmulators) {
-  console.log(`🔧 Firebase configured for EMULATOR mode at ${emulatorHost}`);
+/**
+ * Get Firebase App instance (lazy initialized)
+ */
+export async function getFirebaseApp(): Promise<FirebaseApp> {
+  if (_app) return _app;
+  if (_appPromise) return _appPromise;
+
+  _appPromise = (async () => {
+    const { initializeApp, getApps, getApp } = require('firebase/app');
+    
+    _app = getApps().length === 0 
+      ? initializeApp(firebaseConfig) 
+      : getApp();
+
+    if (useEmulators) {
+      console.log(`🔧 Firebase configured for EMULATOR mode at ${emulatorHost}`);
+    }
+
+    return _app!;
+  })();
+
+  return _appPromise;
 }
 
-// Initialize Auth with proper persistence for React Native
-export const auth: Auth = Platform.OS === 'web'
-  ? getAuth(app)
-  : initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage),
-    });
-
-// Connect Auth Emulator
-if (useEmulators) {
-  try {
-    connectAuthEmulator(auth, `http://${emulatorHost}:${EMULATOR_PORTS.auth}`, {
-      disableWarnings: true,
-    });
-    console.log(`  ✓ Auth Emulator: http://${emulatorHost}:${EMULATOR_PORTS.auth}`);
-  } catch (e) {
-    // Emulator already connected
+// For backwards compatibility - synchronous getter (throws if not initialized)
+export function getApp(): FirebaseApp {
+  if (!_app) {
+    throw new Error('Firebase App not initialized. Call getFirebaseApp() first.');
   }
+  return _app;
 }
 
-// Initialize Firestore
-export const db: Firestore = getFirestore(app);
-
-if (useEmulators) {
-  try {
-    connectFirestoreEmulator(db, emulatorHost, EMULATOR_PORTS.firestore);
-    console.log(`  ✓ Firestore Emulator: ${emulatorHost}:${EMULATOR_PORTS.firestore}`);
-  } catch (e) {
-    // Emulator already connected
-  }
-}
-
-// Initialize Functions
-export const functions: Functions = getFunctions(app, FUNCTIONS_REGION);
-
-if (useEmulators) {
-  try {
-    connectFunctionsEmulator(functions, emulatorHost, EMULATOR_PORTS.functions);
-    console.log(`  ✓ Functions Emulator: ${emulatorHost}:${EMULATOR_PORTS.functions}`);
-  } catch (e) {
-    // Emulator already connected
-  }
-}
+// Legacy export - will be initialized on first access via getFirebaseApp()
+export const app: FirebaseApp = null as unknown as FirebaseApp;
 
 // ============================================================================
-// LEGACY EXPORTS (for backward compatibility)
+// LAZY AUTH INITIALIZATION
 // ============================================================================
 
-/** @deprecated Use `auth` directly instead */
-export function getFirebaseAuth(): Auth {
-  return auth;
-}
+let _auth: Auth | null = null;
+let _authPromise: Promise<Auth> | null = null;
+let _authEmulatorConnected = false;
 
-/** @deprecated Use `auth` directly instead */
+/**
+ * Get Firebase Auth instance asynchronously
+ */
 export async function getFirebaseAuthAsync(): Promise<Auth> {
-  return auth;
+  if (_auth) return _auth;
+  if (_authPromise) return _authPromise;
+
+  _authPromise = (async () => {
+    const firebaseApp = await getFirebaseApp();
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    const { 
+      initializeAuth, 
+      getAuth,
+      getReactNativePersistence,
+      connectAuthEmulator 
+    } = require('firebase/auth');
+
+    if (Platform.OS === 'web') {
+      _auth = getAuth(firebaseApp);
+    } else {
+      try {
+        _auth = initializeAuth(firebaseApp, {
+          persistence: getReactNativePersistence(AsyncStorage),
+        });
+      } catch (error: any) {
+        if (error?.code === 'auth/already-initialized') {
+          _auth = getAuth(firebaseApp);
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    // Connect Auth Emulator
+    if (useEmulators && !_authEmulatorConnected && _auth) {
+      try {
+        connectAuthEmulator(_auth, `http://${emulatorHost}:${EMULATOR_PORTS.auth}`, {
+          disableWarnings: true,
+        });
+        _authEmulatorConnected = true;
+        console.log(`  ✓ Auth Emulator: http://${emulatorHost}:${EMULATOR_PORTS.auth}`);
+      } catch {
+        // Emulator already connected
+      }
+    }
+
+    return _auth!;
+  })();
+
+  return _authPromise;
 }
 
-/** @deprecated Use `db` directly instead */
-export function getFirebaseFirestore(): Firestore {
-  return db;
+/**
+ * Get Firebase Auth instance (synchronous)
+ * @throws if auth not initialized
+ */
+export function getFirebaseAuth(): Auth {
+  if (!_auth) {
+    throw new Error('Auth not initialized. Call getFirebaseAuthAsync() first.');
+  }
+  return _auth;
 }
 
-/** @deprecated Use `functions` directly instead */
-export function getFirebaseFunctions(): Functions {
-  return functions;
+// ============================================================================
+// LAZY FIRESTORE INITIALIZATION
+// ============================================================================
+
+let _db: Firestore | null = null;
+let _dbPromise: Promise<Firestore> | null = null;
+let _firestoreEmulatorConnected = false;
+
+/**
+ * Get Firestore instance asynchronously
+ */
+export async function getFirestoreAsync(): Promise<Firestore> {
+  if (_db) return _db;
+  if (_dbPromise) return _dbPromise;
+
+  _dbPromise = (async () => {
+    const firebaseApp = await getFirebaseApp();
+    const { getFirestore, connectFirestoreEmulator } = require('firebase/firestore');
+    
+    _db = getFirestore(firebaseApp);
+
+    if (useEmulators && !_firestoreEmulatorConnected) {
+      try {
+        connectFirestoreEmulator(_db, emulatorHost, EMULATOR_PORTS.firestore);
+        _firestoreEmulatorConnected = true;
+        console.log(`  ✓ Firestore Emulator: ${emulatorHost}:${EMULATOR_PORTS.firestore}`);
+      } catch {
+        // Emulator already connected
+      }
+    }
+
+    return _db!;
+  })();
+
+  return _dbPromise;
 }
 
-/** @deprecated Use `app` directly instead */
-export function initializeFirebase(): FirebaseApp {
-  return app;
+/**
+ * Get Firestore instance (synchronous)
+ * @throws if not initialized
+ */
+export function getFirestoreSync(): Firestore {
+  if (!_db) {
+    throw new Error('Firestore not initialized. Call getFirestoreAsync() first.');
+  }
+  return _db;
+}
+
+// Legacy export for backwards compatibility
+export const db: Firestore = null as unknown as Firestore;
+
+// ============================================================================
+// LAZY FUNCTIONS INITIALIZATION
+// ============================================================================
+
+let _functions: Functions | null = null;
+let _functionsPromise: Promise<Functions> | null = null;
+let _functionsEmulatorConnected = false;
+
+/**
+ * Get Firebase Functions instance asynchronously
+ */
+export async function getFunctionsAsync(): Promise<Functions> {
+  if (_functions) return _functions;
+  if (_functionsPromise) return _functionsPromise;
+
+  _functionsPromise = (async () => {
+    const firebaseApp = await getFirebaseApp();
+    const { getFunctions, connectFunctionsEmulator } = require('firebase/functions');
+    
+    _functions = getFunctions(firebaseApp, FUNCTIONS_REGION);
+
+    if (useEmulators && !_functionsEmulatorConnected) {
+      try {
+        connectFunctionsEmulator(_functions, emulatorHost, EMULATOR_PORTS.functions);
+        _functionsEmulatorConnected = true;
+        console.log(`  ✓ Functions Emulator: ${emulatorHost}:${EMULATOR_PORTS.functions}`);
+      } catch {
+        // Emulator already connected
+      }
+    }
+
+    return _functions!;
+  })();
+
+  return _functionsPromise;
+}
+
+/**
+ * Get Functions instance (synchronous)
+ * @throws if not initialized
+ */
+export function getFunctionsSync(): Functions {
+  if (!_functions) {
+    throw new Error('Functions not initialized. Call getFunctionsAsync() first.');
+  }
+  return _functions;
+}
+
+// Legacy export for backwards compatibility
+export const functions: Functions = null as unknown as Functions;
+
+// ============================================================================
+// CONVENIENCE: Initialize all services at once
+// ============================================================================
+
+/**
+ * Initialize all Firebase services
+ * Call this early in app startup (e.g., in _layout.tsx useEffect)
+ */
+export async function initializeFirebase(): Promise<{
+  app: FirebaseApp;
+  auth: Auth;
+  db: Firestore;
+  functions: Functions;
+}> {
+  const [app, auth, db, functions] = await Promise.all([
+    getFirebaseApp(),
+    getFirebaseAuthAsync(),
+    getFirestoreAsync(),
+    getFunctionsAsync(),
+  ]);
+  
+  return { app, auth, db, functions };
 }
 
 /**
@@ -131,6 +284,3 @@ export function initializeFirebase(): FirebaseApp {
 export function isUsingEmulators(): boolean {
   return useEmulators;
 }
-
-// Export app for other modules that might need it
-export { app };

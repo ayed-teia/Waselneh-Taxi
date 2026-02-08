@@ -149,6 +149,33 @@ service cloud.firestore {
     }
     
     // =========================================================================
+    // Driver Requests Collection (Trip Request Notifications)
+    // Path: /driverRequests/{driverId}/requests/{tripId}
+    // 
+    // Real-time trip request notifications sent to drivers by Cloud Functions.
+    // - Cloud Functions create requests (Admin SDK bypasses rules)
+    // - Drivers can read their own requests
+    // - Drivers can update status to accept/reject
+    // =========================================================================
+    match /driverRequests/{driverId} {
+      // Driver can read the parent document
+      allow read: if isOwner(driverId) || isManager();
+      
+      // Requests subcollection
+      match /requests/{tripId} {
+        // Driver can read their own pending requests
+        allow read: if isOwner(driverId) || isManager();
+        
+        // Driver can update status (accept/reject)
+        allow update: if isOwner(driverId) && isDriver() &&
+          request.resource.data.status in ['accepted', 'rejected'];
+        
+        // NO direct creates or deletes - managed by Cloud Functions
+        allow create, delete: if false;
+      }
+    }
+    
+    // =========================================================================
     // Trips Collection
     // Path: /trips/{tripId}
     // 

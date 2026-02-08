@@ -1,0 +1,119 @@
+/* Driver Map Styles */
+
+.driver-map {
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  overflow: hidden;
+}
+
+/* Custom driver marker */
+.driver-marker {
+  background: transparent;
+  border: none;
+}
+
+.driver-marker-inner {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 3px solid #4CAF50;
+  transition: transform 0.2s ease, border-color 0.3s ease;
+}
+
+.driver-marker-inner.online {
+  border-color: #4CAF50;
+}
+
+.driver-marker-inner.offline {
+  border-color: #9e9e9e;
+  opacity: 0.7;
+}
+
+.driver-marker-inner:hover {
+  transform: scale(1.1);
+}
+
+/* Popup styles */
+.driver-popup {
+  min-width: 180px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.driver-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 8px;
+}
+
+.driver-popup-icon {
+  font-size: 20px;
+}
+
+.driver-popup-header strong {
+  font-size: 14px;
+  color: #333;
+}
+
+.driver-popup-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.popup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.popup-label {
+  color: #666;
+  font-weight: 500;
+}
+
+.popup-value {
+  color: #333;
+  font-family: monospace;
+}
+
+.popup-value.line-badge {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-weight: 600;
+}
+
+.popup-value.status.online {
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.popup-value.status.offline {
+  color: #9e9e9e;
+}
+
+/* Leaflet popup overrides */
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.leaflet-popup-content {
+  margin: 12px;
+}
+
+.leaflet-popup-tip {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}

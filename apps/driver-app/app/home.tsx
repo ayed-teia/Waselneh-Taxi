@@ -3,6 +3,7 @@ import { Redirect } from 'expo-router';
 import { Alert } from 'react-native';
 import { useAuthStore, useDriverStore } from '../src/store';
 import { HomeScreen } from '../src/features/home';
+import { TripRequestModal } from '../src/ui';
 import { 
   startLocationTracking, 
   stopLocationTracking,
@@ -10,23 +11,55 @@ import {
   setDriverAvailability,
   getCurrentLocation,
 } from '../src/services/location';
+import {
+  startDriverRequestsListener,
+  stopDriverRequestsListener,
+} from '../src/services/realtime';
+
+/**
+ * ============================================================================
+ * DRIVER HOME SCREEN
+ * ============================================================================
+ * 
+ * ONLINE FLOW:
+ * 1. Driver taps "Go Online"
+ * 2. Request location permissions
+ * 3. Start location tracking → writes to driverLive/{driverId}
+ * 4. Start driver requests listener → listens to driverRequests/{driverId}/requests
+ * 5. When request arrives → TripRequestModal shows
+ * 
+ * OFFLINE FLOW:
+ * 1. Driver taps "Go Offline"
+ * 2. Stop location tracking → deletes driverLive/{driverId}
+ * 3. Stop driver requests listener → clears any pending modal
+ * 
+ * ============================================================================
+ */
 
 export default function Home() {
   const { isAuthenticated, user } = useAuthStore();
   const { status, setStatus } = useDriverStore();
 
-  // Handle location tracking based on online status
+  // Handle location tracking AND request listener based on online status
   useEffect(() => {
     if (!user?.uid) return;
 
     const manageTracking = async () => {
       if (status === 'online') {
+        // Start location tracking
         const started = await startLocationTracking(user.uid);
         if (!started) {
           console.warn('Failed to start location tracking');
         }
+
+        // Start listening for trip requests
+        await startDriverRequestsListener(user.uid);
       } else {
+        // Stop location tracking
         await stopLocationTracking();
+
+        // Stop listening for trip requests
+        await stopDriverRequestsListener();
       }
     };
 
@@ -35,6 +68,7 @@ export default function Home() {
     // Cleanup on unmount
     return () => {
       stopLocationTracking();
+      stopDriverRequestsListener();
     };
   }, [status, user?.uid]);
 
@@ -84,7 +118,11 @@ export default function Home() {
     return <Redirect href="/" />;
   }
 
-  // Default: show home screen
-  // Active trips are now handled via /trip route with realtime subscription
-  return <HomeScreen onToggleStatus={handleToggleStatus} />;
+  // Render home screen with trip request modal overlay
+  return (
+    <>
+      <HomeScreen onToggleStatus={handleToggleStatus} />
+      <TripRequestModal />
+    </>
+  );
 }

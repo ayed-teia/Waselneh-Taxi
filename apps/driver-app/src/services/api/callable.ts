@@ -42,10 +42,10 @@ export interface AcceptTripRequestResponse {
   tripId: string;
 }
 
-export async function acceptTripRequest(requestId: string): Promise<AcceptTripRequestResponse> {
-  return callFunction<{ requestId: string }, AcceptTripRequestResponse>(
+export async function acceptTripRequest(tripId: string): Promise<AcceptTripRequestResponse> {
+  return callFunction<{ tripId: string }, AcceptTripRequestResponse>(
     'acceptTripRequest',
-    { requestId }
+    { tripId }
   );
 }
 
@@ -95,6 +95,21 @@ export interface CompleteTripResponse {
 export async function completeTrip(tripId: string): Promise<CompleteTripResponse> {
   return callFunction<{ tripId: string }, CompleteTripResponse>(
     'completeTrip',
+    { tripId }
+  );
+}
+
+/**
+ * Reject a trip request (driver action)
+ * Updates driverRequests/{driverId}/requests/{tripId} status to 'rejected'
+ */
+export interface RejectTripRequestResponse {
+  success: boolean;
+}
+
+export async function rejectTripRequest(tripId: string): Promise<RejectTripRequestResponse> {
+  return callFunction<{ tripId: string }, RejectTripRequestResponse>(
+    'rejectTripRequest',
     { tripId }
   );
 }

@@ -24,6 +24,7 @@ export {
   createTripRequest,
   dispatchTripRequest,
   acceptTripRequest,
+  rejectTripRequest,
   driverArrived,
   startTrip,
   completeTrip,

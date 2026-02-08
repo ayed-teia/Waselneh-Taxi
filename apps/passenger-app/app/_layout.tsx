@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../src/services/firebase';
+import { getFirebaseAuthAsync } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
 
 export default function RootLayout() {
@@ -11,13 +10,31 @@ export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Auth is already initialized at module scope - no race conditions
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setIsReady(true);
-    });
+    let unsubscribe: (() => void) | undefined;
     
-    return () => unsubscribe();
+    // Async auth initialization required for React Native
+    const initAuth = async () => {
+      try {
+        const auth = await getFirebaseAuthAsync();
+        // Dynamic import to avoid loading auth at module scope
+        const { onAuthStateChanged } = await import('firebase/auth');
+        
+        unsubscribe = onAuthStateChanged(auth, (user) => {
+          setUser(user);
+          setIsReady(true);
+        });
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+        setUser(null);
+        setIsReady(true);
+      }
+    };
+    
+    initAuth();
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [setUser]);
 
   if (!isReady) {

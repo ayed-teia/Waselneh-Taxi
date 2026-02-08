@@ -137,6 +137,15 @@
   opacity: 0.5;
 }
 
+/* Real map container */
+.map-container {
+  height: 450px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Keep placeholder styles for fallback */
 .map-placeholder {
   position: relative;
   height: 400px;

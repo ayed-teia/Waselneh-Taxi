@@ -1,5 +1,7 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { subscribeToAllDriverLocations, DriverLiveLocation, getUniqueLineIds } from '../services/driver-location.service';
+import { DriverMap } from '../components/DriverMap';
+import '../components/DriverMap.css';
 import './LiveMapPage.css';
 
 export function LiveMapPage() {
@@ -11,21 +13,34 @@ export function LiveMapPage() {
   const [showOnlineOnly, setShowOnlineOnly] = useState(true);
   const [selectedLineId, setSelectedLineId] = useState<string>('all');
 
+  // Track if component is mounted to prevent memory leaks
+  const isMounted = useRef(true);
+
   useEffect(() => {
+    isMounted.current = true;
+
     const unsubscribe = subscribeToAllDriverLocations(
       (driverLocations) => {
-        setDrivers(driverLocations);
-        setLoading(false);
-        setError(null);
+        if (isMounted.current) {
+          setDrivers(driverLocations);
+          setLoading(false);
+          setError(null);
+        }
       },
       (err) => {
-        console.error('Error subscribing to driver locations:', err);
-        setError('Failed to load driver locations');
-        setLoading(false);
+        if (isMounted.current) {
+          console.error('Error subscribing to driver locations:', err);
+          setError('Failed to load driver locations. Please check your connection.');
+          setLoading(false);
+        }
       }
     );
 
-    return () => unsubscribe();
+    // Cleanup: unsubscribe and mark as unmounted
+    return () => {
+      isMounted.current = false;
+      unsubscribe();
+    };
   }, []);
 
   // Get unique line IDs for filter dropdown
@@ -159,29 +174,9 @@ export function LiveMapPage() {
         </div>
       ) : (
         <>
-          {/* Map placeholder */}
-          <div className="map-placeholder">
-            <div className="map-content">
-              <span className="map-icon">🗺️</span>
-              <p>Map integration coming soon</p>
-              <p className="map-hint">Driver markers will appear here</p>
-            </div>
-            {/* Driver markers as dots on placeholder */}
-            {filteredDrivers.map((driver) => (
-              <div 
-                key={driver.driverId}
-                className="driver-dot"
-                style={{
-                  // Normalize coordinates to fit in the placeholder area
-                  // This is just for visualization - real map would use proper projection
-                  left: `${((driver.lng + 180) / 360) * 100}%`,
-                  top: `${((90 - driver.lat) / 180) * 100}%`,
-                }}
-                title={`${getDriverDisplayName(driver)}${driver.lineId ? ` (${driver.lineId})` : ''}`}
-              >
-                🚗
-              </div>
-            ))}
+          {/* Live Map with Driver Markers */}
+          <div className="map-container">
+            <DriverMap drivers={filteredDrivers} />
           </div>
 
           {/* Driver list */}
