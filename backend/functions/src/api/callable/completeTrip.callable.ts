@@ -146,6 +146,13 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
       });
 
       logger.info('📝 [CompleteTrip] Trip status → completed', { tripId });
+      
+      // Log trip lifecycle event
+      logger.tripEvent('TRIP_COMPLETED', tripId, {
+        driverId,
+        finalPriceIls: result.finalPriceIls,
+      });
+      
       logger.info('🎉 [CompleteTrip] COMPLETE', { tripId, driverId, finalPriceIls: result.finalPriceIls });
 
       return {

@@ -5,7 +5,7 @@ import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
 import { handleError, ValidationError, NotFoundError, ForbiddenError, UnauthorizedError } from '../../core/errors';
 import { logger } from '../../core/logger';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 /**
  * ============================================================================
@@ -131,6 +131,18 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
           );
         }
 
+        // ========================================
+        // 4b. Check request hasn't expired (PILOT SAFETY GUARD)
+        // ========================================
+        const expiresAt = requestData.expiresAt as Timestamp | undefined;
+        if (expiresAt && expiresAt.toMillis() < Date.now()) {
+          logger.warn('⏰ [AcceptTrip] Request has expired - blocking', {
+            expiresAt: expiresAt.toDate().toISOString(),
+            now: new Date().toISOString(),
+          });
+          throw new ForbiddenError('This trip request has expired');
+        }
+
         logger.info('🔒 [AcceptTrip] Request status: pending ✓');
 
         // ========================================
@@ -200,6 +212,12 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
         }, { merge: true });
 
         logger.info('🚗 [AcceptTrip] Driver isAvailable → false');
+
+        // Log trip lifecycle event
+        logger.tripEvent('TRIP_ACCEPTED', tripId, {
+          driverId,
+          passengerId: tripData.passengerId,
+        });
 
         logger.info('🎉 [AcceptTrip] COMPLETE', {
           tripId,

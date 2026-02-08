@@ -149,10 +149,10 @@ export const confirmCashPayment = onCall<unknown, Promise<ConfirmCashPaymentResp
 
       const fareAmount = tripData.fareAmount || tripData.estimatedPriceIls;
 
-      logger.info(`💰 [ConfirmCashPayment] Payment confirmed`, { 
-        tripId, 
-        fareAmount,
-        paymentMethod: tripData.paymentMethod || 'cash'
+      // Log structured payment confirmation
+      logger.paymentConfirmed(tripId, fareAmount, tripData.paymentMethod || 'cash', {
+        driverId,
+        passengerId: tripData.passengerId,
       });
 
       logger.info(`🎉 [ConfirmCashPayment] COMPLETE`, { tripId, driverId });

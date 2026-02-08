@@ -127,6 +127,10 @@ export const driverArrived = onCall<unknown, Promise<DriverArrivedResponse>>(
       });
 
       logger.info('📝 [DriverArrived] Trip status → driver_arrived', { tripId });
+      
+      // Log trip lifecycle event
+      logger.tripEvent('TRIP_DRIVER_ARRIVED', tripId, { driverId });
+      
       logger.info('✅ [DriverArrived] COMPLETE', { tripId, driverId });
 
       return {

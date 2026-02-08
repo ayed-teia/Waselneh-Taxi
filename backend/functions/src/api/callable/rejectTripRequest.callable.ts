@@ -175,6 +175,9 @@ export const rejectTripRequest = onCall<unknown, Promise<RejectTripRequestRespon
         logger.info('🚗 [RejectTrip] Driver isAvailable → true');
       });
 
+      // Log trip lifecycle event
+      logger.tripEvent('TRIP_REJECTED', tripId, { driverId });
+
       logger.info('✅ [RejectTrip] COMPLETE', {
         tripId,
         driverId,

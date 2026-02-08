@@ -127,6 +127,10 @@ export const startTrip = onCall<unknown, Promise<StartTripResponse>>(
       });
 
       logger.info('📝 [StartTrip] Trip status → in_progress', { tripId });
+      
+      // Log trip lifecycle event
+      logger.tripEvent('TRIP_STARTED', tripId, { driverId });
+      
       logger.info('✅ [StartTrip] COMPLETE', { tripId, driverId });
 
       return {

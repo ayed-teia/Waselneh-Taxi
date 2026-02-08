@@ -1,11 +1,11 @@
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import { LatLngSchema, TripEstimateSchema, TripStatus } from '@taxi-line/shared';
+import { LatLngSchema, TripEstimateSchema, TripStatus, PILOT_LIMITS, ACTIVE_TRIP_STATUSES } from '@taxi-line/shared';
 import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
-import { handleError, ValidationError, UnauthorizedError, NotFoundError } from '../../core/errors';
+import { handleError, ValidationError, UnauthorizedError, NotFoundError, ForbiddenError } from '../../core/errors';
 import { logger } from '../../core/logger';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 /**
  * ============================================================================
@@ -109,7 +109,8 @@ interface DriverRequestDocument {
   estimatedPriceIls: number;
   status: 'pending' | 'accepted' | 'rejected' | 'expired';
   createdAt: FirebaseFirestore.FieldValue;
-  expiresAt: FirebaseFirestore.FieldValue;
+  expiresAt: FirebaseFirestore.Timestamp; // Actual timestamp for timeout checking
+  timeoutSeconds: number; // For reference
 }
 
 /**
@@ -186,7 +187,29 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       const db = getFirestore();
 
       // ========================================
-      // 3. Query drivers where isOnline=true AND isAvailable=true
+      // 3. Check passenger doesn't have active trip (PILOT SAFETY GUARD)
+      // ========================================
+      logger.info('🔒 [CreateTrip] Checking passenger active trips...');
+      
+      const passengerActiveTripsSnapshot = await db
+        .collection('trips')
+        .where('passengerId', '==', passengerId)
+        .where('status', 'in', [...ACTIVE_TRIP_STATUSES])
+        .limit(PILOT_LIMITS.MAX_ACTIVE_TRIPS_PER_PASSENGER)
+        .get();
+
+      if (!passengerActiveTripsSnapshot.empty) {
+        logger.warn('🚫 [CreateTrip] Passenger already has active trip', {
+          passengerId,
+          activeTripId: passengerActiveTripsSnapshot.docs[0]?.id,
+        });
+        throw new ForbiddenError('You already have an active trip. Please complete or cancel it first.');
+      }
+
+      logger.info('✅ [CreateTrip] Passenger has no active trips');
+
+      // ========================================
+      // 4. Query drivers where isOnline=true AND isAvailable=true
       // ========================================
       logger.info('🔍 [CreateTrip] Querying available drivers...');
       
@@ -198,6 +221,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
 
       if (driversSnapshot.empty) {
         logger.warn('🚫 [CreateTrip] No available drivers - returning error');
+        logger.dispatchFailed('N/A', 'No available drivers', { passengerId });
         throw new NotFoundError('No drivers available at the moment');
       }
 
@@ -241,6 +265,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       // 5. Select nearest driver
       // ========================================
       if (driversWithDistance.length === 0) {
+        logger.dispatchFailed('N/A', 'No drivers with location data', { passengerId, driversQueried: driversSnapshot.size });
         throw new NotFoundError('No drivers available at the moment');
       }
 
@@ -279,6 +304,14 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       await tripRef.set(tripDoc);
 
       logger.info(`📝 [CreateTrip] Trip created: ${tripId}`);
+      
+      // Log trip lifecycle event
+      logger.tripEvent('TRIP_CREATED', tripId, {
+        passengerId,
+        driverId: nearestDriver.driverId,
+        estimatedPriceIls: estimate.priceIls,
+        distanceKm: estimate.distanceKm,
+      });
 
       // ========================================
       // 7. Mark driver isAvailable=false
@@ -293,13 +326,18 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       logger.info(`🚗 [CreateTrip] Driver isAvailable → false`, { driverId: nearestDriver.driverId });
 
       // ========================================
-      // 8. Create driverRequests/{driverId}/{tripId}
+      // 8. Create driverRequests/{driverId}/{tripId} with expiration
       // ========================================
       const driverRequestRef = db
         .collection('driverRequests')
         .doc(nearestDriver.driverId)
         .collection('requests')
         .doc(tripId);
+
+      // Calculate expiration time
+      const expiresAt = Timestamp.fromMillis(
+        Date.now() + PILOT_LIMITS.DRIVER_RESPONSE_TIMEOUT_SECONDS * 1000
+      );
 
       const driverRequestDoc: DriverRequestDocument = {
         tripId,
@@ -309,13 +347,16 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         estimatedPriceIls: estimate.priceIls,
         status: 'pending',
         createdAt: FieldValue.serverTimestamp(),
-        // Request expires in 30 seconds if driver doesn't respond
-        expiresAt: FieldValue.serverTimestamp(),
+        expiresAt,
+        timeoutSeconds: PILOT_LIMITS.DRIVER_RESPONSE_TIMEOUT_SECONDS,
       };
 
       await driverRequestRef.set(driverRequestDoc);
 
-      logger.info(`📨 [CreateTrip] Request sent to driver: ${nearestDriver.driverId}`);
+      logger.info(`📨 [CreateTrip] Request sent to driver: ${nearestDriver.driverId}`, {
+        expiresAt: expiresAt.toDate().toISOString(),
+        timeoutSeconds: PILOT_LIMITS.DRIVER_RESPONSE_TIMEOUT_SECONDS,
+      });
 
       // ========================================
       // 9. Return tripId + driverId
