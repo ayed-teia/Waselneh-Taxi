@@ -19,8 +19,13 @@
   font-weight: 600;
 }
 
+.stale-count {
+  color: #eab308;
+  font-weight: 600;
+}
+
 .offline-count {
-  color: #6b7280;
+  color: #ef4444;
   font-weight: 600;
 }
 
@@ -60,8 +65,12 @@
   background: #f0fdf4;
 }
 
+.drivers-table tr.stale {
+  background: #fefce8;
+}
+
 .drivers-table tr.offline {
-  background: #fafafa;
+  background: #fef2f2;
 }
 
 .drivers-table tr:hover {
@@ -87,9 +96,14 @@
   color: #166534;
 }
 
+.status-badge.stale {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
 .status-badge.offline {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .coord {
