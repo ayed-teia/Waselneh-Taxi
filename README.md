@@ -1,8 +1,8 @@
-\# Taxi Line Platform
+# Waselneh Platform
 
 
 
-Smart taxi line system for West Bank cities (Nablus, Ramallah, Jenin).
+Smart taxi service for West Bank cities (Nablus, Ramallah, Jenin).
 
 
 

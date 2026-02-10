@@ -1,11 +1,11 @@
 module.exports = {
   expo: {
-    name: 'Taxi Line',
-    slug: 'taxi-line-passenger',
+    name: 'Waselneh',
+    slug: 'waselneh',
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/icon.png',
-    scheme: 'taxiline',
+    scheme: 'waselneh',
     userInterfaceStyle: 'automatic',
     splash: {
       image: './assets/splash.png',

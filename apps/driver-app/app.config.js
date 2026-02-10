@@ -1,11 +1,11 @@
 module.exports = {
   expo: {
-    name: 'Taxi Line Driver',
-    slug: 'taxi-line-driver',
+    name: 'Waselneh Driver',
+    slug: 'waselneh-driver',
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/icon.png',
-    scheme: 'taxilinedriver',
+    scheme: 'waselneh-driver',
     userInterfaceStyle: 'automatic',
     splash: {
       image: './assets/splash.png',
@@ -47,7 +47,7 @@ module.exports = {
         'expo-location',
         {
           locationAlwaysAndWhenInUsePermission:
-            'Allow Taxi Line Driver to use your location to match you with passengers.',
+            'Allow Waselneh Driver to use your location to match you with passengers.',
         },
       ],
     ],

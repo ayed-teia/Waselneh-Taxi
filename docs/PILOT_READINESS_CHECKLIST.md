@@ -4,7 +4,7 @@
 > **Date**: February 2026  
 > **Version**: 1.0
 
-This checklist validates the Taxi Line Platform is ready for limited production pilot testing.
+This checklist validates the Waselneh Platform is ready for limited production pilot testing.
 
 ---
 

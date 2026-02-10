@@ -10,7 +10,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Taxi Line</Text>
+        <Text style={styles.title}>Waselneh</Text>
         <Text style={styles.subtitle}>Smart taxi service for West Bank cities</Text>
       </View>
 

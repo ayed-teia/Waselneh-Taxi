@@ -21,7 +21,7 @@ export default function Index() {
   };
 
   if (isLoading) {
-    return <LoadingScreen message="Starting Taxi Line Driver..." />;
+    return <LoadingScreen message="Starting Waselneh Driver..." />;
   }
 
   if (!isAuthenticated) {
