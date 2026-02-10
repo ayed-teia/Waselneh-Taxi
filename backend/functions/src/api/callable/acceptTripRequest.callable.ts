@@ -5,6 +5,7 @@ import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
 import { handleError, ValidationError, NotFoundError, ForbiddenError, UnauthorizedError } from '../../core/errors';
 import { logger } from '../../core/logger';
+import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 /**
@@ -77,11 +78,10 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
       // ========================================
       // 1. Validate authentication
       // ========================================
-      if (!request.auth?.uid) {
+      const driverId = getAuthenticatedUserId(request);
+      if (!driverId) {
         throw new UnauthorizedError('Authentication required to accept a trip request');
       }
-
-      const driverId = request.auth.uid;
 
       // ========================================
       // 2. Validate input

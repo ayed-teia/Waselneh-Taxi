@@ -1,16 +1,27 @@
 import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
 import { getFunctionsAsync } from '../firebase';
 
+// Dev mode configuration - matches app/index.tsx
+const DEV_MODE = true;
+const DEV_DRIVER_ID = 'dev-driver-001';
+
 /**
  * Generic callable function wrapper with type safety
+ * In dev mode, automatically injects devUserId for backend authentication bypass
  */
 export async function callFunction<TRequest, TResponse>(
   functionName: string,
   data: TRequest
 ): Promise<TResponse> {
   const functions = await getFunctionsAsync();
-  const callable = httpsCallable<TRequest, TResponse>(functions, functionName);
-  const result: HttpsCallableResult<TResponse> = await callable(data);
+  const callable = httpsCallable<TRequest & { devUserId?: string }, TResponse>(functions, functionName);
+  
+  // In dev mode, inject devUserId for backend authentication
+  const requestData = DEV_MODE 
+    ? { ...data, devUserId: DEV_DRIVER_ID }
+    : data;
+  
+  const result: HttpsCallableResult<TResponse> = await callable(requestData as TRequest & { devUserId?: string });
   return result.data;
 }
 

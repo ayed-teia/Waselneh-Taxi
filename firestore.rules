@@ -69,11 +69,20 @@ service cloud.firestore {
     }
     
     // =========================================================================
-    // Default: Deny all access
+    // Default: Deny all access (PRODUCTION)
+    // For development/emulator, allow all access
     // =========================================================================
+    
+    // DEV MODE: Allow all reads and writes for testing
+    // TODO: Remove this before production!
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
+    
+    // PRODUCTION MODE (uncomment for production):
+    // match /{document=**} {
+    //   allow read, write: if false;
+    // }
     
     // =========================================================================
     // Users Collection

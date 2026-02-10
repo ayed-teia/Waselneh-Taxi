@@ -5,6 +5,7 @@ import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
 import { handleError, ValidationError, NotFoundError, ForbiddenError, UnauthorizedError } from '../../core/errors';
 import { logger } from '../../core/logger';
+import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
@@ -71,11 +72,10 @@ export const submitRating = onCall<unknown, Promise<SubmitRatingResponse>>(
   async (request) => {
     try {
       // Require authentication
-      if (!request.auth?.uid) {
+      const passengerId = getAuthenticatedUserId(request);
+      if (!passengerId) {
         throw new UnauthorizedError('Authentication required');
       }
-
-      const passengerId = request.auth.uid;
 
       // Validate input
       const parsed = SubmitRatingSchema.safeParse(request.data);

@@ -5,6 +5,7 @@ import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
 import { handleError, ValidationError, NotFoundError, ForbiddenError, UnauthorizedError } from '../../core/errors';
 import { logger } from '../../core/logger';
+import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
@@ -70,11 +71,10 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
   async (request) => {
     try {
       // Require authentication
-      if (!request.auth?.uid) {
+      const driverId = getAuthenticatedUserId(request);
+      if (!driverId) {
         throw new UnauthorizedError('Authentication required');
       }
-
-      const driverId = request.auth.uid;
 
       // Validate input
       const parsed = CompleteTripSchema.safeParse(request.data);
