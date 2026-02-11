@@ -371,6 +371,51 @@ export function LiveMapPage() {
               onMapClick={handleMapClick}
               onRoadblockClick={handleRoadblockClick}
             />
+            {/* Map Legend */}
+            <div className="map-legend">
+              <div className="legend-title">Legend</div>
+              <div className="legend-section">
+                <div className="legend-subtitle">Drivers</div>
+                <div className="legend-item">
+                  <span className="legend-marker driver-available"></span>
+                  <span>Available</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-marker driver-busy"></span>
+                  <span>Busy / In Trip</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-marker driver-offline"></span>
+                  <span>Offline</span>
+                </div>
+              </div>
+              <div className="legend-section">
+                <div className="legend-subtitle">Roadblocks</div>
+                <div className="legend-item">
+                  <span className="legend-marker roadblock-open"></span>
+                  <span>Open</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-marker roadblock-congested"></span>
+                  <span>Congested</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-marker roadblock-closed"></span>
+                  <span>Closed</span>
+                </div>
+              </div>
+              <div className="legend-section">
+                <div className="legend-subtitle">Trips</div>
+                <div className="legend-item">
+                  <span className="legend-icon">📍</span>
+                  <span>Pickup</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-icon">🎯</span>
+                  <span>Dropoff</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Driver list */}

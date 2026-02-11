@@ -3,3 +3,4 @@ export * from './home';
 export * from './trip';
 export * from './inbox';
 export * from './roadblocks';
+export * from './map';

@@ -1,21 +1,20 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import { PassengerMapView } from '../PassengerMapView';
 
 /**
- * Placeholder Map Screen
- * Real Mapbox implementation will be added later
+ * Main Map Screen for Passengers
+ * Shows real map with roadblocks and driver location (when on trip)
  */
 export function MapScreen() {
   const router = useRouter();
 
   return (
     <View style={styles.container}>
-      {/* Placeholder for map */}
-      <View style={styles.mapPlaceholder}>
-        <Text style={styles.mapText}>🗺️</Text>
-        <Text style={styles.placeholderText}>Map will appear here</Text>
-        <Text style={styles.subText}>Mapbox integration coming soon</Text>
+      {/* Real Map View */}
+      <View style={styles.mapContainer}>
+        <PassengerMapView />
       </View>
 
       {/* Bottom sheet placeholder */}
@@ -59,25 +58,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E5E5E5',
   },
-  mapPlaceholder: {
+  mapContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#D4E4D4',
-  },
-  mapText: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  placeholderText: {
-    fontSize: 18,
-    color: '#666666',
-    fontWeight: '600',
-  },
-  subText: {
-    fontSize: 14,
-    color: '#999999',
-    marginTop: 4,
   },
   bottomSheet: {
     backgroundColor: '#FFFFFF',

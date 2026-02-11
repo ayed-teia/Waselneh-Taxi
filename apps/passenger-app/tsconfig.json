@@ -11,7 +11,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@taxi-line/shared": ["../../packages/shared/src"]
+      "@taxi-line/shared": ["../../packages/shared/src"],
+      "react-native-maps": ["../../node_modules/react-native-maps/lib"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
