@@ -13,16 +13,18 @@ import { getFirestoreAsync } from '../firebase';
  */
 export interface RoadblockData {
   id: string;
+  name: string;
+  area?: string;
   lat: number;
   lng: number;
   radiusMeters: number;
-  status: 'open' | 'closed' | 'delay';
+  status: 'open' | 'closed' | 'congested';
   note?: string;
   updatedAt: Date | null;
 }
 
 /**
- * Subscribe to active roadblocks (closed and delay only)
+ * Subscribe to active roadblocks (closed and congested only)
  */
 export function subscribeToActiveRoadblocks(
   onData: (roadblocks: RoadblockData[]) => void,
@@ -34,10 +36,10 @@ export function subscribeToActiveRoadblocks(
     .then((db) => {
       const roadblocksRef = collection(db, 'roadblocks');
 
-      // Query for active roadblocks (closed or delay)
+      // Query for active roadblocks (closed or congested)
       const q = query(
         roadblocksRef,
-        where('status', 'in', ['closed', 'delay']),
+        where('status', 'in', ['closed', 'congested']),
         orderBy('updatedAt', 'desc')
       );
 
@@ -48,6 +50,8 @@ export function subscribeToActiveRoadblocks(
             const data = docSnap.data();
             return {
               id: docSnap.id,
+              name: data.name ?? 'Unnamed',
+              area: data.area,
               lat: data.lat,
               lng: data.lng,
               radiusMeters: data.radiusMeters ?? 100,
@@ -64,6 +68,51 @@ export function subscribeToActiveRoadblocks(
     .catch(onError);
 
   // Return unsubscribe function
+  return () => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  };
+}
+
+/**
+ * Subscribe to ALL roadblocks (for list view)
+ */
+export function subscribeToAllRoadblocks(
+  onData: (roadblocks: RoadblockData[]) => void,
+  onError: (error: Error) => void
+): Unsubscribe {
+  let unsubscribe: Unsubscribe | null = null;
+
+  getFirestoreAsync()
+    .then((db) => {
+      const roadblocksRef = collection(db, 'roadblocks');
+      const q = query(roadblocksRef, orderBy('updatedAt', 'desc'));
+
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const roadblocks: RoadblockData[] = snapshot.docs.map((docSnap) => {
+            const data = docSnap.data();
+            return {
+              id: docSnap.id,
+              name: data.name ?? 'Unnamed',
+              area: data.area,
+              lat: data.lat,
+              lng: data.lng,
+              radiusMeters: data.radiusMeters ?? 100,
+              status: data.status ?? 'closed',
+              note: data.note,
+              updatedAt: data.updatedAt?.toDate() ?? null,
+            };
+          });
+          onData(roadblocks);
+        },
+        onError
+      );
+    })
+    .catch(onError);
+
   return () => {
     if (unsubscribe) {
       unsubscribe();
@@ -168,15 +217,16 @@ export function getRoadblockStatusDisplay(status: string): {
   label: string;
   color: string;
   emoji: string;
+  bgColor: string;
 } {
   switch (status) {
     case 'open':
-      return { label: 'Open', color: '#10b981', emoji: '✅' };
+      return { label: 'Open', color: '#34C759', emoji: '✅', bgColor: '#E8F8ED' };
     case 'closed':
-      return { label: 'Closed', color: '#ef4444', emoji: '🚫' };
-    case 'delay':
-      return { label: 'Delay', color: '#f59e0b', emoji: '⚠️' };
+      return { label: 'Closed', color: '#FF3B30', emoji: '🚫', bgColor: '#FFE5E5' };
+    case 'congested':
+      return { label: 'Congested', color: '#FF9500', emoji: '⚠️', bgColor: '#FFF4E5' };
     default:
-      return { label: status, color: '#6b7280', emoji: '❓' };
+      return { label: status, color: '#8E8E93', emoji: '❓', bgColor: '#F2F2F7' };
   }
 }

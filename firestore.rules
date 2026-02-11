@@ -329,5 +329,34 @@ service cloud.firestore {
       allow read: if isOwner(uid) || isManager();
       allow write: if isOwner(uid);
     }
+    
+    // =========================================================================
+    // Roadblocks Collection
+    // Path: /roadblocks/{roadblockId}
+    // 
+    // Road closure and congestion information managed by managers.
+    // - Managers can read and write all roadblocks
+    // - Drivers and passengers can read only (for route planning/awareness)
+    // 
+    // Fields:
+    // - name: string (required)
+    // - area: string (optional)
+    // - lat: number
+    // - lng: number
+    // - radiusMeters: number
+    // - status: 'open' | 'closed' | 'congested'
+    // - note: string (optional)
+    // - createdBy: string (manager uid)
+    // - updatedBy: string (manager uid)
+    // - createdAt: Timestamp
+    // - updatedAt: Timestamp
+    // =========================================================================
+    match /roadblocks/{roadblockId} {
+      // Anyone authenticated can read roadblocks
+      allow read: if isAuthenticated();
+      
+      // Only managers can create, update, or delete roadblocks
+      allow write: if isManager();
+    }
   }
 }

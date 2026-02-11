@@ -19,7 +19,7 @@ import { getFirestoreDb } from './firebase';
 const RoadblockStatus = {
   OPEN: 'open',
   CLOSED: 'closed',
-  DELAY: 'delay',
+  CONGESTED: 'congested',
 } as const;
 
 /**
@@ -27,14 +27,17 @@ const RoadblockStatus = {
  */
 export interface RoadblockData {
   id: string;
+  name: string;
+  area?: string;
   lat: number;
   lng: number;
   radiusMeters: number;
-  status: 'open' | 'closed' | 'delay';
+  status: 'open' | 'closed' | 'congested';
   note?: string;
   updatedAt: Date | null;
   createdAt: Date | null;
   createdBy?: string;
+  updatedBy?: string;
 }
 
 /**
@@ -53,7 +56,7 @@ export function subscribeToRoadblocks(
   if (options?.activeOnly) {
     q = query(
       roadblocksRef,
-      where('status', 'in', ['closed', 'delay']),
+      where('status', 'in', ['closed', 'congested']),
       orderBy('updatedAt', 'desc')
     );
   } else {
@@ -70,6 +73,8 @@ export function subscribeToRoadblocks(
         const data = docSnap.data();
         return {
           id: docSnap.id,
+          name: data.name ?? 'Unnamed',
+          area: data.area,
           lat: data.lat,
           lng: data.lng,
           radiusMeters: data.radiusMeters ?? 100,
@@ -78,6 +83,7 @@ export function subscribeToRoadblocks(
           updatedAt: data.updatedAt?.toDate() ?? null,
           createdAt: data.createdAt?.toDate() ?? null,
           createdBy: data.createdBy,
+          updatedBy: data.updatedBy,
         };
       });
       onData(roadblocks);
@@ -90,10 +96,12 @@ export function subscribeToRoadblocks(
  * Create a new roadblock
  */
 export async function createRoadblock(data: {
+  name: string;
+  area?: string;
   lat: number;
   lng: number;
   radiusMeters?: number;
-  status?: 'open' | 'closed' | 'delay';
+  status?: 'open' | 'closed' | 'congested';
   note?: string;
   createdBy?: string;
 }): Promise<string> {
@@ -101,6 +109,8 @@ export async function createRoadblock(data: {
   const roadblocksRef = collection(db, 'roadblocks');
   
   const docRef = await addDoc(roadblocksRef, {
+    name: data.name,
+    area: data.area ?? '',
     lat: data.lat,
     lng: data.lng,
     radiusMeters: data.radiusMeters ?? 100,
@@ -121,11 +131,14 @@ export async function createRoadblock(data: {
 export async function updateRoadblock(
   id: string,
   data: Partial<{
+    name: string;
+    area: string;
     lat: number;
     lng: number;
     radiusMeters: number;
-    status: 'open' | 'closed' | 'delay';
+    status: 'open' | 'closed' | 'congested';
     note: string;
+    updatedBy: string;
   }>
 ): Promise<void> {
   const db = getFirestoreDb();
@@ -136,7 +149,7 @@ export async function updateRoadblock(
     updatedAt: serverTimestamp(),
   });
   
-  console.log('🚧 [Roadblocks] Updated:', id, data);
+  console.log('🚧 Roadblock status updated:', id, data);
 }
 
 /**
@@ -165,8 +178,8 @@ export function getRoadblockStatusDisplay(status: string): {
       return { label: 'Open', color: '#10b981', emoji: '✅', bgColor: 'rgba(16, 185, 129, 0.1)' };
     case RoadblockStatus.CLOSED:
       return { label: 'Closed', color: '#ef4444', emoji: '🚫', bgColor: 'rgba(239, 68, 68, 0.1)' };
-    case RoadblockStatus.DELAY:
-      return { label: 'Delay', color: '#f59e0b', emoji: '⚠️', bgColor: 'rgba(245, 158, 11, 0.1)' };
+    case RoadblockStatus.CONGESTED:
+      return { label: 'Congested', color: '#f59e0b', emoji: '⚠️', bgColor: 'rgba(245, 158, 11, 0.1)' };
     default:
       return { label: status, color: '#6b7280', emoji: '❓', bgColor: 'rgba(107, 114, 128, 0.1)' };
   }

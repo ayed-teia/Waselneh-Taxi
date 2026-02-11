@@ -5,6 +5,7 @@ import { App } from './App';
 import { LiveMapPage } from './pages/LiveMapPage';
 import { DriversListPage } from './pages/DriversListPage';
 import { PaymentsListPage } from './pages/PaymentsListPage';
+import { RoadblocksPage } from './pages/RoadblocksPage';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -16,6 +17,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="live-map" element={<LiveMapPage />} />
           <Route path="drivers" element={<DriversListPage />} />
           <Route path="payments" element={<PaymentsListPage />} />
+          <Route path="roadblocks" element={<RoadblocksPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -1,0 +1,380 @@
+/**
+ * ============================================================================
+ * ROADBLOCKS PAGE STYLES
+ * ============================================================================
+ */
+
+.roadblocks-page {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 28px;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.btn-create {
+  background: #007aff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-create:hover {
+  background: #0056b3;
+}
+
+/* Summary Cards */
+.summary-cards {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.summary-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px 24px;
+  flex: 1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-left: 4px solid #ccc;
+}
+
+.summary-card.closed {
+  border-left-color: #ef4444;
+}
+
+.summary-card.congested {
+  border-left-color: #f59e0b;
+}
+
+.summary-card.open {
+  border-left-color: #10b981;
+}
+
+.summary-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.summary-label {
+  font-size: 14px;
+  color: #666;
+}
+
+/* Create Form */
+.create-form {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.create-form h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #1a1a1a;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-group {
+  flex: 1;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  font-size: 14px;
+  color: #444;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #007aff;
+}
+
+.form-actions {
+  margin-top: 16px;
+}
+
+.btn-save {
+  background: #34c759;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-save:hover {
+  background: #2aa34a;
+}
+
+.btn-save:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* Roadblocks List */
+.roadblocks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.roadblock-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-left: 4px solid #ccc;
+  transition: box-shadow 0.2s;
+}
+
+.roadblock-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.roadblock-card.status-closed {
+  border-left-color: #ef4444;
+}
+
+.roadblock-card.status-congested {
+  border-left-color: #f59e0b;
+}
+
+.roadblock-card.status-open {
+  border-left-color: #10b981;
+}
+
+.roadblock-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.roadblock-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-emoji {
+  font-size: 20px;
+}
+
+.name {
+  font-weight: 600;
+  font-size: 16px;
+  color: #1a1a1a;
+}
+
+.area {
+  color: #888;
+  font-size: 14px;
+}
+
+.roadblock-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.status-select {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.status-select.status-closed {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+}
+
+.status-select.status-congested {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: #f59e0b;
+}
+
+.status-select.status-open {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: #10b981;
+}
+
+.btn-delete {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.roadblock-details {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 8px;
+}
+
+.roadblock-note {
+  margin-top: 8px;
+}
+
+.note-display {
+  padding: 8px 12px;
+  background: #f8f8f8;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 20px;
+}
+
+.note-display:hover {
+  background: #f0f0f0;
+}
+
+.note-text {
+  color: #444;
+  font-size: 14px;
+}
+
+.note-placeholder {
+  color: #aaa;
+  font-size: 14px;
+  font-style: italic;
+}
+
+.note-edit {
+  display: flex;
+  gap: 8px;
+}
+
+.note-edit input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #007aff;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.note-edit button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.note-edit button:first-of-type {
+  background: #007aff;
+  color: white;
+}
+
+.note-edit button:last-of-type {
+  background: #f0f0f0;
+  color: #666;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  background: white;
+  border-radius: 12px;
+}
+
+.empty-icon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
+  color: #888;
+  margin-bottom: 16px;
+}
+
+.empty-state button {
+  background: #007aff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #888;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .summary-cards {
+    flex-direction: column;
+  }
+  
+  .form-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .roadblock-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .roadblock-actions {
+    width: 100%;
+  }
+  
+  .status-select {
+    flex: 1;
+  }
+}

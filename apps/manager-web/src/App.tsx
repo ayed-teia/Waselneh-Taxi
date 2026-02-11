@@ -10,6 +10,7 @@ export function App() {
           <Link to="/drivers">Drivers</Link>
           <Link to="/live-map">Live Map</Link>
           <Link to="/payments">Payments</Link>
+          <Link to="/roadblocks">Roadblocks</Link>
         </nav>
       </header>
       <main className="main">
