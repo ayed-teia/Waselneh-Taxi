@@ -55,7 +55,9 @@ let isFirstWrite = true;
 
 /**
  * Update driver's live location in Firestore
- * Creates document if doesn't exist, updates if exists
+ * Writes to BOTH collections:
+ * - driverLive/{driverId} - for live map tracking
+ * - drivers/{driverId} - for driver status/availability
  */
 export async function updateDriverLocation(
   driverId: string,
@@ -63,17 +65,31 @@ export async function updateDriverLocation(
 ): Promise<void> {
   try {
     const db = await getFirestoreAsync();
-    const locationRef = doc(db, 'driverLive', driverId);
+    const now = serverTimestamp();
 
+    // Update driverLive collection (for live map)
+    const locationRef = doc(db, 'driverLive', driverId);
     await setDoc(locationRef, {
       driverId,
       lat: location.lat,
       lng: location.lng,
       heading: location.heading ?? null,
       speed: location.speed ?? null,
-      updatedAt: serverTimestamp(),
+      updatedAt: now,
       status: 'online',
     });
+
+    // Also update drivers collection (for drivers list page)
+    const driverRef = doc(db, 'drivers', driverId);
+    await setDoc(driverRef, {
+      status: 'online',
+      location: {
+        lat: location.lat,
+        lng: location.lng,
+        updatedAt: now,
+      },
+      lastSeen: now,
+    }, { merge: true });
 
     // Log first write explicitly
     if (isFirstWrite) {
@@ -88,15 +104,24 @@ export async function updateDriverLocation(
 
 /**
  * Remove driver's live location (when going offline)
- * Deletes the document from Firestore
+ * Deletes from driverLive and updates drivers collection
  */
 export async function removeDriverLocation(driverId: string): Promise<void> {
   try {
     const db = await getFirestoreAsync();
-    const locationRef = doc(db, 'driverLive', driverId);
 
+    // Delete from driverLive (for live map)
+    const locationRef = doc(db, 'driverLive', driverId);
     await deleteDoc(locationRef);
-    console.log('🗑️ [Firestore] driverLive/' + driverId + ' DELETED');
+
+    // Update drivers collection to offline status
+    const driverRef = doc(db, 'drivers', driverId);
+    await setDoc(driverRef, {
+      status: 'offline',
+      lastSeen: serverTimestamp(),
+    }, { merge: true });
+
+    console.log('🗑️ [Firestore] driverLive/' + driverId + ' DELETED, status set to offline');
     
     // Reset first write flag for next online session
     isFirstWrite = true;
@@ -130,11 +155,14 @@ export async function setDriverAvailability(
     if (isOnline) {
       await setDoc(driverRef, {
         driverId,
+        status: 'online',
         isOnline: true,
         isAvailable: true, // When going online, driver is available for trips
+        availability: 'available', // Trip lifecycle controls this field
         lastLocation: currentLocation
           ? new GeoPoint(currentLocation.lat, currentLocation.lng)
           : null,
+        lastSeen: serverTimestamp(),
         onlineSince: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }, { merge: true });
@@ -142,8 +170,11 @@ export async function setDriverAvailability(
     } else {
       await setDoc(driverRef, {
         driverId,
+        status: 'offline',
         isOnline: false,
         isAvailable: false, // When going offline, driver is not available
+        availability: 'available', // Reset to available when offline
+        lastSeen: serverTimestamp(),
         offlineSince: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }, { merge: true });

@@ -90,11 +90,11 @@ export function SearchingDriverScreen({
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>
-          {isMatched ? 'Driver Found! 🎉' : `Finding Your Driver${dots}`}
+          {isMatched ? 'Driver assigned 🎉' : `Searching for a driver${dots}`}
         </Text>
         <Text style={styles.subtitle}>
           {isMatched
-            ? 'A driver has accepted your request'
+            ? 'Your driver is on the way to pick you up'
             : 'Please wait while we connect you with a nearby driver'}
         </Text>
       </View>

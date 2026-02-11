@@ -18,8 +18,8 @@ import {
   stopDriverRequestsListener,
 } from '../src/services/realtime';
 
-// DEV MODE - use mock location instead of real GPS
-const DEV_MODE = true;
+// DEV MODE - set to false to use real GPS from phone
+const DEV_MODE = false;
 
 /**
  * ============================================================================

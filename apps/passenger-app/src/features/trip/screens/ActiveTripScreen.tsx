@@ -60,15 +60,15 @@ export function ActiveTripScreen({
   const getStatusDisplay = (status: TripStatus) => {
     switch (status) {
       case 'pending':
-        return { text: 'Finding a driver...', icon: '🔍', description: 'Please wait while we find you a driver' };
+        return { text: 'Searching for a driver…', icon: '🔍', description: 'Please wait while we find you a driver' };
       case 'accepted':
-        return { text: 'Driver on the way!', icon: '🚗', description: 'Your driver is heading to pick you up' };
+        return { text: 'Driver assigned', icon: '🚗', description: 'Your driver is on the way to pick you up' };
       case 'driver_arrived':
-        return { text: 'Driver has arrived', icon: '📍', description: 'Your driver is waiting at the pickup location' };
+        return { text: 'Driver arrived', icon: '📍', description: 'Your driver is waiting at the pickup location' };
       case 'in_progress':
-        return { text: 'Trip in progress', icon: '🛣️', description: 'Enjoy your ride!' };
+        return { text: 'On the way', icon: '🛣️', description: 'Enjoy your ride!' };
       case 'completed':
-        return { text: 'Trip completed', icon: '✅', description: 'Thank you for riding with us!' };
+        return { text: 'Trip completed', icon: '✅', description: 'Thank you for riding with Waselneh!' };
       case 'cancelled_by_passenger':
       case 'cancelled_by_driver':
       case 'cancelled_by_system':

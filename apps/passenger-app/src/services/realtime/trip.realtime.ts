@@ -150,20 +150,77 @@ export function subscribeToTrip(
 
 /**
  * Subscribe to user's active trip (read-only)
- * Placeholder - will be implemented with proper query
+ * Finds any ongoing trip for the passenger and subscribes to updates.
+ * 
+ * Active statuses: pending, accepted, driver_arrived, in_progress
  */
 export function subscribeToActiveTrip(
   userId: string,
-  _onData: (trip: unknown) => void,
-  _onError: (error: Error) => void
+  onData: (trip: TripData | null) => void,
+  onError: (error: Error) => void
 ): Unsubscribe {
-  // Placeholder - in production this would query for active trips
-  // where passengerId == userId and status in ['pending', 'accepted', 'in_progress']
-  console.log('Subscribing to active trip for user:', userId);
-  
-  // Return a no-op unsubscribe for now
+  let unsubscribe: Unsubscribe | null = null;
+
+  console.log('🔔 [ActiveTrip] Starting subscription for user:', userId);
+
+  getFirestoreAsync()
+    .then(async (db) => {
+      const { collection, query, where, onSnapshot: firestoreOnSnapshot, orderBy, limit } = await import('firebase/firestore');
+      
+      const tripsRef = collection(db, 'trips');
+      
+      // Query for active trips where this user is the passenger
+      // Active = not completed or cancelled
+      const activeStatuses = ['pending', 'accepted', 'driver_arrived', 'in_progress'];
+      const q = query(
+        tripsRef,
+        where('passengerId', '==', userId),
+        where('status', 'in', activeStatuses),
+        orderBy('createdAt', 'desc'),
+        limit(1)
+      );
+
+      unsubscribe = firestoreOnSnapshot(
+        q,
+        (snapshot) => {
+          if (snapshot.empty) {
+            console.log('ℹ️ [ActiveTrip] No active trip found for user:', userId);
+            onData(null);
+            return;
+          }
+
+          const docSnap = snapshot.docs[0];
+          const data = docSnap.data();
+          console.log('📡 [ActiveTrip] Found active trip:', { tripId: docSnap.id, status: data.status });
+          
+          onData({
+            id: docSnap.id,
+            passengerId: data.passengerId,
+            driverId: data.driverId,
+            pickup: data.pickup,
+            dropoff: data.dropoff,
+            estimatedDistanceKm: data.estimatedDistanceKm,
+            estimatedDurationMin: data.estimatedDurationMin,
+            estimatedPriceIls: data.estimatedPriceIls,
+            finalPriceIls: data.finalPriceIls,
+            status: data.status,
+            createdAt: data.createdAt?.toDate(),
+            matchedAt: data.matchedAt?.toDate(),
+            arrivedAt: data.arrivedAt?.toDate(),
+            startedAt: data.startedAt?.toDate(),
+            completedAt: data.completedAt?.toDate(),
+          });
+        },
+        onError
+      );
+    })
+    .catch(onError);
+
   return () => {
-    console.log('Unsubscribed from active trip');
+    console.log('🔇 [ActiveTrip] Unsubscribing for user:', userId);
+    if (unsubscribe) {
+      unsubscribe();
+    }
   };
 }
 
