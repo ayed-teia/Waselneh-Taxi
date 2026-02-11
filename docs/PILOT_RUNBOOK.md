@@ -14,6 +14,7 @@ This document provides operational guidance for running the Waselneh taxi-line p
 4. [Health Verification](#health-verification)
 5. [Troubleshooting Guide](#troubleshooting-guide)
 6. [Go/No-Go Checklist](#gono-go-checklist)
+7. [Step 34: Real Device QA](#step-34-real-device-qa)
 
 ---
 
@@ -130,19 +131,68 @@ Create `system/config` document in Firestore:
 }
 ```
 
-### Build Mobile Apps
+### Build Mobile Apps (Android)
+
+**Step 34: Android Pilot Build Setup**
+
+#### Option 1: Local Build (npx expo run:android)
 
 ```bash
 # Driver App
 cd apps/driver-app
-npx expo prebuild
-npx expo build:android  # or build:ios
+
+# Copy pilot configuration
+cp .env.pilot .env
+# Edit .env with your real Firebase credentials
+
+# Generate native project
+npx expo prebuild --clean
+
+# Build and run on connected device
+npx expo run:android --variant release
+```
+
+```bash
+# Passenger App
+cd apps/passenger-app
+
+# Copy pilot configuration
+cp .env.pilot .env
+# Edit .env with your real Firebase credentials
+
+# Generate native project  
+npx expo prebuild --clean
+
+# Build and run on connected device
+npx expo run:android --variant release
+```
+
+#### Option 2: EAS Build (Cloud)
+
+```bash
+# Login to Expo
+npx eas login
+
+# Driver App
+cd apps/driver-app
+npx eas build -p android --profile preview
 
 # Passenger App
 cd apps/passenger-app
-npx expo prebuild
-npx expo build:android  # or build:ios
+npx eas build -p android --profile preview
 ```
+
+The `preview` profile builds with:
+- `EXPO_PUBLIC_APP_MODE=pilot`
+- `EXPO_PUBLIC_USE_EMULATORS=false`
+- APK output for direct installation
+
+#### Build Configuration
+
+| App | Package | Version | VersionCode |
+|-----|---------|---------|-------------|
+| Driver | com.taxiline.driver | 1.0.0-pilot | 1 |
+| Passenger | com.taxiline.passenger | 1.0.0-pilot | 1 |
 
 ---
 
@@ -297,8 +347,38 @@ npx expo build:android  # or build:ios
 
 ---
 
+## Step 34: Real Device QA
+
+Before marking pilot as ready, complete the full QA checklist on real devices.
+
+**QA Checklist Document:** [QA_STEP34_CHECKLIST.md](QA_STEP34_CHECKLIST.md)
+
+### Quick Summary
+
+| Test Area | Key Verification |
+|-----------|-----------------|
+| App Identity | Name shows "Waselneh" / "Waselneh Driver" |
+| Firebase | Connects to real project (not emulators) |
+| Trip Flow | Full trip creation → completion works |
+| Driver Assignment | Nearest driver receives request |
+| Realtime Location | Driver location updates on map |
+| Kill Switch | Trips disabled when toggle off |
+| Offline Handling | App handles Airplane Mode gracefully |
+| Background State | App state preserved after minimize |
+
+### Pass Criteria
+
+- All core flows work on real device
+- No crashes observed
+- Firebase connected to real project
+- Kill switch respected
+- Offline/background scenarios handled
+
+---
+
 ## Version History
 
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-02-11 | 1.0 | Initial pilot runbook (Step 33) |
+| 2026-02-11 | 1.1 | Added Step 34 Real Device QA section |

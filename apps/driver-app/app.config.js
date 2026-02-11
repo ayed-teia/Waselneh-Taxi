@@ -2,7 +2,7 @@ module.exports = {
   expo: {
     name: 'Waselneh Driver',
     slug: 'waselneh-driver',
-    version: '1.0.0',
+    version: '1.0.0-pilot',
     orientation: 'portrait',
     icon: './assets/icon.png',
     scheme: 'waselneh-driver',
@@ -16,6 +16,7 @@ module.exports = {
     ios: {
       supportsTablet: false,
       bundleIdentifier: 'com.taxiline.driver',
+      buildNumber: '1',
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
           'We need your location to show your position to passengers and match you with nearby trip requests.',
@@ -30,6 +31,7 @@ module.exports = {
         backgroundColor: '#1a1a2e',
       },
       package: 'com.taxiline.driver',
+      versionCode: 1,
       permissions: [
         'ACCESS_COARSE_LOCATION',
         'ACCESS_FINE_LOCATION',

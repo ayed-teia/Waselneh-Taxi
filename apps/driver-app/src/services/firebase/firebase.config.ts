@@ -44,7 +44,10 @@ const emulatorsRequested = expoConfig.useEmulators === true || expoConfig.useEmu
 const useEmulators = shouldAllowEmulators(appMode, emulatorsRequested);
 const emulatorHost = (expoConfig.emulatorHost as string) || '127.0.0.1';
 
-// Log connection guard message
+// Reduce console logs in pilot/prod (Step 34)
+const isDevMode = appMode === 'dev';
+
+// Log connection guard message (always log this once for visibility)
 const connectionMessage = getConnectionGuardMessage(appMode, emulatorsRequested);
 if (connectionMessage) {
   console.log(connectionMessage);
@@ -151,7 +154,9 @@ export async function getFirebaseAuthAsync(): Promise<Auth> {
           disableWarnings: true,
         });
         _authEmulatorConnected = true;
-        console.log(`  ✓ Auth Emulator: http://${emulatorHost}:${EMULATOR_PORTS.auth}`);
+        if (isDevMode) {
+          console.log(`  ✓ Auth Emulator: http://${emulatorHost}:${EMULATOR_PORTS.auth}`);
+        }
       } catch {
         // Emulator already connected
       }
@@ -199,7 +204,9 @@ export async function getFirestoreAsync(): Promise<Firestore> {
       try {
         connectFirestoreEmulator(_db, emulatorHost, EMULATOR_PORTS.firestore);
         _firestoreEmulatorConnected = true;
-        console.log(`  ✓ Firestore Emulator: ${emulatorHost}:${EMULATOR_PORTS.firestore}`);
+        if (isDevMode) {
+          console.log(`  ✓ Firestore Emulator: ${emulatorHost}:${EMULATOR_PORTS.firestore}`);
+        }
       } catch {
         // Emulator already connected
       }
@@ -250,7 +257,9 @@ export async function getFunctionsAsync(): Promise<Functions> {
       try {
         connectFunctionsEmulator(_functions, emulatorHost, EMULATOR_PORTS.functions);
         _functionsEmulatorConnected = true;
-        console.log(`  ✓ Functions Emulator: ${emulatorHost}:${EMULATOR_PORTS.functions}`);
+        if (isDevMode) {
+          console.log(`  ✓ Functions Emulator: ${emulatorHost}:${EMULATOR_PORTS.functions}`);
+        }
       } catch {
         // Emulator already connected
       }
