@@ -82,9 +82,13 @@ export interface CreateTripRequestInput {
 
 /**
  * Trip request creation response
+ * Returns requestId for tracking, plus matching status/details
  */
 export interface CreateTripRequestResponse {
   requestId: string;
+  tripId?: string;
+  driverId?: string;
+  status: 'matched' | 'searching';
 }
 
 /**

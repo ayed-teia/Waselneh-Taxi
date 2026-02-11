@@ -96,16 +96,26 @@ export function EstimateTripScreen() {
 
       const result = await createTripRequest(pickup, dropoff, estimate);
       
-      // Navigate to searching screen with request details
-      router.push({
-        pathname: '/searching',
-        params: {
-          requestId: result.requestId,
-          distanceKm: estimate.distanceKm.toString(),
-          durationMin: estimate.durationMin.toString(),
-          priceIls: estimate.priceIls.toString(),
-        },
-      });
+      // If already matched with a driver and trip created, go directly to trip screen
+      if (result.status === 'matched' && result.tripId) {
+        router.push({
+          pathname: '/trip',
+          params: {
+            tripId: result.tripId,
+          },
+        });
+      } else {
+        // Still searching for drivers, go to searching screen
+        router.push({
+          pathname: '/searching',
+          params: {
+            requestId: result.requestId,
+            distanceKm: estimate.distanceKm.toString(),
+            durationMin: estimate.durationMin.toString(),
+            priceIls: estimate.priceIls.toString(),
+          },
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create trip request';
       setError(message);

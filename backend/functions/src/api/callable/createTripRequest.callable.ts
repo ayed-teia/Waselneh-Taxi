@@ -1,6 +1,6 @@
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import { LatLngSchema, TripEstimateSchema, TripStatus, PILOT_LIMITS, ACTIVE_TRIP_STATUSES } from '@taxi-line/shared';
+import { LatLngSchema, TripEstimateSchema, TripStatus, TripRequestStatus, PILOT_LIMITS, ACTIVE_TRIP_STATUSES } from '@taxi-line/shared';
 import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
 import { handleError, ValidationError, UnauthorizedError, NotFoundError, ForbiddenError } from '../../core/errors';
@@ -14,16 +14,27 @@ import { calculatePrice } from '../../modules/pricing/utils';
  * CREATE TRIP REQUEST - Cloud Function
  * ============================================================================
  * 
+ * Step 31: Nearest Driver Assignment (MVP)
+ * 
  * Flow:
  * 1. Validate authenticated passenger
  * 2. Validate input (pickup, dropoff, estimate)
- * 3. Query drivers where isOnline=true AND isAvailable=true
- * 4. Compute distance from pickup using Haversine formula
- * 5. Select nearest driver
- * 6. Create trips/{tripId} document
- * 7. Mark driver isAvailable=false (in transaction)
- * 8. Create driverRequests/{driverId}/{tripId} record
- * 9. Return { tripId, driverId }
+ * 3. Check passenger has no active trips
+ * 4. Create tripRequests/{requestId} with status OPEN
+ * 5. Query drivers where isOnline=true AND isAvailable=true
+ * 6. Compute distance from pickup using Haversine formula
+ * 7. Select nearest driver
+ * 8. TRANSACTION: atomically create trip, update driver, update request
+ *    - Create trips/{tripId} document
+ *    - Mark driver isAvailable=false
+ *    - Create driverRequests/{driverId}/{tripId} notification
+ *    - Update tripRequest status to MATCHED
+ * 9. Return { requestId, tripId, driverId, status }
+ * 
+ * Data Safety:
+ * - If no drivers available: keeps tripRequest OPEN, returns status='searching'
+ * - Transaction prevents double assignment (re-checks driver availability)
+ * - Assignment is idempotent (request can only be matched once)
  * 
  * ============================================================================
  * QA VERIFICATION CHECKLIST:
@@ -31,21 +42,23 @@ import { calculatePrice } from '../../modules/pricing/utils';
  * 
  * ✅ PASSENGER REQUEST FLOW:
  *    LOG: "🚕 [CreateTrip] START - passengerId: {id}"
+ *    LOG: "📋 [CreateTrip] Trip request created - requestId: {id}"
  *    LOG: "🔍 [CreateTrip] Querying available drivers..."
  *    LOG: "🚗 [CreateTrip] Found {N} available driver(s)"
  *    LOG: "✅ [CreateTrip] Selected driver: {driverId} ({distance} km away)"
  *    LOG: "📝 [CreateTrip] Trip created: {tripId}"
  *    LOG: "🚗 [CreateTrip] Driver isAvailable → false"
  *    LOG: "📨 [CreateTrip] Request sent to driver: {driverId}"
- *    LOG: "🎉 [CreateTrip] COMPLETE - tripId: {id}, driverId: {id}"
+ *    LOG: "🎉 [CreateTrip] COMPLETE - requestId, tripId, driverId"
  * 
  * ✅ NO DRIVERS AVAILABLE:
- *    LOG: "🚫 [CreateTrip] No available drivers - returning error"
+ *    LOG: "🚫 [CreateTrip] No available drivers - keeping request open"
+ *    Returns: { requestId, status: 'searching' }
  * 
- * ✅ SINGLE DRIVER SELECTION:
+ * ✅ TRANSACTION SAFETY:
+ *    - Re-verifies driver availability inside transaction
+ *    - Prevents race conditions when multiple passengers request simultaneously
  *    - Only the NEAREST driver receives the request
- *    - Only ONE document created in driverRequests/{driverId}/requests
- *    - Selected driver marked isAvailable=false atomically
  * 
  * ============================================================================
  */
@@ -61,10 +74,13 @@ const CreateTripRequestSchema = z.object({
 
 /**
  * Response type for trip request creation
+ * Returns requestId for passenger to track matching status
  */
 interface CreateTripRequestResponse {
-  tripId: string;
-  driverId: string;
+  requestId: string;
+  tripId?: string;
+  driverId?: string;
+  status: 'matched' | 'searching';
 }
 
 /**
@@ -77,6 +93,25 @@ interface DriverDoc {
   lastLocation: FirebaseFirestore.GeoPoint | null;
   currentTripId: string | null;
   updatedAt: FirebaseFirestore.Timestamp;
+}
+
+/**
+ * Trip request document in tripRequests collection
+ * Used for passenger to track matching status before trip creation
+ */
+interface TripRequestDocument {
+  requestId: string;
+  passengerId: string;
+  pickup: { lat: number; lng: number };
+  dropoff: { lat: number; lng: number };
+  estimatedDistanceKm: number;
+  estimatedDurationMin: number;
+  estimatedPriceIls: number;
+  status: 'open' | 'matched' | 'expired' | 'cancelled';
+  matchedDriverId?: string;
+  matchedTripId?: string;
+  matchedAt?: FirebaseFirestore.FieldValue;
+  createdAt: FirebaseFirestore.FieldValue;
 }
 
 /**
@@ -210,7 +245,39 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       logger.info('✅ [CreateTrip] Passenger has no active trips');
 
       // ========================================
-      // 4. Query drivers where isOnline=true AND isAvailable=true
+      // 4. Create tripRequest document for passenger tracking
+      // ========================================
+      const serverCalculatedPriceIls = calculatePrice(estimate.distanceKm);
+      
+      // Log if client price differs from server calculation
+      if (serverCalculatedPriceIls !== estimate.priceIls) {
+        logger.warn('💰 [CreateTrip] Price mismatch - using server calculation', {
+          clientPrice: estimate.priceIls,
+          serverPrice: serverCalculatedPriceIls,
+          distanceKm: estimate.distanceKm,
+        });
+      }
+
+      const tripRequestRef = db.collection('tripRequests').doc();
+      const requestId = tripRequestRef.id;
+
+      const tripRequestDoc: TripRequestDocument = {
+        requestId,
+        passengerId,
+        pickup: { lat: pickup.lat, lng: pickup.lng },
+        dropoff: { lat: dropoff.lat, lng: dropoff.lng },
+        estimatedDistanceKm: estimate.distanceKm,
+        estimatedDurationMin: estimate.durationMin,
+        estimatedPriceIls: serverCalculatedPriceIls,
+        status: TripRequestStatus.OPEN,
+        createdAt: FieldValue.serverTimestamp(),
+      };
+
+      await tripRequestRef.set(tripRequestDoc);
+      logger.info('📋 [CreateTrip] Trip request created', { requestId });
+
+      // ========================================
+      // 5. Query drivers where isOnline=true AND isAvailable=true
       // ========================================
       logger.info('🔍 [CreateTrip] Querying available drivers...');
       
@@ -221,9 +288,14 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         .get();
 
       if (driversSnapshot.empty) {
-        logger.warn('🚫 [CreateTrip] No available drivers - returning error');
-        logger.dispatchFailed('N/A', 'No available drivers', { passengerId });
-        throw new NotFoundError('No drivers available at the moment');
+        logger.warn('🚫 [CreateTrip] No available drivers - keeping request open');
+        logger.dispatchFailed(requestId, 'No available drivers', { passengerId });
+        
+        // Return with searching status - passenger can wait for drivers
+        return {
+          requestId,
+          status: 'searching' as const,
+        };
       }
 
       logger.info(`🚗 [CreateTrip] Found ${driversSnapshot.size} available driver(s)`);
@@ -263,11 +335,16 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       });
 
       // ========================================
-      // 5. Select nearest driver
+      // 6. Select nearest driver
       // ========================================
       if (driversWithDistance.length === 0) {
-        logger.dispatchFailed('N/A', 'No drivers with location data', { passengerId, driversQueried: driversSnapshot.size });
-        throw new NotFoundError('No drivers available at the moment');
+        logger.dispatchFailed(requestId, 'No drivers with location data', { passengerId, driversQueried: driversSnapshot.size });
+        
+        // Return with searching status - passenger can wait for drivers
+        return {
+          requestId,
+          status: 'searching' as const,
+        };
       }
 
       driversWithDistance.sort((a, b) => a.distance - b.distance);
@@ -279,44 +356,90 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       });
 
       // ========================================
-      // 6. Create trips/{tripId} document
+      // 7. TRANSACTION: Create trip & assign driver atomically
       // ========================================
       const tripRef = db.collection('trips').doc();
       const tripId = tripRef.id;
+      const driverDocRef = db.collection('drivers').doc(nearestDriver.driverId);
+      const driverRequestRef = db
+        .collection('driverRequests')
+        .doc(nearestDriver.driverId)
+        .collection('requests')
+        .doc(tripId);
 
-      // SECURITY: Recalculate price server-side - never trust client estimate
-      const serverCalculatedPriceIls = calculatePrice(estimate.distanceKm);
-      
-      // Log if client price differs from server calculation (for monitoring)
-      if (serverCalculatedPriceIls !== estimate.priceIls) {
-        logger.warn('💰 [CreateTrip] Price mismatch - using server calculation', {
-          clientPrice: estimate.priceIls,
-          serverPrice: serverCalculatedPriceIls,
-          distanceKm: estimate.distanceKm,
+      await db.runTransaction(async (transaction) => {
+        // Re-verify driver is still available (prevent race condition)
+        const driverDoc = await transaction.get(driverDocRef);
+        if (!driverDoc.exists) {
+          throw new NotFoundError('Driver not found');
+        }
+        
+        const driverData = driverDoc.data() as DriverDoc;
+        if (!driverData.isOnline || !driverData.isAvailable) {
+          logger.warn('🚫 [CreateTrip] Driver no longer available in transaction', {
+            driverId: nearestDriver.driverId,
+            isOnline: driverData.isOnline,
+            isAvailable: driverData.isAvailable,
+          });
+          throw new NotFoundError('Driver no longer available');
+        }
+
+        // Create trip document
+        const tripDoc: TripDocument = {
+          tripId,
+          passengerId,
+          driverId: nearestDriver.driverId,
+          status: TripStatus.PENDING,
+          pickup: { lat: pickup.lat, lng: pickup.lng },
+          dropoff: { lat: dropoff.lat, lng: dropoff.lng },
+          estimatedDistanceKm: estimate.distanceKm,
+          estimatedDurationMin: estimate.durationMin,
+          estimatedPriceIls: serverCalculatedPriceIls,
+          paymentMethod: 'cash',
+          fareAmount: serverCalculatedPriceIls,
+          paymentStatus: 'pending',
+          paidAt: null,
+          createdAt: FieldValue.serverTimestamp(),
+        };
+        transaction.set(tripRef, tripDoc);
+
+        // Mark driver as busy
+        transaction.set(driverDocRef, {
+          isAvailable: false,
+          currentTripId: tripId,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        // Create driver request notification
+        const expiresAt = Timestamp.fromMillis(
+          Date.now() + PILOT_LIMITS.DRIVER_RESPONSE_TIMEOUT_SECONDS * 1000
+        );
+
+        const driverRequestDoc: DriverRequestDocument = {
+          tripId,
+          passengerId,
+          pickup: { lat: pickup.lat, lng: pickup.lng },
+          dropoff: { lat: dropoff.lat, lng: dropoff.lng },
+          estimatedPriceIls: serverCalculatedPriceIls,
+          status: 'pending',
+          createdAt: FieldValue.serverTimestamp(),
+          expiresAt,
+          timeoutSeconds: PILOT_LIMITS.DRIVER_RESPONSE_TIMEOUT_SECONDS,
+        };
+        transaction.set(driverRequestRef, driverRequestDoc);
+
+        // Update tripRequest to MATCHED
+        transaction.update(tripRequestRef, {
+          status: TripRequestStatus.MATCHED,
+          matchedDriverId: nearestDriver.driverId,
+          matchedTripId: tripId,
+          matchedAt: FieldValue.serverTimestamp(),
         });
-      }
-
-      const tripDoc: TripDocument = {
-        tripId,
-        passengerId,
-        driverId: nearestDriver.driverId,
-        status: TripStatus.PENDING,
-        pickup: { lat: pickup.lat, lng: pickup.lng },
-        dropoff: { lat: dropoff.lat, lng: dropoff.lng },
-        estimatedDistanceKm: estimate.distanceKm,
-        estimatedDurationMin: estimate.durationMin,
-        estimatedPriceIls: serverCalculatedPriceIls,
-        // Payment defaults
-        paymentMethod: 'cash',
-        fareAmount: serverCalculatedPriceIls,
-        paymentStatus: 'pending',
-        paidAt: null,
-        createdAt: FieldValue.serverTimestamp(),
-      };
-
-      await tripRef.set(tripDoc);
+      });
 
       logger.info(`📝 [CreateTrip] Trip created: ${tripId}`);
+      logger.info(`🚗 [CreateTrip] Driver isAvailable → false`, { driverId: nearestDriver.driverId });
+      logger.info(`📨 [CreateTrip] Request sent to driver: ${nearestDriver.driverId}`);
       
       // Log trip lifecycle event
       logger.tripEvent('TRIP_CREATED', tripId, {
@@ -327,62 +450,20 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       });
 
       // ========================================
-      // 7. Mark driver isAvailable=false
-      // ========================================
-      const driverDocRef = db.collection('drivers').doc(nearestDriver.driverId);
-      await driverDocRef.set({
-        isAvailable: false,
-        currentTripId: tripId,
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-
-      logger.info(`🚗 [CreateTrip] Driver isAvailable → false`, { driverId: nearestDriver.driverId });
-
-      // ========================================
-      // 8. Create driverRequests/{driverId}/{tripId} with expiration
-      // ========================================
-      const driverRequestRef = db
-        .collection('driverRequests')
-        .doc(nearestDriver.driverId)
-        .collection('requests')
-        .doc(tripId);
-
-      // Calculate expiration time
-      const expiresAt = Timestamp.fromMillis(
-        Date.now() + PILOT_LIMITS.DRIVER_RESPONSE_TIMEOUT_SECONDS * 1000
-      );
-
-      const driverRequestDoc: DriverRequestDocument = {
-        tripId,
-        passengerId,
-        pickup: { lat: pickup.lat, lng: pickup.lng },
-        dropoff: { lat: dropoff.lat, lng: dropoff.lng },
-        estimatedPriceIls: serverCalculatedPriceIls,
-        status: 'pending',
-        createdAt: FieldValue.serverTimestamp(),
-        expiresAt,
-        timeoutSeconds: PILOT_LIMITS.DRIVER_RESPONSE_TIMEOUT_SECONDS,
-      };
-
-      await driverRequestRef.set(driverRequestDoc);
-
-      logger.info(`📨 [CreateTrip] Request sent to driver: ${nearestDriver.driverId}`, {
-        expiresAt: expiresAt.toDate().toISOString(),
-        timeoutSeconds: PILOT_LIMITS.DRIVER_RESPONSE_TIMEOUT_SECONDS,
-      });
-
-      // ========================================
-      // 9. Return tripId + driverId
+      // 8. Return requestId with matched status
       // ========================================
       logger.info('🎉 [CreateTrip] COMPLETE', {
+        requestId,
         tripId,
         driverId: nearestDriver.driverId,
         distance: `${nearestDriver.distance.toFixed(2)} km`,
       });
 
       return {
+        requestId,
         tripId,
         driverId: nearestDriver.driverId,
+        status: 'matched' as const,
       };
     } catch (error) {
       logger.error('❌ [CreateTrip] FAILED', { error });
