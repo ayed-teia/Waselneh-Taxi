@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { getFirebaseAuthAsync } from '../src/services/firebase';
+import { onAuthStateChanged, type User } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
 
 export default function RootLayout() {
@@ -10,30 +10,29 @@ export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
+    let isMounted = true;
     
-    // Async auth initialization required for React Native
-    const initAuth = async () => {
-      try {
-        const auth = await getFirebaseAuthAsync();
-        // Dynamic import to avoid loading auth at module scope
-        const { onAuthStateChanged } = await import('firebase/auth');
-        
-        unsubscribe = onAuthStateChanged(auth, (user) => {
-          setUser(user);
-          setIsReady(true);
-        });
-      } catch (error) {
-        console.error('Failed to initialize auth:', error);
-        setUser(null);
+    // Using @react-native-firebase - much simpler and more reliable
+    const unsubscribe = onAuthStateChanged((user: User | null) => {
+      if (isMounted) {
+        // Convert native user to compatible format for store
+        setUser(user ? {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          emailVerified: user.emailVerified,
+          phoneNumber: user.phoneNumber,
+          isAnonymous: user.isAnonymous,
+        } as any : null);
         setIsReady(true);
+        console.log('✓ Auth state changed:', user ? `User ${user.uid}` : 'No user');
       }
-    };
-    
-    initAuth();
+    });
     
     return () => {
-      if (unsubscribe) unsubscribe();
+      isMounted = false;
+      unsubscribe();
     };
   }, [setUser]);
 

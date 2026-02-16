@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { Redirect } from 'expo-router';
+import { Alert } from 'react-native';
 import { useAuthStore } from '../src/store';
 import { LoadingScreen } from '../src/ui';
 import { LoginScreen } from '../src/features/auth';
@@ -13,13 +14,18 @@ export default function Index() {
 
   // Dev mode: anonymous signin (creates real Firebase Auth user)
   const handleDevLogin = useCallback(async () => {
-    if (DEV_MODE && isUsingEmulators()) {
-      console.log('🔧 DEV MODE: Signing in anonymously...');
+    Alert.alert('Login', 'Attempting to sign in...');
+    
+    if (DEV_MODE) {
+      const usingEmulators = isUsingEmulators();
+      Alert.alert('Debug', `Using emulators: ${usingEmulators}`);
+      
       const { user, error } = await signInAnonymouslyForDev();
       if (user) {
+        Alert.alert('Success', `Logged in as: ${user.uid}`);
         setUser(user);
       } else {
-        console.error('Dev login failed:', error);
+        Alert.alert('Error', `Login failed: ${error?.message}`);
       }
     }
   }, [setUser]);

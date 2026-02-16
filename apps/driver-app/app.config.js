@@ -57,6 +57,10 @@ module.exports = {
       typedRoutes: true,
     },
     extra: {
+      // EAS Project ID
+      eas: {
+        projectId: '41ef9372-b842-47c9-889c-a400f3b72f1f',
+      },
       // App Mode (Step 33: Go-Live Mode)
       appMode: process.env.EXPO_PUBLIC_APP_MODE || 'dev',
       // Firebase configuration

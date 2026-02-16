@@ -1,65 +1,37 @@
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
-import { 
-  parseAppMode, 
-  shouldAllowEmulators, 
-  getConnectionGuardMessage,
-  validateAppModeConfig,
-  type AppMode 
-} from '@taxi-line/shared';
-import { getEmulatorHost } from '../../utils/emulator-host';
-
-// Types only - NO direct imports of firebase modules at module level!
-import type { FirebaseApp } from 'firebase/app';
-import type { Auth } from 'firebase/auth';
+/**
+ * Firebase configuration for Driver App
+ * Using @react-native-firebase (Native SDK) for better reliability
+ */
+import firebaseApp from '@react-native-firebase/app';
+import firebaseAuth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import type { Firestore } from 'firebase/firestore';
 import type { Functions } from 'firebase/functions';
+import Constants from 'expo-constants';
+import { getEmulatorHost } from '../../utils/emulator-host';
 
-/**
- * Firebase configuration for Passenger App
- * 
- * Step 33: Go-Live Mode - App Mode Support
- * 
- * CRITICAL: All Firebase services are lazy-initialized to avoid
- * "Component X has not been registered yet" errors in React Native.
- * Firebase components register asynchronously, so we defer all
- * initialization until the services are actually needed.
- */
+// Re-export types
+export type Auth = FirebaseAuthTypes.Module;
+export type User = FirebaseAuthTypes.User;
+export type UserCredential = FirebaseAuthTypes.UserCredential;
+
 const expoConfig = Constants.expoConfig?.extra ?? {};
 
+// Production Firebase configuration (for Firestore/Functions that still use JS SDK)
 const firebaseConfig = {
-  apiKey: (expoConfig.firebaseApiKey as string) || 'demo-api-key',
-  authDomain: (expoConfig.firebaseAuthDomain as string) || 'localhost',
-  projectId: (expoConfig.firebaseProjectId as string) || 'demo-taxi-line',
-  storageBucket: (expoConfig.firebaseStorageBucket as string) || 'demo-taxi-line.appspot.com',
-  messagingSenderId: (expoConfig.firebaseMessagingSenderId as string) || '123456789',
-  appId: (expoConfig.firebaseAppId as string) || '1:123456789:web:abc123',
+  apiKey: "AIzaSyBxSBX302HrkHBt-m0s6rCQDpu74L4Wld0",
+  authDomain: "waselneh-prod.firebaseapp.com",
+  projectId: "waselneh-prod",
+  storageBucket: "waselneh-prod.firebasestorage.app",
+  messagingSenderId: "1041356838503",
+  appId: "1:1041356838503:web:68c077c6d834057e89a6c2",
+  measurementId: "G-FNY3H394G2"
 };
 
-// ============================================================================
-// APP MODE CONFIGURATION (Step 33)
-// ============================================================================
-
-const appMode: AppMode = parseAppMode(expoConfig.appMode as string);
-const emulatorsRequested = expoConfig.useEmulators === true || expoConfig.useEmulators === 'true';
-const useEmulators = shouldAllowEmulators(appMode, emulatorsRequested);
-// Use smart emulator host detection (Android: 10.0.2.2, iOS: 127.0.0.1, Physical: env var)
+// Emulator config 
+const useEmulators = expoConfig.useEmulators === true || expoConfig.useEmulators === 'true';
 const emulatorHost = getEmulatorHost();
 
-// Reduce console logs in pilot/prod (Step 34)
-const isDevMode = appMode === 'dev';
-
-// Log connection guard message (always log this once for visibility)
-const connectionMessage = getConnectionGuardMessage(appMode, emulatorsRequested);
-if (connectionMessage) {
-  console.log(connectionMessage);
-}
-
-// Validate config and log warnings
-const configWarnings = validateAppModeConfig(appMode, firebaseConfig.projectId);
-configWarnings.forEach(warning => console.warn(warning));
-
-// Emulator ports (must match firebase.json)
 const EMULATOR_PORTS = {
   auth: 9099,
   firestore: 8080,
@@ -69,268 +41,164 @@ const EMULATOR_PORTS = {
 const FUNCTIONS_REGION = 'europe-west1';
 
 // ============================================================================
-// LAZY FIREBASE APP INITIALIZATION
+// LAZY SINGLETONS
 // ============================================================================
 
-let _app: FirebaseApp | null = null;
-let _appPromise: Promise<FirebaseApp> | null = null;
+let _jsApp: FirebaseApp | null = null;
+let _db: Firestore | null = null;
+let _functions: Functions | null = null;
 
-/**
- * Get Firebase App instance (lazy initialized)
- */
-export async function getFirebaseApp(): Promise<FirebaseApp> {
-  if (_app) return _app;
-  if (_appPromise) return _appPromise;
-
-  _appPromise = (async () => {
-    const { initializeApp, getApps, getApp } = require('firebase/app');
-    
-    _app = getApps().length === 0 
-      ? initializeApp(firebaseConfig) 
-      : getApp();
-
-    // Connection mode already logged at startup via getConnectionGuardMessage()
-
-    return _app!;
-  })();
-
-  return _appPromise;
-}
-
-// For backwards compatibility - synchronous getter (throws if not initialized)
-export function getApp(): FirebaseApp {
-  if (!_app) {
-    throw new Error('Firebase App not initialized. Call getFirebaseApp() first.');
-  }
-  return _app;
-}
-
-// Legacy export - will be initialized on first access via getFirebaseApp()
-export const app: FirebaseApp = null as unknown as FirebaseApp;
+let _firestoreEmulatorConnected = false;
+let _functionsEmulatorConnected = false;
 
 // ============================================================================
-// LAZY AUTH INITIALIZATION
+// FIREBASE AUTH - Using @react-native-firebase (Native SDK)
 // ============================================================================
 
-let _auth: Auth | null = null;
-let _authPromise: Promise<Auth> | null = null;
-let _authEmulatorConnected = false;
-
 /**
- * Get Firebase Auth instance asynchronously
- */
-export async function getFirebaseAuthAsync(): Promise<Auth> {
-  if (_auth) return _auth;
-  if (_authPromise) return _authPromise;
-
-  _authPromise = (async () => {
-    const firebaseApp = await getFirebaseApp();
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-    const { 
-      initializeAuth, 
-      getAuth,
-      getReactNativePersistence,
-      connectAuthEmulator 
-    } = require('firebase/auth');
-
-    if (Platform.OS === 'web') {
-      _auth = getAuth(firebaseApp);
-    } else {
-      try {
-        _auth = initializeAuth(firebaseApp, {
-          persistence: getReactNativePersistence(AsyncStorage),
-        });
-      } catch (error: any) {
-        if (error?.code === 'auth/already-initialized') {
-          _auth = getAuth(firebaseApp);
-        } else {
-          throw error;
-        }
-      }
-    }
-
-    // Connect Auth Emulator
-    if (useEmulators && !_authEmulatorConnected && _auth) {
-      try {
-        connectAuthEmulator(_auth, `http://${emulatorHost}:${EMULATOR_PORTS.auth}`, {
-          disableWarnings: true,
-        });
-        _authEmulatorConnected = true;
-        if (isDevMode) {
-          console.log(`  ✓ Auth Emulator: http://${emulatorHost}:${EMULATOR_PORTS.auth}`);
-        }
-      } catch {
-        // Emulator already connected
-      }
-    }
-
-    return _auth!;
-  })();
-
-  return _authPromise;
-}
-
-/**
- * Get Firebase Auth instance (synchronous)
- * @throws if auth not initialized
+ * Get Firebase Auth instance using the native SDK
+ * This is the most reliable way to use Firebase Auth in React Native
  */
 export function getFirebaseAuth(): Auth {
-  if (!_auth) {
-    throw new Error('Auth not initialized. Call getFirebaseAuthAsync() first.');
-  }
-  return _auth;
+  return firebaseAuth();
+}
+
+// Async version for compatibility with existing code
+export async function getFirebaseAuthAsync(): Promise<Auth> {
+  return firebaseAuth();
 }
 
 // ============================================================================
-// LAZY FIRESTORE INITIALIZATION
+// FIREBASE APP - For Firestore/Functions (JS SDK)
 // ============================================================================
 
-let _db: Firestore | null = null;
-let _dbPromise: Promise<Firestore> | null = null;
-let _firestoreEmulatorConnected = false;
+export function getFirebaseApp(): FirebaseApp {
+  if (_jsApp) return _jsApp;
+  
+  _jsApp = getApps().length === 0
+    ? initializeApp(firebaseConfig)
+    : getApp();
+  
+  console.log('✓ Firebase JS App initialized (for Firestore/Functions)');
+  return _jsApp;
+}
 
-/**
- * Get Firestore instance asynchronously
- */
+// ============================================================================
+// FIRESTORE - Uses JS SDK (native SDK Firestore is paid in @react-native-firebase)
+// ============================================================================
+
 export async function getFirestoreAsync(): Promise<Firestore> {
   if (_db) return _db;
-  if (_dbPromise) return _dbPromise;
-
-  _dbPromise = (async () => {
-    const firebaseApp = await getFirebaseApp();
-    const { getFirestore, connectFirestoreEmulator } = require('firebase/firestore');
-    
-    _db = getFirestore(firebaseApp);
-
-    if (useEmulators && !_firestoreEmulatorConnected) {
-      try {
-        connectFirestoreEmulator(_db, emulatorHost, EMULATOR_PORTS.firestore);
-        _firestoreEmulatorConnected = true;
-        if (isDevMode) {
-          console.log(`  ✓ Firestore Emulator: ${emulatorHost}:${EMULATOR_PORTS.firestore}`);
-        }
-      } catch {
-        // Emulator already connected
-      }
+  
+  const app = getFirebaseApp();
+  const { getFirestore, connectFirestoreEmulator } = await import('firebase/firestore');
+  
+  _db = getFirestore(app);
+  
+  if (useEmulators && !_firestoreEmulatorConnected) {
+    try {
+      connectFirestoreEmulator(_db, emulatorHost, EMULATOR_PORTS.firestore);
+      _firestoreEmulatorConnected = true;
+      console.log(`✓ Firestore Emulator: ${emulatorHost}:${EMULATOR_PORTS.firestore}`);
+    } catch (e) {
+      // Already connected
     }
-
-    return _db!;
-  })();
-
-  return _dbPromise;
+  }
+  
+  return _db;
 }
 
-/**
- * Get Firestore instance (synchronous)
- * @throws if not initialized
- */
 export function getFirestoreSync(): Firestore {
   if (!_db) {
-    throw new Error('Firestore not initialized. Call getFirestoreAsync() first.');
+    getFirestoreAsync().catch(console.error);
+    throw new Error('Firestore not initialized yet. Use getFirestoreAsync() first.');
   }
   return _db;
 }
 
-// Legacy export for backwards compatibility
-export const db: Firestore = null as unknown as Firestore;
-
 // ============================================================================
-// LAZY FUNCTIONS INITIALIZATION
+// FUNCTIONS - Uses JS SDK
 // ============================================================================
 
-let _functions: Functions | null = null;
-let _functionsPromise: Promise<Functions> | null = null;
-let _functionsEmulatorConnected = false;
-
-/**
- * Get Firebase Functions instance asynchronously
- */
 export async function getFunctionsAsync(): Promise<Functions> {
   if (_functions) return _functions;
-  if (_functionsPromise) return _functionsPromise;
-
-  _functionsPromise = (async () => {
-    const firebaseApp = await getFirebaseApp();
-    const { getFunctions, connectFunctionsEmulator } = require('firebase/functions');
-    
-    _functions = getFunctions(firebaseApp, FUNCTIONS_REGION);
-
-    if (useEmulators && !_functionsEmulatorConnected) {
-      try {
-        connectFunctionsEmulator(_functions, emulatorHost, EMULATOR_PORTS.functions);
-        _functionsEmulatorConnected = true;
-        if (isDevMode) {
-          console.log(`  ✓ Functions Emulator: ${emulatorHost}:${EMULATOR_PORTS.functions}`);
-        }
-      } catch {
-        // Emulator already connected
-      }
+  
+  const app = getFirebaseApp();
+  const { getFunctions, connectFunctionsEmulator } = await import('firebase/functions');
+  
+  _functions = getFunctions(app, FUNCTIONS_REGION);
+  
+  if (useEmulators && !_functionsEmulatorConnected) {
+    try {
+      connectFunctionsEmulator(_functions, emulatorHost, EMULATOR_PORTS.functions);
+      _functionsEmulatorConnected = true;
+      console.log(`✓ Functions Emulator: ${emulatorHost}:${EMULATOR_PORTS.functions}`);
+    } catch (e) {
+      // Already connected
     }
-
-    return _functions!;
-  })();
-
-  return _functionsPromise;
+  }
+  
+  return _functions;
 }
 
-/**
- * Get Functions instance (synchronous)
- * @throws if not initialized
- */
 export function getFunctionsSync(): Functions {
   if (!_functions) {
-    throw new Error('Functions not initialized. Call getFunctionsAsync() first.');
+    getFunctionsAsync().catch(console.error);
+    throw new Error('Functions not initialized yet. Use getFunctionsAsync() first.');
   }
   return _functions;
 }
 
-// Legacy export for backwards compatibility
-export const functions: Functions = null as unknown as Functions;
-
 // ============================================================================
-// CONVENIENCE: Initialize all services at once
+// CONVENIENCE FUNCTIONS
 // ============================================================================
 
-/**
- * Initialize all Firebase services
- * Call this early in app startup (e.g., in _layout.tsx useEffect)
- */
-export async function initializeFirebase(): Promise<{
-  app: FirebaseApp;
-  auth: Auth;
-  db: Firestore;
-  functions: Functions;
-}> {
-  const [app, auth, db, functions] = await Promise.all([
-    getFirebaseApp(),
-    getFirebaseAuthAsync(),
-    getFirestoreAsync(),
-    getFunctionsAsync(),
-  ]);
-  
-  return { app, auth, db, functions };
-}
-
-/**
- * Check if using emulators
- */
 export function isUsingEmulators(): boolean {
   return useEmulators;
 }
 
+export async function initializeFirebase() {
+  const app = getFirebaseApp();
+  const auth = getFirebaseAuth();
+  const db = await getFirestoreAsync();
+  const functions = await getFunctionsAsync();
+  
+  console.log('✓ Firebase initialized (Native Auth + JS SDK Firestore/Functions)');
+  return { app, auth, db, functions };
+}
+
 /**
  * Sign in anonymously for dev mode
- * Creates a real Firebase Auth user session that satisfies security rules
  */
-export async function signInAnonymouslyForDev(): Promise<{ user: import('firebase/auth').User | null; error: Error | null }> {
+export async function signInAnonymouslyForDev(): Promise<{ user: User | null; error: Error | null }> {
   try {
-    const auth = await getFirebaseAuthAsync();
-    const { signInAnonymously } = require('firebase/auth');
-    const result = await signInAnonymously(auth);
+    const auth = getFirebaseAuth();
+    const result = await auth.signInAnonymously();
     console.log('🔧 DEV MODE: Signed in anonymously with uid:', result.user.uid);
     return { user: result.user, error: null };
   } catch (error) {
     console.error('Failed to sign in anonymously:', error);
     return { user: null, error: error as Error };
   }
+}
+
+/**
+ * Get current user
+ */
+export function getCurrentUser(): User | null {
+  return getFirebaseAuth().currentUser;
+}
+
+/**
+ * Subscribe to auth state changes
+ */
+export function onAuthStateChanged(callback: (user: User | null) => void): () => void {
+  return getFirebaseAuth().onAuthStateChanged(callback);
+}
+
+/**
+ * Sign out
+ */
+export async function signOut(): Promise<void> {
+  await getFirebaseAuth().signOut();
 }

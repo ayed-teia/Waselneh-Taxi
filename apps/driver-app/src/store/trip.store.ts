@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { TripStatus } from '@taxi-line/shared';
+import { TripStatus } from '../types/shared';
 
 interface TripState {
   activeTripId: string | null;

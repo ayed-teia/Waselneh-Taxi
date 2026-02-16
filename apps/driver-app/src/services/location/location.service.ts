@@ -1,4 +1,4 @@
-import { LatLng } from '@taxi-line/shared';
+import { LatLng } from '../../types/shared';
 
 /**
  * Location Service Placeholder
