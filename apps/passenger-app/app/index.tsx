@@ -1,24 +1,28 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '../src/store';
 import { LoadingScreen } from '../src/ui';
 import { LoginScreen } from '../src/features/auth';
+import { signInAnonymouslyForDev, isUsingEmulators } from '../src/services/firebase';
 
-// Dev mode - skip auth for testing
+// Dev mode - use anonymous auth for testing with emulators
 const DEV_MODE = true;
-const DEV_PASSENGER_ID = 'dev-passenger-001';
 
 export default function Index() {
   const { isAuthenticated, isLoading, setUser } = useAuthStore();
 
-  // Dev mode: auto-login
-  const handleDevLogin = () => {
-    if (DEV_MODE) {
-      console.log('🔧 DEV MODE: Logging in as', DEV_PASSENGER_ID);
-      // Create a mock user object
-      setUser({ uid: DEV_PASSENGER_ID } as any);
+  // Dev mode: anonymous signin (creates real Firebase Auth user)
+  const handleDevLogin = useCallback(async () => {
+    if (DEV_MODE && isUsingEmulators()) {
+      console.log('🔧 DEV MODE: Signing in anonymously...');
+      const { user, error } = await signInAnonymouslyForDev();
+      if (user) {
+        setUser(user);
+      } else {
+        console.error('Dev login failed:', error);
+      }
     }
-  };
+  }, [setUser]);
 
   if (isLoading) {
     return <LoadingScreen message="Starting Waselneh..." />;

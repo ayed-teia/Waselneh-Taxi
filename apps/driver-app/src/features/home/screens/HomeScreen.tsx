@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusToggle } from '../../../ui';
 import { useDriverStore } from '../../../store';
+import { DriverMapView } from '../../map';
 
 interface HomeScreenProps {
   onToggleStatus: (goOnline: boolean) => void;
@@ -10,23 +11,22 @@ interface HomeScreenProps {
 
 /**
  * Driver Home Screen
- * Shows status toggle, map placeholder, and nearby trip requests
+ * Shows status toggle, real map with roadblocks, and nearby trip requests
  */
 export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
   const router = useRouter();
   const { status, isUpdatingStatus, currentLocation } = useDriverStore();
 
+  // Convert to format expected by DriverMapView
+  const driverLocation = currentLocation
+    ? { latitude: currentLocation.lat, longitude: currentLocation.lng }
+    : null;
+
   return (
     <View style={styles.container}>
-      {/* Map placeholder */}
-      <View style={styles.mapPlaceholder}>
-        <Text style={styles.mapEmoji}>🗺️</Text>
-        <Text style={styles.mapText}>Driver Map</Text>
-        {currentLocation && (
-          <Text style={styles.locationText}>
-            📍 {currentLocation.lat.toFixed(4)}, {currentLocation.lng.toFixed(4)}
-          </Text>
-        )}
+      {/* Real driver map with roadblocks */}
+      <View style={styles.mapContainer}>
+        <DriverMapView driverLocation={driverLocation} followUser={true} />
       </View>
 
       {/* Bottom panel */}
@@ -73,25 +73,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F2F2F7',
   },
-  mapPlaceholder: {
+  mapContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#C8D6C5',
-  },
-  mapEmoji: {
-    fontSize: 64,
-    marginBottom: 8,
-  },
-  mapText: {
-    fontSize: 18,
-    color: '#666666',
-    fontWeight: '600',
-  },
-  locationText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#888888',
   },
   bottomPanel: {
     backgroundColor: '#F2F2F7',

@@ -7,6 +7,7 @@ import {
   validateAppModeConfig,
   type AppMode 
 } from '@taxi-line/shared';
+import { getEmulatorHost } from '../../utils/emulator-host';
 
 // Types only - NO direct imports of firebase modules at module level!
 import type { FirebaseApp } from 'firebase/app';
@@ -42,7 +43,8 @@ const firebaseConfig = {
 const appMode: AppMode = parseAppMode(expoConfig.appMode as string);
 const emulatorsRequested = expoConfig.useEmulators === true || expoConfig.useEmulators === 'true';
 const useEmulators = shouldAllowEmulators(appMode, emulatorsRequested);
-const emulatorHost = (expoConfig.emulatorHost as string) || '127.0.0.1';
+// Use smart emulator host detection (Android: 10.0.2.2, iOS: 127.0.0.1, Physical: env var)
+const emulatorHost = getEmulatorHost();
 
 // Reduce console logs in pilot/prod (Step 34)
 const isDevMode = appMode === 'dev';
@@ -314,4 +316,21 @@ export async function initializeFirebase(): Promise<{
  */
 export function isUsingEmulators(): boolean {
   return useEmulators;
+}
+
+/**
+ * Sign in anonymously for dev mode
+ * Creates a real Firebase Auth user session that satisfies security rules
+ */
+export async function signInAnonymouslyForDev(): Promise<{ user: import('firebase/auth').User | null; error: Error | null }> {
+  try {
+    const auth = await getFirebaseAuthAsync();
+    const { signInAnonymously } = require('firebase/auth');
+    const result = await signInAnonymously(auth);
+    console.log('🔧 DEV MODE: Signed in anonymously with uid:', result.user.uid);
+    return { user: result.user, error: null };
+  } catch (error) {
+    console.error('Failed to sign in anonymously:', error);
+    return { user: null, error: error as Error };
+  }
 }

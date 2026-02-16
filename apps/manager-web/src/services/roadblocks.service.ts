@@ -116,7 +116,7 @@ export async function createRoadblock(data: {
     radiusMeters: data.radiusMeters ?? 100,
     status: data.status ?? 'closed',
     note: data.note ?? '',
-    createdBy: data.createdBy,
+    createdBy: data.createdBy ?? 'manager',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

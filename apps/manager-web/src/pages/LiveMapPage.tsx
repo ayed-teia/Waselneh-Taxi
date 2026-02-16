@@ -25,7 +25,8 @@ export function LiveMapPage() {
   const [editingRoadblock, setEditingRoadblock] = useState<RoadblockData | null>(null);
   const [newRoadblockLocation, setNewRoadblockLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [roadblockForm, setRoadblockForm] = useState({
-    status: 'closed' as 'open' | 'closed' | 'delay',
+    name: '',
+    status: 'closed' as 'open' | 'closed' | 'congested',
     radiusMeters: 100,
     note: '',
   });
@@ -147,7 +148,7 @@ export function LiveMapPage() {
   const handleMapClick = useCallback((lat: number, lng: number) => {
     setNewRoadblockLocation({ lat, lng });
     setEditingRoadblock(null);
-    setRoadblockForm({ status: 'closed', radiusMeters: 100, note: '' });
+    setRoadblockForm({ name: '', status: 'closed', radiusMeters: 100, note: '' });
     setShowRoadblockModal(true);
   }, []);
 
@@ -155,6 +156,7 @@ export function LiveMapPage() {
     setEditingRoadblock(roadblock);
     setNewRoadblockLocation(null);
     setRoadblockForm({
+      name: roadblock.name || '',
       status: roadblock.status,
       radiusMeters: roadblock.radiusMeters,
       note: roadblock.note || '',
@@ -163,6 +165,12 @@ export function LiveMapPage() {
   }, []);
 
   const handleSaveRoadblock = async () => {
+    // Validate name is provided
+    if (!roadblockForm.name.trim()) {
+      alert('Please enter a name for the roadblock');
+      return;
+    }
+    
     setIsSavingRoadblock(true);
     try {
       if (editingRoadblock) {
@@ -645,13 +653,24 @@ export function LiveMapPage() {
             <h3>{editingRoadblock ? '✏️ Edit Roadblock' : '🚧 Add Roadblock'}</h3>
             
             <div className="form-group">
+              <label>Name</label>
+              <input
+                type="text"
+                value={roadblockForm.name}
+                onChange={(e) => setRoadblockForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g., Qalandia Checkpoint"
+                required
+              />
+            </div>
+
+            <div className="form-group">
               <label>Status</label>
               <select
                 value={roadblockForm.status}
-                onChange={(e) => setRoadblockForm(f => ({ ...f, status: e.target.value as 'open' | 'closed' | 'delay' }))}
+                onChange={(e) => setRoadblockForm(f => ({ ...f, status: e.target.value as 'open' | 'closed' | 'congested' }))}
               >
                 <option value="closed">🚫 Closed</option>
-                <option value="delay">⚠️ Delay</option>
+                <option value="congested">⚠️ Congested</option>
                 <option value="open">✅ Open (Cleared)</option>
               </select>
             </div>

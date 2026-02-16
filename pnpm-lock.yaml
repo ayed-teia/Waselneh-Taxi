@@ -108,6 +108,9 @@ importers:
 
   apps/manager-web:
     dependencies:
+      '@taxi-line/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@types/leaflet':
         specifier: ^1.9.21
         version: 1.9.21
