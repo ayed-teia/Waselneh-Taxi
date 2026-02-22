@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "371732961093",
+    "project_id": "waselneh-prod-414e2",
+    "storage_bucket": "waselneh-prod-414e2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:371732961093:android:ec46d2a7ccf23f4f3cbff1",
+        "android_client_info": {
+          "package_name": "com.taxiline.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOo3bXATVcOAc1Yh9cNxbGWv85SnCNXag"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

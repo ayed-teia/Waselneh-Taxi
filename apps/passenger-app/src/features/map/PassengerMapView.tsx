@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import MapView, { Marker, Circle, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import Mapbox, { MapView, Camera, PointAnnotation, CircleLayer, ShapeSource, LineLayer, LocationPuck } from '@rnmapbox/maps';
+import Constants from 'expo-constants';
+
+// Initialize Mapbox
+const MAPBOX_TOKEN = Constants.expoConfig?.extra?.mapboxAccessToken || process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
+Mapbox.setAccessToken(MAPBOX_TOKEN);
 import { 
   subscribeToAllRoadblocks, 
   RoadblockData, 
@@ -45,7 +50,7 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const mapRef = useRef<MapView>(null);
+  const cameraRef = useRef<Camera>(null);
   const lastRoadblockUpdateRef = useRef<number>(0);
   const lastDriverUpdateRef = useRef<number>(0);
 
@@ -114,39 +119,69 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
 
   // Fit map to show all markers
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!cameraRef.current) return;
 
-    const coordinates: { latitude: number; longitude: number }[] = [];
+    const coordinates: [number, number][] = [];
     
     if (pickup) {
-      coordinates.push({ latitude: pickup.lat, longitude: pickup.lng });
+      coordinates.push([pickup.lng, pickup.lat]);
     }
     if (dropoff) {
-      coordinates.push({ latitude: dropoff.lat, longitude: dropoff.lng });
+      coordinates.push([dropoff.lng, dropoff.lat]);
     }
     if (driverLocation) {
-      coordinates.push({ latitude: driverLocation.lat, longitude: driverLocation.lng });
+      coordinates.push([driverLocation.lng, driverLocation.lat]);
     }
 
     if (coordinates.length >= 2) {
-      mapRef.current.fitToCoordinates(coordinates, {
-        edgePadding: { top: 50, right: 50, bottom: 100, left: 50 },
-        animated: true,
-      });
+      // Calculate bounds
+      const lngs = coordinates.map(c => c[0]);
+      const lats = coordinates.map(c => c[1]);
+      const bounds = {
+        ne: [Math.max(...lngs) + 0.01, Math.max(...lats) + 0.01] as [number, number],
+        sw: [Math.min(...lngs) - 0.01, Math.min(...lats) - 0.01] as [number, number],
+      };
+      
+      cameraRef.current.fitBounds(bounds.ne, bounds.sw, [50, 50, 100, 50], 500);
     }
   }, [pickup, dropoff, driverLocation]);
 
-  // Calculate initial region
-  const getInitialRegion = () => {
+  // GeoJSON for roadblock circles
+  const roadblockCirclesGeoJSON = {
+    type: 'FeatureCollection' as const,
+    features: roadblocks.map((rb) => ({
+      type: 'Feature' as const,
+      properties: {
+        id: rb.id,
+        status: rb.status,
+        color: MARKER_COLORS.roadblock[rb.status] || MARKER_COLORS.roadblock.closed,
+      },
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [rb.lng, rb.lat],
+      },
+    })),
+  };
+
+  // GeoJSON for route line
+  const routeLineGeoJSON = pickup && dropoff ? {
+    type: 'Feature' as const,
+    properties: {},
+    geometry: {
+      type: 'LineString' as const,
+      coordinates: [
+        [pickup.lng, pickup.lat],
+        [dropoff.lng, dropoff.lat],
+      ],
+    },
+  } : null;
+
+  // Calculate initial center
+  const getInitialCenter = (): [number, number] => {
     if (pickup) {
-      return {
-        latitude: pickup.lat,
-        longitude: pickup.lng,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
-      };
+      return [pickup.lng, pickup.lat];
     }
-    return DEFAULT_REGION;
+    return [DEFAULT_REGION.longitude, DEFAULT_REGION.latitude];
   };
 
   if (loading) {
@@ -161,82 +196,110 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
   return (
     <View style={styles.container}>
       <MapView
-        ref={mapRef}
         style={styles.map}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={getInitialRegion()}
-        showsUserLocation={true}
-        showsMyLocationButton={true}
-        showsCompass={true}
-        rotateEnabled={true}
-        zoomEnabled={true}
+        styleURL={Mapbox.StyleURL.Street}
+        logoEnabled={false}
+        attributionEnabled={false}
+        compassEnabled={true}
+        scaleBarEnabled={true}
       >
+        <Camera
+          ref={cameraRef}
+          defaultSettings={{
+            centerCoordinate: getInitialCenter(),
+            zoomLevel: 14,
+          }}
+        />
+
+        {/* Show user location */}
+        <LocationPuck visible={true} />
+
+        {/* Route line between pickup and dropoff */}
+        {routeLineGeoJSON && (
+          <ShapeSource id="route-line" shape={routeLineGeoJSON}>
+            <LineLayer
+              id="route-line-layer"
+              style={{
+                lineColor: '#007AFF',
+                lineWidth: 3,
+                lineDasharray: [2, 2],
+              }}
+            />
+          </ShapeSource>
+        )}
+
+        {/* Roadblock circles */}
+        <ShapeSource id="roadblocks" shape={roadblockCirclesGeoJSON}>
+          <CircleLayer
+            id="roadblock-circles"
+            style={{
+              circleRadius: 30,
+              circleColor: ['get', 'color'],
+              circleOpacity: 0.3,
+              circleStrokeWidth: 2,
+              circleStrokeColor: ['get', 'color'],
+            }}
+          />
+        </ShapeSource>
+
         {/* Pickup marker */}
         {pickup && (
-          <Marker
-            coordinate={{ latitude: pickup.lat, longitude: pickup.lng }}
+          <PointAnnotation
+            id="pickup-marker"
+            coordinate={[pickup.lng, pickup.lat]}
             title="Pickup"
-            description="Your pickup location"
-            pinColor={MARKER_COLORS.trip.pickup}
-          />
+            snippet="Your pickup location"
+          >
+            <View style={[styles.markerContainer, { backgroundColor: MARKER_COLORS.trip.pickup }]}>
+              <Text style={styles.markerEmoji}>📍</Text>
+            </View>
+          </PointAnnotation>
         )}
 
         {/* Dropoff marker */}
         {dropoff && (
-          <Marker
-            coordinate={{ latitude: dropoff.lat, longitude: dropoff.lng }}
+          <PointAnnotation
+            id="dropoff-marker"
+            coordinate={[dropoff.lng, dropoff.lat]}
             title="Destination"
-            description="Your destination"
-            pinColor={MARKER_COLORS.trip.dropoff}
-          />
-        )}
-
-        {/* Route line between pickup and dropoff */}
-        {pickup && dropoff && (
-          <Polyline
-            coordinates={[
-              { latitude: pickup.lat, longitude: pickup.lng },
-              { latitude: dropoff.lat, longitude: dropoff.lng },
-            ]}
-            strokeColor="#007AFF"
-            strokeWidth={3}
-            lineDashPattern={[5, 5]}
-          />
+            snippet="Your destination"
+          >
+            <View style={[styles.markerContainer, { backgroundColor: MARKER_COLORS.trip.dropoff }]}>
+              <Text style={styles.markerEmoji}>🏁</Text>
+            </View>
+          </PointAnnotation>
         )}
 
         {/* Driver marker */}
         {driverLocation && (
-          <Marker
-            coordinate={{ latitude: driverLocation.lat, longitude: driverLocation.lng }}
+          <PointAnnotation
+            id="driver-marker"
+            coordinate={[driverLocation.lng, driverLocation.lat]}
             title="Your Driver"
-            description={driverLocation.speed ? `${Math.round(driverLocation.speed * 3.6)} km/h` : 'Waiting'}
-            pinColor={MARKER_COLORS.driver.assigned}
-          />
+            snippet={driverLocation.speed ? `${Math.round(driverLocation.speed * 3.6)} km/h` : 'Waiting'}
+          >
+            <View style={[styles.markerContainer, { backgroundColor: MARKER_COLORS.driver.assigned }]}>
+              <Text style={styles.markerEmoji}>🚕</Text>
+            </View>
+          </PointAnnotation>
         )}
 
         {/* Roadblock markers */}
         {roadblocks.map((roadblock) => {
           const statusDisplay = getRoadblockStatusDisplay(roadblock.status);
-          const color = MARKER_COLORS.roadblock[roadblock.status] || MARKER_COLORS.roadblock.closed;
           
           return (
-            <React.Fragment key={roadblock.id}>
-              {/* Circle for roadblock radius */}
-              <Circle
-                center={{ latitude: roadblock.lat, longitude: roadblock.lng }}
-                radius={roadblock.radiusMeters}
-                fillColor={`${color}33`}  // 20% opacity
-                strokeColor={color}
-                strokeWidth={2}
-              />
-              {/* Marker for roadblock center */}
-              <Marker
-                coordinate={{ latitude: roadblock.lat, longitude: roadblock.lng }}
-                title={`${statusDisplay.emoji} ${roadblock.name}`}
-                description={roadblock.note || `Status: ${statusDisplay.label}`}
-                pinColor={color}
-              />
-            </React.Fragment>
+            <PointAnnotation
+              key={roadblock.id}
+              id={`roadblock-${roadblock.id}`}
+              coordinate={[roadblock.lng, roadblock.lat]}
+              title={`${statusDisplay.emoji} ${roadblock.name}`}
+              snippet={roadblock.note || `Status: ${statusDisplay.label}`}
+            >
+              <View style={[styles.markerContainer, { backgroundColor: MARKER_COLORS.roadblock[roadblock.status] || MARKER_COLORS.roadblock.closed }]}>
+                <Text style={styles.markerEmoji}>{statusDisplay.emoji}</Text>
+              </View>
+            </PointAnnotation>
           );
         })}
       </MapView>
@@ -295,6 +358,23 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#8E8E93',
+  },
+  markerContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  markerEmoji: {
+    fontSize: 18,
   },
   legend: {
     position: 'absolute',

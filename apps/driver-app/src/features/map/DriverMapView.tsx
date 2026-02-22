@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import MapView, { Marker, Circle, PROVIDER_DEFAULT } from 'react-native-maps';
+import Mapbox, { MapView, Camera, PointAnnotation, CircleLayer, ShapeSource, LocationPuck } from '@rnmapbox/maps';
 import { subscribeToAllRoadblocks, RoadblockData, getRoadblockStatusDisplay } from '../../services/realtime';
 import { DEFAULT_REGION, MAP_UPDATE_THROTTLE_MS, MARKER_COLORS, MAP_LOG_PREFIX } from '../../config/map.config';
+import Constants from 'expo-constants';
+
+// Initialize Mapbox with access token
+const MAPBOX_TOKEN = Constants.expoConfig?.extra?.mapboxAccessToken || process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
+Mapbox.setAccessToken(MAPBOX_TOKEN);
 
 /**
  * ============================================================================
- * DRIVER MAP VIEW
+ * DRIVER MAP VIEW (MAPBOX)
  * ============================================================================
  * 
  * Map view for drivers showing:
@@ -34,7 +39,7 @@ export function DriverMapView({ driverLocation, followUser = true }: DriverMapVi
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const mapRef = useRef<MapView>(null);
+  const cameraRef = useRef<Camera>(null);
   const lastUpdateRef = useRef<number>(0);
 
   // Subscribe to roadblocks
@@ -69,13 +74,12 @@ export function DriverMapView({ driverLocation, followUser = true }: DriverMapVi
 
   // Follow driver location
   const animateToLocation = useCallback((latitude: number, longitude: number) => {
-    if (mapRef.current && followUser) {
-      mapRef.current.animateToRegion({
-        latitude,
-        longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }, 500);
+    if (cameraRef.current && followUser) {
+      cameraRef.current.setCamera({
+        centerCoordinate: [longitude, latitude],
+        zoomLevel: 14,
+        animationDuration: 500,
+      });
     }
   }, [followUser]);
 
@@ -85,15 +89,22 @@ export function DriverMapView({ driverLocation, followUser = true }: DriverMapVi
     }
   }, [driverLocation, animateToLocation]);
 
-  // Initial region
-  const initialRegion = driverLocation 
-    ? {
-        latitude: driverLocation.latitude,
-        longitude: driverLocation.longitude,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
-      }
-    : DEFAULT_REGION;
+  // GeoJSON for roadblock circles
+  const roadblockCirclesGeoJSON = {
+    type: 'FeatureCollection' as const,
+    features: roadblocks.map((rb) => ({
+      type: 'Feature' as const,
+      properties: {
+        id: rb.id,
+        status: rb.status,
+        color: MARKER_COLORS.roadblock[rb.status] || MARKER_COLORS.roadblock.closed,
+      },
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [rb.lng, rb.lat],
+      },
+    })),
+  };
 
   if (loading) {
     return (
@@ -104,52 +115,67 @@ export function DriverMapView({ driverLocation, followUser = true }: DriverMapVi
     );
   }
 
+  const initialCenter = driverLocation 
+    ? [driverLocation.longitude, driverLocation.latitude]
+    : [DEFAULT_REGION.longitude, DEFAULT_REGION.latitude];
+
   return (
     <View style={styles.container}>
       <MapView
-        ref={mapRef}
         style={styles.map}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={initialRegion}
-        showsUserLocation={true}
-        showsMyLocationButton={true}
-        showsCompass={true}
-        rotateEnabled={true}
-        zoomEnabled={true}
+        styleURL={Mapbox.StyleURL.Street}
+        logoEnabled={false}
+        attributionEnabled={false}
+        compassEnabled={true}
+        scaleBarEnabled={true}
       >
-        {/* Driver self marker */}
-        {driverLocation && (
-          <Marker
-            coordinate={driverLocation}
-            title="You"
-            description="Your current location"
-            pinColor={MARKER_COLORS.driver.self}
+        <Camera
+          ref={cameraRef}
+          defaultSettings={{
+            centerCoordinate: initialCenter,
+            zoomLevel: 14,
+          }}
+          followUserLocation={followUser}
+          followUserMode="normal"
+        />
+
+        {/* Show user location puck */}
+        <LocationPuck
+          puckBearing="heading"
+          puckBearingEnabled={true}
+          visible={true}
+        />
+
+        {/* Roadblock circles */}
+        <ShapeSource id="roadblocks" shape={roadblockCirclesGeoJSON}>
+          <CircleLayer
+            id="roadblock-circles"
+            style={{
+              circleRadius: 30,
+              circleColor: ['get', 'color'],
+              circleOpacity: 0.3,
+              circleStrokeWidth: 2,
+              circleStrokeColor: ['get', 'color'],
+            }}
           />
-        )}
+        </ShapeSource>
 
         {/* Roadblock markers */}
         {roadblocks.map((roadblock) => {
           const statusDisplay = getRoadblockStatusDisplay(roadblock.status);
-          const color = MARKER_COLORS.roadblock[roadblock.status] || MARKER_COLORS.roadblock.closed;
           
           return (
-            <React.Fragment key={roadblock.id}>
-              {/* Circle for roadblock radius */}
-              <Circle
-                center={{ latitude: roadblock.lat, longitude: roadblock.lng }}
-                radius={roadblock.radiusMeters}
-                fillColor={`${color}33`}  // 20% opacity
-                strokeColor={color}
-                strokeWidth={2}
-              />
-              {/* Marker for roadblock center */}
-              <Marker
-                coordinate={{ latitude: roadblock.lat, longitude: roadblock.lng }}
-                title={`${statusDisplay.emoji} ${roadblock.name}`}
-                description={roadblock.note || `Status: ${statusDisplay.label}`}
-                pinColor={color}
-              />
-            </React.Fragment>
+            <PointAnnotation
+              key={roadblock.id}
+              id={`roadblock-${roadblock.id}`}
+              coordinate={[roadblock.lng, roadblock.lat]}
+              title={`${statusDisplay.emoji} ${roadblock.name}`}
+              snippet={roadblock.note || `Status: ${statusDisplay.label}`}
+            >
+              <View style={[styles.markerContainer, { backgroundColor: MARKER_COLORS.roadblock[roadblock.status] || MARKER_COLORS.roadblock.closed }]}>
+                <Text style={styles.markerEmoji}>{statusDisplay.emoji}</Text>
+              </View>
+            </PointAnnotation>
           );
         })}
       </MapView>
@@ -197,6 +223,23 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#8E8E93',
+  },
+  markerContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  markerEmoji: {
+    fontSize: 18,
   },
   legend: {
     position: 'absolute',
