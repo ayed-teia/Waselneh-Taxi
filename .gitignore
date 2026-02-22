@@ -52,6 +52,12 @@ emulator-data/
 pubsub-debug.log
 database-debug.log
 
+# Firebase config files (contain API keys)
+**/google-services.json
+**/GoogleService-Info.plist
+google-services.json
+GoogleService-Info.plist
+
 # Cache
 .eslintcache
 .cache
