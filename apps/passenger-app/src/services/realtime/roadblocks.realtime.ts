@@ -1,12 +1,4 @@
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  Unsubscribe,
-  orderBy,
-} from 'firebase/firestore';
-import { getFirestoreAsync } from '../firebase';
+import { firebaseDB, Unsubscribe } from '../firebase';
 
 /**
  * Roadblock data from Firestore
@@ -30,49 +22,30 @@ export function subscribeToActiveRoadblocks(
   onData: (roadblocks: RoadblockData[]) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  let unsubscribe: Unsubscribe | null = null;
-
-  getFirestoreAsync()
-    .then((db) => {
-      const roadblocksRef = collection(db, 'roadblocks');
-
-      // Query for active roadblocks (closed or congested)
-      const q = query(
-        roadblocksRef,
-        where('status', 'in', ['closed', 'congested']),
-        orderBy('updatedAt', 'desc')
-      );
-
-      unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          const roadblocks: RoadblockData[] = snapshot.docs.map((docSnap) => {
-            const data = docSnap.data();
-            return {
-              id: docSnap.id,
-              name: data.name ?? 'Unnamed',
-              area: data.area,
-              lat: data.lat,
-              lng: data.lng,
-              radiusMeters: data.radiusMeters ?? 100,
-              status: data.status ?? 'closed',
-              note: data.note,
-              updatedAt: data.updatedAt?.toDate() ?? null,
-            };
-          });
-          onData(roadblocks);
-        },
-        onError
-      );
-    })
-    .catch(onError);
-
-  // Return unsubscribe function
-  return () => {
-    if (unsubscribe) {
-      unsubscribe();
-    }
-  };
+  return firebaseDB
+    .collection('roadblocks')
+    .where('status', 'in', ['closed', 'congested'])
+    .orderBy('updatedAt', 'desc')
+    .onSnapshot(
+      (snapshot) => {
+        const roadblocks: RoadblockData[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            name: data?.name ?? 'Unnamed',
+            area: data?.area,
+            lat: data?.lat,
+            lng: data?.lng,
+            radiusMeters: data?.radiusMeters ?? 100,
+            status: data?.status ?? 'closed',
+            note: data?.note,
+            updatedAt: data?.updatedAt?.toDate() ?? null,
+          };
+        });
+        onData(roadblocks);
+      },
+      onError
+    );
 }
 
 /**
@@ -82,42 +55,29 @@ export function subscribeToAllRoadblocks(
   onData: (roadblocks: RoadblockData[]) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  let unsubscribe: Unsubscribe | null = null;
-
-  getFirestoreAsync()
-    .then((db) => {
-      const roadblocksRef = collection(db, 'roadblocks');
-      const q = query(roadblocksRef, orderBy('updatedAt', 'desc'));
-
-      unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          const roadblocks: RoadblockData[] = snapshot.docs.map((docSnap) => {
-            const data = docSnap.data();
-            return {
-              id: docSnap.id,
-              name: data.name ?? 'Unnamed',
-              area: data.area,
-              lat: data.lat,
-              lng: data.lng,
-              radiusMeters: data.radiusMeters ?? 100,
-              status: data.status ?? 'closed',
-              note: data.note,
-              updatedAt: data.updatedAt?.toDate() ?? null,
-            };
-          });
-          onData(roadblocks);
-        },
-        onError
-      );
-    })
-    .catch(onError);
-
-  return () => {
-    if (unsubscribe) {
-      unsubscribe();
-    }
-  };
+  return firebaseDB
+    .collection('roadblocks')
+    .orderBy('updatedAt', 'desc')
+    .onSnapshot(
+      (snapshot) => {
+        const roadblocks: RoadblockData[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            name: data?.name ?? 'Unnamed',
+            area: data?.area,
+            lat: data?.lat,
+            lng: data?.lng,
+            radiusMeters: data?.radiusMeters ?? 100,
+            status: data?.status ?? 'closed',
+            note: data?.note,
+            updatedAt: data?.updatedAt?.toDate() ?? null,
+          };
+        });
+        onData(roadblocks);
+      },
+      onError
+    );
 }
 
 /**

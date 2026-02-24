@@ -1,11 +1,5 @@
-import {
-  doc,
-  setDoc,
-  deleteDoc,
-  serverTimestamp,
-  GeoPoint,
-} from 'firebase/firestore';
-import { getFirestoreAsync } from '../firebase';
+import { firebaseDB, serverTimestamp } from '../firebase';
+import firestore from '@react-native-firebase/firestore';
 
 /**
  * ============================================================================
@@ -64,12 +58,10 @@ export async function updateDriverLocation(
   location: LocationUpdate
 ): Promise<void> {
   try {
-    const db = await getFirestoreAsync();
     const now = serverTimestamp();
 
     // Update driverLive collection (for live map)
-    const locationRef = doc(db, 'driverLive', driverId);
-    await setDoc(locationRef, {
+    await firebaseDB.collection('driverLive').doc(driverId).set({
       driverId,
       lat: location.lat,
       lng: location.lng,
@@ -80,8 +72,7 @@ export async function updateDriverLocation(
     });
 
     // Also update drivers collection (for drivers list page)
-    const driverRef = doc(db, 'drivers', driverId);
-    await setDoc(driverRef, {
+    await firebaseDB.collection('drivers').doc(driverId).set({
       status: 'online',
       location: {
         lat: location.lat,
@@ -108,15 +99,11 @@ export async function updateDriverLocation(
  */
 export async function removeDriverLocation(driverId: string): Promise<void> {
   try {
-    const db = await getFirestoreAsync();
-
     // Delete from driverLive (for live map)
-    const locationRef = doc(db, 'driverLive', driverId);
-    await deleteDoc(locationRef);
+    await firebaseDB.collection('driverLive').doc(driverId).delete();
 
     // Update drivers collection to offline status
-    const driverRef = doc(db, 'drivers', driverId);
-    await setDoc(driverRef, {
+    await firebaseDB.collection('drivers').doc(driverId).set({
       status: 'offline',
       lastSeen: serverTimestamp(),
     }, { merge: true });
@@ -149,18 +136,17 @@ export async function setDriverAvailability(
   currentLocation?: { lat: number; lng: number }
 ): Promise<void> {
   try {
-    const db = await getFirestoreAsync();
-    const driverRef = doc(db, 'drivers', driverId);
+    const driverRef = firebaseDB.collection('drivers').doc(driverId);
 
     if (isOnline) {
-      await setDoc(driverRef, {
+      await driverRef.set({
         driverId,
         status: 'online',
         isOnline: true,
         isAvailable: true, // When going online, driver is available for trips
         availability: 'available', // Trip lifecycle controls this field
         lastLocation: currentLocation
-          ? new GeoPoint(currentLocation.lat, currentLocation.lng)
+          ? new firestore.GeoPoint(currentLocation.lat, currentLocation.lng)
           : null,
         lastSeen: serverTimestamp(),
         onlineSince: serverTimestamp(),
@@ -168,7 +154,7 @@ export async function setDriverAvailability(
       }, { merge: true });
       console.log('🟢 [Driver] Online + Available:', driverId);
     } else {
-      await setDoc(driverRef, {
+      await driverRef.set({
         driverId,
         status: 'offline',
         isOnline: false,

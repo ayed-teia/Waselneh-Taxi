@@ -1,7 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PassengerMapView } from '../PassengerMapView';
+import { createTrip } from '../../../services/trips';
+
+// Default test locations (Nablus to Ramallah)
+const DEFAULT_PICKUP = { lat: 32.2211, lng: 35.2544 };
+const DEFAULT_DESTINATION = { lat: 31.9038, lng: 35.2034 };
 
 /**
  * Main Map Screen for Passengers
@@ -9,6 +14,38 @@ import { PassengerMapView } from '../PassengerMapView';
  */
 export function MapScreen() {
   const router = useRouter();
+  const [isCreatingTrip, setIsCreatingTrip] = useState(false);
+
+  /**
+   * Handle trip creation when Estimate button is pressed
+   */
+  const handleEstimateTrip = useCallback(async () => {
+    setIsCreatingTrip(true);
+
+    try {
+      // Create trip in Firestore
+      const result = await createTrip({
+        pickup: DEFAULT_PICKUP,
+        destination: DEFAULT_DESTINATION,
+      });
+
+      console.log('🚖 Trip created! ID:', result.tripId);
+
+      // Navigate to searching/waiting screen
+      router.push({
+        pathname: '/searching',
+        params: {
+          tripId: result.tripId,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create trip';
+      console.error('❌ Trip creation failed:', message);
+      Alert.alert('Error', message);
+    } finally {
+      setIsCreatingTrip(false);
+    }
+  }, [router]);
 
   return (
     <View style={styles.container}>
@@ -40,13 +77,23 @@ export function MapScreen() {
           </View>
         </View>
 
-        {/* Estimate Trip button */}
+        {/* Estimate Trip button - now creates trip directly */}
         <TouchableOpacity
-          style={styles.estimateButton}
-          onPress={() => router.push('/estimate')}
+          style={[styles.estimateButton, isCreatingTrip && styles.estimateButtonDisabled]}
+          onPress={handleEstimateTrip}
+          disabled={isCreatingTrip}
         >
-          <Text style={styles.estimateButtonIcon}>🧮</Text>
-          <Text style={styles.estimateButtonText}>Estimate Trip Price</Text>
+          {isCreatingTrip ? (
+            <>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.estimateButtonText}>Creating Trip...</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.estimateButtonIcon}>🚖</Text>
+              <Text style={styles.estimateButtonText}>Request Trip</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -120,6 +167,9 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 20,
     gap: 8,
+  },
+  estimateButtonDisabled: {
+    backgroundColor: '#999999',
   },
   estimateButtonIcon: {
     fontSize: 20,

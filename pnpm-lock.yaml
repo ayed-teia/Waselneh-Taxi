@@ -7,6 +7,16 @@ settings:
 importers:
 
   .:
+    dependencies:
+      expo:
+        specifier: ~54.0.33
+        version: 54.0.33(@babel/core@7.29.0)(react-native@0.81.5)(react@19.1.0)
+      react:
+        specifier: 19.1.0
+        version: 19.1.0
+      react-native:
+        specifier: 0.81.5
+        version: 0.81.5(@babel/core@7.29.0)(react@19.1.0)
     devDependencies:
       '@typescript-eslint/eslint-plugin':
         specifier: ^7.0.0
@@ -44,6 +54,12 @@ importers:
       '@react-native-firebase/auth':
         specifier: ^23.8.6
         version: 23.8.6(@react-native-firebase/app@23.8.6)(expo@54.0.33)
+      '@react-native-firebase/firestore':
+        specifier: ^23.8.6
+        version: 23.8.6(@react-native-firebase/app@23.8.6)(react-native@0.81.5)
+      '@react-native-firebase/functions':
+        specifier: ^23.8.6
+        version: 23.8.6(@react-native-firebase/app@23.8.6)
       '@react-navigation/native':
         specifier: ^7.0.0
         version: 7.1.28(react-native@0.81.5)(react@19.1.0)
@@ -172,6 +188,12 @@ importers:
       '@react-native-firebase/auth':
         specifier: ^23.8.6
         version: 23.8.6(@react-native-firebase/app@23.8.6)(expo@54.0.33)
+      '@react-native-firebase/firestore':
+        specifier: ^23.8.6
+        version: 23.8.6(@react-native-firebase/app@23.8.6)(react-native@0.81.5)
+      '@react-native-firebase/functions':
+        specifier: ^23.8.6
+        version: 23.8.6(@react-native-firebase/app@23.8.6)
       '@react-navigation/native':
         specifier: ^7.0.0
         version: 7.1.28(react-native@0.81.5)(react@19.1.0)
@@ -1538,6 +1560,91 @@ packages:
       - graphql
       - supports-color
       - utf-8-validate
+
+  /@expo/cli@54.0.23(expo@54.0.33)(react-native@0.81.5):
+    resolution: {integrity: sha512-km0h72SFfQCmVycH/JtPFTVy69w6Lx1cHNDmfLfQqgKFYeeHTjx7LVDP4POHCtNxFP2UeRazrygJhlh4zz498g==}
+    hasBin: true
+    peerDependencies:
+      expo: '*'
+      expo-router: '*'
+      react-native: '*'
+    peerDependenciesMeta:
+      expo-router:
+        optional: true
+      react-native:
+        optional: true
+    dependencies:
+      '@0no-co/graphql.web': 1.2.0
+      '@expo/code-signing-certificates': 0.0.6
+      '@expo/config': 12.0.13
+      '@expo/config-plugins': 54.0.4
+      '@expo/devcert': 1.2.1
+      '@expo/env': 2.0.8
+      '@expo/image-utils': 0.8.8
+      '@expo/json-file': 10.0.8
+      '@expo/metro': 54.2.0
+      '@expo/metro-config': 54.0.14(expo@54.0.33)
+      '@expo/osascript': 2.3.8
+      '@expo/package-manager': 1.9.10
+      '@expo/plist': 0.4.8
+      '@expo/prebuild-config': 54.0.8(expo@54.0.33)
+      '@expo/schema-utils': 0.1.8
+      '@expo/spawn-async': 1.7.2
+      '@expo/ws-tunnel': 1.0.6
+      '@expo/xcpretty': 4.4.0
+      '@react-native/dev-middleware': 0.81.5
+      '@urql/core': 5.2.0
+      '@urql/exchange-retry': 1.3.2(@urql/core@5.2.0)
+      accepts: 1.3.8
+      arg: 5.0.2
+      better-opn: 3.0.2
+      bplist-creator: 0.1.0
+      bplist-parser: 0.3.2
+      chalk: 4.1.2
+      ci-info: 3.9.0
+      compression: 1.8.1
+      connect: 3.7.0
+      debug: 4.4.3
+      env-editor: 0.4.2
+      expo: 54.0.33(@babel/core@7.29.0)(react-native@0.81.5)(react@19.1.0)
+      expo-server: 1.0.5
+      freeport-async: 2.0.0
+      getenv: 2.0.0
+      glob: 13.0.1
+      lan-network: 0.1.7
+      minimatch: 9.0.5
+      node-forge: 1.3.3
+      npm-package-arg: 11.0.3
+      ora: 3.4.0
+      picomatch: 3.0.1
+      pretty-bytes: 5.6.0
+      pretty-format: 29.7.0
+      progress: 2.0.3
+      prompts: 2.4.2
+      qrcode-terminal: 0.11.0
+      react-native: 0.81.5(@babel/core@7.29.0)(react@19.1.0)
+      require-from-string: 2.0.2
+      requireg: 0.2.2
+      resolve: 1.22.11
+      resolve-from: 5.0.0
+      resolve.exports: 2.0.3
+      semver: 7.7.3
+      send: 0.19.2
+      slugify: 1.6.6
+      source-map-support: 0.5.21
+      stacktrace-parser: 0.1.11
+      structured-headers: 0.4.1
+      tar: 7.5.7
+      terminal-link: 2.1.1
+      undici: 6.23.0
+      wrap-ansi: 7.0.0
+      ws: 8.19.0
+    transitivePeerDependencies:
+      - bufferutil
+      - graphql
+      - supports-color
+      - utf-8-validate
+    dev: false
 
   /@expo/code-signing-certificates@0.0.6:
     resolution: {integrity: sha512-iNe0puxwBNEcuua9gmTGzq+SuMDa0iATai1FlFTMHJ/vUmKvN/V//drXoLJkVb5i5H3iE/n/qIJxyoBnXouD0w==}
@@ -3542,6 +3649,25 @@ packages:
       plist: 3.1.0
     dev: false
 
+  /@react-native-firebase/firestore@23.8.6(@react-native-firebase/app@23.8.6)(react-native@0.81.5):
+    resolution: {integrity: sha512-HizsBB/JB8m+bE282sv0KikSQ67lgx24Ldwkw5VTD0IyO6CnD4sStaFxxA5Twk3Lu+VyLTDd+1TgTgxk9oXa0g==}
+    peerDependencies:
+      '@react-native-firebase/app': 23.8.6
+    dependencies:
+      '@react-native-firebase/app': 23.8.6(@react-native-async-storage/async-storage@1.24.0)(expo@54.0.33)(react-native@0.81.5)(react@19.1.0)
+      react-native-url-polyfill: 3.0.0(react-native@0.81.5)
+    transitivePeerDependencies:
+      - react-native
+    dev: false
+
+  /@react-native-firebase/functions@23.8.6(@react-native-firebase/app@23.8.6):
+    resolution: {integrity: sha512-Bca0Z5cLz39iV/crQHCKfzI1qpFHgnPmVS6vqL+o6k0ZaV59Z7bMGAaagMQESCTfPSVNfXZqD8GJFIJ6PNvyZA==}
+    peerDependencies:
+      '@react-native-firebase/app': 23.8.6
+    dependencies:
+      '@react-native-firebase/app': 23.8.6(@react-native-async-storage/async-storage@1.24.0)(expo@54.0.33)(react-native@0.81.5)(react@19.1.0)
+    dev: false
+
   /@react-native/assets-registry@0.81.5:
     resolution: {integrity: sha512-705B6x/5Kxm1RKRvSv0ADYWm5JOnoiQ1ufW7h8uu2E6G9Of/eE6hP/Ivw3U5jI16ERqZxiKQwk34VJbB0niX9w==}
     engines: {node: '>= 20.19.4'}
@@ -3702,6 +3828,23 @@ packages:
       nullthrows: 1.1.1
       react: 19.1.0
       react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
+
+  /@react-native/virtualized-lists@0.81.5(react-native@0.81.5)(react@19.1.0):
+    resolution: {integrity: sha512-UVXgV/db25OPIvwZySeToXD/9sKKhOdkcWmmf4Jh8iBZuyfML+/5CasaZ1E7Lqg6g3uqVQq75NqIwkYmORJMPw==}
+    engines: {node: '>= 20.19.4'}
+    peerDependencies:
+      '@types/react': ^19.1.0
+      react: '*'
+      react-native: '*'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+    dependencies:
+      invariant: 2.2.4
+      nullthrows: 1.1.1
+      react: 19.1.0
+      react-native: 0.81.5(@babel/core@7.29.0)(react@19.1.0)
+    dev: false
 
   /@react-navigation/bottom-tabs@7.12.0(@react-navigation/native@7.1.28)(react-native-safe-area-context@5.6.2)(react-native-screens@4.16.0)(react-native@0.81.5)(react@19.1.0):
     resolution: {integrity: sha512-/GtOfVWRligHG0mvX39I1FGdUWeWl0GVF2okEziQSQj0bOTrLIt7y44C3r/aCLkEpTVltCPGM3swqGTH3UfRCw==}
@@ -6201,6 +6344,55 @@ packages:
       - supports-color
       - utf-8-validate
 
+  /expo@54.0.33(@babel/core@7.29.0)(react-native@0.81.5)(react@19.1.0):
+    resolution: {integrity: sha512-3yOEfAKqo+gqHcV8vKcnq0uA5zxlohnhA3fu4G43likN8ct5ZZ3LjAh9wDdKteEkoad3tFPvwxmXW711S5OHUw==}
+    hasBin: true
+    peerDependencies:
+      '@expo/dom-webview': '*'
+      '@expo/metro-runtime': '*'
+      react: '*'
+      react-native: '*'
+      react-native-webview: '*'
+    peerDependenciesMeta:
+      '@expo/dom-webview':
+        optional: true
+      '@expo/metro-runtime':
+        optional: true
+      react-native-webview:
+        optional: true
+    dependencies:
+      '@babel/runtime': 7.28.6
+      '@expo/cli': 54.0.23(expo@54.0.33)(react-native@0.81.5)
+      '@expo/config': 12.0.13
+      '@expo/config-plugins': 54.0.4
+      '@expo/devtools': 0.1.8(react-native@0.81.5)(react@19.1.0)
+      '@expo/fingerprint': 0.15.4
+      '@expo/metro': 54.2.0
+      '@expo/metro-config': 54.0.14(expo@54.0.33)
+      '@expo/vector-icons': 15.0.3(expo-font@14.0.11)(react-native@0.81.5)(react@19.1.0)
+      '@ungap/structured-clone': 1.3.0
+      babel-preset-expo: 54.0.10(@babel/core@7.29.0)(@babel/runtime@7.28.6)(expo@54.0.33)(react-refresh@0.14.2)
+      expo-asset: 12.0.12(expo@54.0.33)(react-native@0.81.5)(react@19.1.0)
+      expo-constants: 18.0.13(expo@54.0.33)(react-native@0.81.5)
+      expo-file-system: 19.0.21(expo@54.0.33)(react-native@0.81.5)
+      expo-font: 14.0.11(expo@54.0.33)(react-native@0.81.5)(react@19.1.0)
+      expo-keep-awake: 15.0.8(expo@54.0.33)(react@19.1.0)
+      expo-modules-autolinking: 3.0.24
+      expo-modules-core: 3.0.29(react-native@0.81.5)(react@19.1.0)
+      pretty-format: 29.7.0
+      react: 19.1.0
+      react-native: 0.81.5(@babel/core@7.29.0)(react@19.1.0)
+      react-refresh: 0.14.2
+      whatwg-url-without-unicode: 8.0.0-3
+    transitivePeerDependencies:
+      - '@babel/core'
+      - bufferutil
+      - expo-router
+      - graphql
+      - supports-color
+      - utf-8-validate
+    dev: false
+
   /exponential-backoff@3.1.3:
     resolution: {integrity: sha512-ZgEeZXj30q+I0EN+CbSSpIyPaJ5HVQD18Z1m+u1FXbAeT94mr1zw50q4q6jiiC447Nl/YTcIYSAftiGqetwXCA==}
 
@@ -8664,6 +8856,15 @@ packages:
       react-native-is-edge-to-edge: 1.2.1(react-native@0.81.5)(react@19.1.0)
       warn-once: 0.1.1
 
+  /react-native-url-polyfill@3.0.0(react-native@0.81.5):
+    resolution: {integrity: sha512-aA5CiuUCUb/lbrliVCJ6lZ17/RpNJzvTO/C7gC/YmDQhTUoRD5q5HlJfwLWcxz4VgAhHwXKzhxH+wUN24tAdqg==}
+    peerDependencies:
+      react-native: '*'
+    dependencies:
+      react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
+      whatwg-url-without-unicode: 8.0.0-3
+    dev: false
+
   /react-native-web@0.21.2(react-dom@19.1.0)(react@19.1.0):
     resolution: {integrity: sha512-SO2t9/17zM4iEnFvlu2DA9jqNbzNhoUP+AItkoCOyFmDMOhUnBBznBDCYN92fGdfAkfQlWzPoez6+zLxFNsZEg==}
     peerDependencies:
@@ -8737,6 +8938,61 @@ packages:
       - bufferutil
       - supports-color
       - utf-8-validate
+
+  /react-native@0.81.5(@babel/core@7.29.0)(react@19.1.0):
+    resolution: {integrity: sha512-1w+/oSjEXZjMqsIvmkCRsOc8UBYv163bTWKTI8+1mxztvQPhCRYGTvZ/PL1w16xXHneIj/SLGfxWg2GWN2uexw==}
+    engines: {node: '>= 20.19.4'}
+    hasBin: true
+    peerDependencies:
+      '@types/react': ^19.1.0
+      react: ^19.1.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+    dependencies:
+      '@jest/create-cache-key-function': 29.7.0
+      '@react-native/assets-registry': 0.81.5
+      '@react-native/codegen': 0.81.5(@babel/core@7.29.0)
+      '@react-native/community-cli-plugin': 0.81.5
+      '@react-native/gradle-plugin': 0.81.5
+      '@react-native/js-polyfills': 0.81.5
+      '@react-native/normalize-colors': 0.81.5
+      '@react-native/virtualized-lists': 0.81.5(react-native@0.81.5)(react@19.1.0)
+      abort-controller: 3.0.0
+      anser: 1.4.10
+      ansi-regex: 5.0.1
+      babel-jest: 29.7.0(@babel/core@7.29.0)
+      babel-plugin-syntax-hermes-parser: 0.29.1
+      base64-js: 1.5.1
+      commander: 12.1.0
+      flow-enums-runtime: 0.0.6
+      glob: 7.2.3
+      invariant: 2.2.4
+      jest-environment-node: 29.7.0
+      memoize-one: 5.2.1
+      metro-runtime: 0.83.3
+      metro-source-map: 0.83.3
+      nullthrows: 1.1.1
+      pretty-format: 29.7.0
+      promise: 8.3.0
+      react: 19.1.0
+      react-devtools-core: 6.1.5
+      react-refresh: 0.14.2
+      regenerator-runtime: 0.13.11
+      scheduler: 0.26.0
+      semver: 7.7.3
+      stacktrace-parser: 0.1.11
+      whatwg-fetch: 3.6.20
+      ws: 6.2.3
+      yargs: 17.7.2
+    transitivePeerDependencies:
+      - '@babel/core'
+      - '@react-native-community/cli'
+      - '@react-native/metro-config'
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+    dev: false
 
   /react-refresh@0.14.2:
     resolution: {integrity: sha512-jCvmsr+1IUSMUyzOkRcvnVbX3ZYC6g9TDrDbFuFmRDq7PD4yaGbLKNQL6k2jnArV8hjYxh7hVhAZB6s9HDGpZA==}

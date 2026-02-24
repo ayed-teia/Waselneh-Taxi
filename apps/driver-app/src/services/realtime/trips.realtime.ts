@@ -1,16 +1,4 @@
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  Unsubscribe,
-  orderBy,
-  limit,
-  QuerySnapshot,
-  DocumentData,
-  doc,
-} from 'firebase/firestore';
-import { getFirestoreAsync } from '../firebase';
+import { firebaseDB, Unsubscribe } from '../firebase';
 
 /**
  * Trip data from Firestore
@@ -57,39 +45,21 @@ export function subscribeToTripRequests(
   onData: (requests: unknown[]) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  let unsubscribe: Unsubscribe | null = null;
-
-  getFirestoreAsync()
-    .then((db) => {
-      const requestsRef = collection(db, 'tripRequests');
-
-      // Query for pending requests, ordered by creation time
-      const q = query(
-        requestsRef,
-        where('status', '==', 'pending'),
-        orderBy('createdAt', 'desc'),
-        limit(20)
-      );
-
-      unsubscribe = onSnapshot(
-        q,
-        (snapshot: QuerySnapshot<DocumentData>) => {
-          const requests = snapshot.docs.map((docSnap) => ({
-            id: docSnap.id,
-            ...docSnap.data(),
-          }));
-          onData(requests);
-        },
-        onError
-      );
-    })
-    .catch(onError);
-
-  return () => {
-    if (unsubscribe) {
-      unsubscribe();
-    }
-  };
+  return firebaseDB
+    .collection('tripRequests')
+    .where('status', '==', 'pending')
+    .orderBy('createdAt', 'desc')
+    .limit(20)
+    .onSnapshot(
+      (snapshot) => {
+        const requests = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+        onData(requests);
+      },
+      onError
+    );
 }
 
 /**
@@ -140,38 +110,110 @@ export function subscribeToIncomingTrips(
   onNoRequest: () => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  let unsubscribe: Unsubscribe | null = null;
-
   console.log('🎧 [IncomingTrips] Starting listener for driver:', driverId);
 
-  getFirestoreAsync()
-    .then((db) => {
-      const tripsRef = collection(db, 'trips');
+  const unsubscribe = firebaseDB
+    .collection('trips')
+    .where('driverId', '==', driverId)
+    .where('status', '==', 'pending')
+    .orderBy('createdAt', 'desc')
+    .limit(1)
+    .onSnapshot(
+      (snapshot) => {
+        if (snapshot.empty) {
+          console.log('📭 [IncomingTrips] No pending requests');
+          onNoRequest();
+          return;
+        }
 
-      // Query for pending trips assigned to this driver
-      const q = query(
-        tripsRef,
-        where('driverId', '==', driverId),
-        where('status', '==', 'pending'),
-        orderBy('createdAt', 'desc'),
-        limit(1)
-      );
+        const docSnap = snapshot.docs[0]!;
+        const data = docSnap.data();
 
-      unsubscribe = onSnapshot(
-        q,
-        (snapshot: QuerySnapshot<DocumentData>) => {
-          if (snapshot.empty) {
-            console.log('📭 [IncomingTrips] No pending requests');
-            onNoRequest();
-            return;
-          }
+        // Calculate distance from driver to pickup
+        let pickupDistanceKm = 0;
+        if (driverLocation && data?.pickup) {
+          pickupDistanceKm = calculateDistance(
+            driverLocation.lat,
+            driverLocation.lng,
+            data.pickup.lat,
+            data.pickup.lng
+          );
+        }
 
-          const docSnap = snapshot.docs[0]!;
+        const request: IncomingTripRequest = {
+          tripId: docSnap.id,
+          passengerId: data?.passengerId,
+          pickup: data?.pickup,
+          dropoff: data?.dropoff,
+          estimatedPriceIls: data?.estimatedPriceIls,
+          estimatedDistanceKm: data?.estimatedDistanceKm,
+          estimatedDurationMin: data?.estimatedDurationMin,
+          pickupDistanceKm: Math.round(pickupDistanceKm * 10) / 10,
+          status: data?.status,
+          createdAt: data?.createdAt?.toDate() ?? null,
+        };
+
+        console.log('📥 [IncomingTrips] New request received:', request.tripId);
+        console.log('   📍 Pickup distance:', pickupDistanceKm.toFixed(2), 'km');
+        console.log('   💵 Estimated price: ₪' + request.estimatedPriceIls);
+
+        onRequest(request);
+      },
+      (error) => {
+        console.error('❌ [IncomingTrips] Listener error:', error);
+        onError(error);
+      }
+    );
+
+  console.log('✅ [IncomingTrips] Listener STARTED for driver:', driverId);
+
+  return () => {
+    console.log('🔇 [IncomingTrips] Listener STOPPED for driver:', driverId);
+    unsubscribe();
+  };
+}
+
+/**
+ * Subscribe to ALL pending trips (unassigned)
+ * 
+ * Listens to trips where:
+ * - status == 'pending'
+ * - assignedDriverId == null
+ * 
+ * This allows drivers to see ALL available trip requests.
+ * 
+ * @param driverLocation - Driver's current location for distance calculation
+ * @param onTrips - Callback when trips change (receives array of trips)
+ * @param onError - Error callback
+ * @returns Unsubscribe function
+ */
+export function subscribeToAvailableTrips(
+  driverLocation: { lat: number; lng: number } | null,
+  onTrips: (trips: IncomingTripRequest[]) => void,
+  onError: (error: Error) => void
+): Unsubscribe {
+  console.log('🎧 [AvailableTrips] Starting listener for ALL pending trips');
+
+  const unsubscribe = firebaseDB
+    .collection('trips')
+    .where('status', '==', 'pending')
+    .where('assignedDriverId', '==', null)
+    .orderBy('createdAt', 'desc')
+    .limit(20)
+    .onSnapshot(
+      (snapshot) => {
+        if (snapshot.empty) {
+          console.log('📭 [AvailableTrips] No pending trips available');
+          onTrips([]);
+          return;
+        }
+
+        const trips: IncomingTripRequest[] = snapshot.docs.map((docSnap) => {
           const data = docSnap.data();
 
           // Calculate distance from driver to pickup
           let pickupDistanceKm = 0;
-          if (driverLocation) {
+          if (driverLocation && data?.pickup) {
             pickupDistanceKm = calculateDistance(
               driverLocation.lat,
               driverLocation.lng,
@@ -180,43 +222,36 @@ export function subscribeToIncomingTrips(
             );
           }
 
-          const request: IncomingTripRequest = {
+          console.log('🚨 NEW TRIP REQUEST:', docSnap.id);
+
+          return {
             tripId: docSnap.id,
-            passengerId: data.passengerId,
-            pickup: data.pickup,
-            dropoff: data.dropoff,
-            estimatedPriceIls: data.estimatedPriceIls,
-            estimatedDistanceKm: data.estimatedDistanceKm,
-            estimatedDurationMin: data.estimatedDurationMin,
+            passengerId: data?.passengerId,
+            pickup: data?.pickup || { lat: 0, lng: 0 },
+            dropoff: data?.destination || data?.dropoff || { lat: 0, lng: 0 },
+            estimatedPriceIls: data?.estimatedPriceIls || 0,
+            estimatedDistanceKm: data?.estimatedDistanceKm || 0,
+            estimatedDurationMin: data?.estimatedDurationMin || 0,
             pickupDistanceKm: Math.round(pickupDistanceKm * 10) / 10,
-            status: data.status,
-            createdAt: data.createdAt?.toDate() ?? null,
+            status: data?.status,
+            createdAt: data?.createdAt?.toDate() ?? null,
           };
+        });
 
-          console.log('📥 [IncomingTrips] New request received:', request.tripId);
-          console.log('   📍 Pickup distance:', pickupDistanceKm.toFixed(2), 'km');
-          console.log('   💵 Estimated price: ₪' + request.estimatedPriceIls);
+        console.log(`📥 [AvailableTrips] Found ${trips.length} pending trip(s)`);
+        onTrips(trips);
+      },
+      (error) => {
+        console.error('❌ [AvailableTrips] Listener error:', error);
+        onError(error);
+      }
+    );
 
-          onRequest(request);
-        },
-        (error) => {
-          console.error('❌ [IncomingTrips] Listener error:', error);
-          onError(error);
-        }
-      );
-
-      console.log('✅ [IncomingTrips] Listener STARTED for driver:', driverId);
-    })
-    .catch((error) => {
-      console.error('❌ [IncomingTrips] Failed to start listener:', error);
-      onError(error);
-    });
+  console.log('✅ [AvailableTrips] Listener STARTED');
 
   return () => {
-    if (unsubscribe) {
-      console.log('🔇 [IncomingTrips] Listener STOPPED for driver:', driverId);
-      unsubscribe();
-    }
+    console.log('🔇 [AvailableTrips] Listener STOPPED');
+    unsubscribe();
   };
 }
 
@@ -228,56 +263,38 @@ export function subscribeToActiveTrip(
   onData: (trip: TripData | null) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  let unsubscribe: Unsubscribe | null = null;
-
-  getFirestoreAsync()
-    .then((db) => {
-      const tripsRef = collection(db, 'trips');
-
-      // Query for driver's active trip (includes accepted)
-      const q = query(
-        tripsRef,
-        where('driverId', '==', driverId),
-        where('status', 'in', ['accepted', 'driver_arrived', 'in_progress']),
-        limit(1)
-      );
-
-      unsubscribe = onSnapshot(
-        q,
-        (snapshot: QuerySnapshot<DocumentData>) => {
-          if (!snapshot.empty) {
-            const docSnap = snapshot.docs[0]!;
-            const data = docSnap.data();
-            onData({
-              id: docSnap.id,
-              passengerId: data.passengerId,
-              driverId: data.driverId,
-              pickup: data.pickup,
-              dropoff: data.dropoff,
-              estimatedDistanceKm: data.estimatedDistanceKm,
-              estimatedDurationMin: data.estimatedDurationMin,
-              estimatedPriceIls: data.estimatedPriceIls,
-              status: data.status,
-              createdAt: data.createdAt?.toDate(),
-              matchedAt: data.matchedAt?.toDate(),
-              arrivedAt: data.arrivedAt?.toDate(),
-              startedAt: data.startedAt?.toDate(),
-              completedAt: data.completedAt?.toDate(),
-            });
-          } else {
-            onData(null);
-          }
-        },
-        onError
-      );
-    })
-    .catch(onError);
-
-  return () => {
-    if (unsubscribe) {
-      unsubscribe();
-    }
-  };
+  return firebaseDB
+    .collection('trips')
+    .where('driverId', '==', driverId)
+    .where('status', 'in', ['accepted', 'driver_arrived', 'in_progress'])
+    .limit(1)
+    .onSnapshot(
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const docSnap = snapshot.docs[0]!;
+          const data = docSnap.data();
+          onData({
+            id: docSnap.id,
+            passengerId: data?.passengerId,
+            driverId: data?.driverId,
+            pickup: data?.pickup,
+            dropoff: data?.dropoff,
+            estimatedDistanceKm: data?.estimatedDistanceKm,
+            estimatedDurationMin: data?.estimatedDurationMin,
+            estimatedPriceIls: data?.estimatedPriceIls,
+            status: data?.status,
+            createdAt: data?.createdAt?.toDate(),
+            matchedAt: data?.matchedAt?.toDate(),
+            arrivedAt: data?.arrivedAt?.toDate(),
+            startedAt: data?.startedAt?.toDate(),
+            completedAt: data?.completedAt?.toDate(),
+          });
+        } else {
+          onData(null);
+        }
+      },
+      onError
+    );
 }
 
 /**
@@ -288,45 +305,33 @@ export function subscribeToTrip(
   onData: (trip: TripData | null) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  let unsubscribe: Unsubscribe | null = null;
-
-  getFirestoreAsync()
-    .then((db) => {
-      const tripRef = doc(db, 'trips', tripId);
-
-      unsubscribe = onSnapshot(
-        tripRef,
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            onData({
-              id: snapshot.id,
-              passengerId: data.passengerId,
-              driverId: data.driverId,
-              pickup: data.pickup,
-              dropoff: data.dropoff,
-              estimatedDistanceKm: data.estimatedDistanceKm,
-              estimatedDurationMin: data.estimatedDurationMin,
-              estimatedPriceIls: data.estimatedPriceIls,
-              status: data.status,
-              createdAt: data.createdAt?.toDate(),
-              matchedAt: data.matchedAt?.toDate(),
-              arrivedAt: data.arrivedAt?.toDate(),
-              startedAt: data.startedAt?.toDate(),
-              completedAt: data.completedAt?.toDate(),
-            });
-          } else {
-            onData(null);
-          }
-        },
-        onError
-      );
-    })
-    .catch(onError);
-
-  return () => {
-    if (unsubscribe) {
-      unsubscribe();
-    }
-  };
+  return firebaseDB
+    .collection('trips')
+    .doc(tripId)
+    .onSnapshot(
+      (snapshot) => {
+        if (snapshot.exists) {
+          const data = snapshot.data();
+          onData({
+            id: snapshot.id,
+            passengerId: data?.passengerId,
+            driverId: data?.driverId,
+            pickup: data?.pickup,
+            dropoff: data?.dropoff,
+            estimatedDistanceKm: data?.estimatedDistanceKm,
+            estimatedDurationMin: data?.estimatedDurationMin,
+            estimatedPriceIls: data?.estimatedPriceIls,
+            status: data?.status,
+            createdAt: data?.createdAt?.toDate(),
+            matchedAt: data?.matchedAt?.toDate(),
+            arrivedAt: data?.arrivedAt?.toDate(),
+            startedAt: data?.startedAt?.toDate(),
+            completedAt: data?.completedAt?.toDate(),
+          });
+        } else {
+          onData(null);
+        }
+      },
+      onError
+    );
 }

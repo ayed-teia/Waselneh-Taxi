@@ -1,5 +1,4 @@
-import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
-import { getFunctionsAsync } from '../firebase';
+import { firebaseFunctions } from '../firebase';
 import { LatLng } from '@taxi-line/shared';
 
 // Dev mode configuration - matches app/index.tsx
@@ -14,15 +13,14 @@ export async function callFunction<TRequest, TResponse>(
   functionName: string,
   data: TRequest
 ): Promise<TResponse> {
-  const functions = await getFunctionsAsync();
-  const callable = httpsCallable<TRequest & { devUserId?: string }, TResponse>(functions, functionName);
+  const callable = firebaseFunctions.httpsCallable<TRequest & { devUserId?: string }, TResponse>(functionName);
   
   // In dev mode, inject devUserId for backend authentication
   const requestData = DEV_MODE 
     ? { ...data, devUserId: DEV_PASSENGER_ID }
     : data;
   
-  const result: HttpsCallableResult<TResponse> = await callable(requestData as TRequest & { devUserId?: string });
+  const result = await callable(requestData as TRequest & { devUserId?: string });
   return result.data;
 }
 

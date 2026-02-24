@@ -1,14 +1,14 @@
-import { Unsubscribe } from 'firebase/firestore';
+import type { Unsubscribe } from '../firebase';
 import { TripRequest, useTripRequestStore } from '../../store/trip-request.store';
 import { useDriverStore } from '../../store';
-import { subscribeToIncomingTrips, IncomingTripRequest } from './trips.realtime';
+import { subscribeToAvailableTrips, IncomingTripRequest } from './trips.realtime';
 
 /**
  * ============================================================================
  * DRIVER REQUESTS REALTIME LISTENER
  * ============================================================================
  * 
- * Subscribes to trips collection where driverId == currentDriver AND status == 'pending'.
+ * Subscribes to ALL pending trips where assignedDriverId == null.
  * Shows incoming trip requests as a modal when driver is ONLINE.
  * 
  * QA VERIFICATION:
@@ -17,7 +17,7 @@ import { subscribeToIncomingTrips, IncomingTripRequest } from './trips.realtime'
  * - LOG: "🔇 [DriverRequests] Listener STOPPED"
  * 
  * FIRESTORE PATH: trips/{tripId}
- * QUERY: driverId == currentDriver AND status == 'pending'
+ * QUERY: status == 'pending' AND assignedDriverId == null
  * 
  * ============================================================================
  */
@@ -27,12 +27,12 @@ let _unsubscribe: Unsubscribe | null = null;
 let _currentDriverId: string | null = null;
 
 /**
- * Start listening for driver trip requests
+ * Start listening for available trip requests
  * Call when driver goes ONLINE
  * 
- * Listens to trips collection where:
- * - driverId == currentDriver
+ * Listens to ALL trips where:
  * - status == 'pending'
+ * - assignedDriverId == null
  */
 export async function startDriverRequestsListener(driverId: string): Promise<void> {
   // Guard: Already listening for this driver
@@ -53,10 +53,17 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
   // Get driver's current location for distance calculation
   const driverLocation = useDriverStore.getState().currentLocation;
 
-  _unsubscribe = subscribeToIncomingTrips(
-    driverId,
+  _unsubscribe = subscribeToAvailableTrips(
     driverLocation,
-    (incomingRequest: IncomingTripRequest) => {
+    (trips: IncomingTripRequest[]) => {
+      if (trips.length === 0) {
+        console.log('📭 [DriverRequests] No pending trips available');
+        return;
+      }
+
+      // Take the first (most recent) trip request
+      const incomingRequest = trips[0]!;
+
       // Convert to TripRequest format for the modal
       const request: TripRequest = {
         tripId: incomingRequest.tripId,
@@ -74,9 +81,6 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
 
       // Show the request modal
       useTripRequestStore.getState().showRequest(request);
-    },
-    () => {
-      console.log('📭 [DriverRequests] No pending requests');
     },
     (error) => {
       console.error('❌ [DriverRequests] Listener error:', error);
