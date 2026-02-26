@@ -1,68 +1,72 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { StatusToggle } from '../../../ui';
-import { useDriverStore } from '../../../store';
 import { DriverMapView } from '../../map';
+import { useDriverStore } from '../../../store';
+import { StatusToggle } from '../../../ui';
 
 interface HomeScreenProps {
   onToggleStatus: (goOnline: boolean) => void;
 }
 
 /**
- * Driver Home Screen
- * Shows status toggle, real map with roadblocks, and nearby trip requests
+ * Driver home screen with responsive bottom control panel.
  */
 export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const { status, isUpdatingStatus, currentLocation } = useDriverStore();
 
-  // Convert to format expected by DriverMapView
+  const isCompact = height < 760;
+  const panelWidth = Math.min(width - 20, 520);
+
   const driverLocation = currentLocation
     ? { latitude: currentLocation.lat, longitude: currentLocation.lng }
     : null;
 
   return (
     <View style={styles.container}>
-      {/* Real driver map with roadblocks */}
-      <View style={styles.mapContainer}>
-        <DriverMapView driverLocation={driverLocation} followUser={true} />
-      </View>
+      <DriverMapView driverLocation={driverLocation} followUser />
 
-      {/* Bottom panel */}
-      <View style={styles.bottomPanel}>
-        <StatusToggle
-          status={status}
-          isLoading={isUpdatingStatus}
-          onToggle={onToggleStatus}
-        />
+      <View style={styles.panelLayer} pointerEvents="box-none">
+        <View
+          style={[
+            styles.bottomPanel,
+            {
+              width: panelWidth,
+              paddingHorizontal: isCompact ? 16 : 20,
+              paddingTop: isCompact ? 12 : 14,
+              paddingBottom: Math.max(14, insets.bottom + 8),
+            },
+          ]}
+        >
+          <View style={styles.handle} />
 
-        {status === 'online' && (
-          <View style={styles.requestsSection}>
-            <Text style={styles.sectionTitle}>Trip Requests</Text>
-            <TouchableOpacity
-              style={styles.inboxButton}
-              onPress={() => router.push('/inbox')}
-            >
-              <Text style={styles.inboxButtonIcon}>📥</Text>
-              <View style={styles.inboxButtonText}>
-                <Text style={styles.inboxButtonTitle}>View Inbox</Text>
-                <Text style={styles.inboxButtonSubtitle}>
-                  See pending trip requests
-                </Text>
-              </View>
-              <Text style={styles.inboxButtonArrow}>›</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          <StatusToggle status={status} isLoading={isUpdatingStatus} onToggle={onToggleStatus} />
 
-        {status === 'offline' && (
-          <View style={styles.offlineMessage}>
-            <Text style={styles.offlineText}>
-              Go online to start receiving trip requests
-            </Text>
-          </View>
-        )}
+          {status === 'online' ? (
+            <View style={styles.requestsSection}>
+              <Text style={styles.sectionTitle}>Incoming trips</Text>
+              <TouchableOpacity style={styles.inboxButton} onPress={() => router.push('/inbox')} activeOpacity={0.9}>
+                <View style={styles.inboxIcon} />
+                <View style={styles.inboxBody}>
+                  <Text style={styles.inboxTitle}>Open Request Inbox</Text>
+                  <Text style={styles.inboxSubtitle}>Review and accept pending trips quickly.</Text>
+                </View>
+                <Text style={styles.inboxArrow}>{'>'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.offlineMessage}>
+              <Text style={styles.offlineTitle}>You are offline</Text>
+              <Text style={styles.offlineText}>
+                Switch online when ready to receive new trip requests from nearby passengers.
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -71,66 +75,96 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#DDE7F7',
   },
-  mapContainer: {
-    flex: 1,
+  panelLayer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 10,
   },
   bottomPanel: {
-    backgroundColor: '#F2F2F7',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 16,
-    marginTop: -24,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderWidth: 1,
+    borderColor: '#DDE3F0',
+    backgroundColor: '#F8FAFC',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 8,
+    gap: 12,
+  },
+  handle: {
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
   },
   requestsSection: {
-    marginTop: 16,
+    marginTop: 4,
+    gap: 10,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 12,
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   inboxButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#DDE3F0',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
-  inboxButtonIcon: {
-    fontSize: 28,
-    marginRight: 12,
+  inboxIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#DBEAFE',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
-  inboxButtonText: {
+  inboxBody: {
     flex: 1,
+    gap: 2,
   },
-  inboxButtonTitle: {
+  inboxTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
+    fontWeight: '700',
+    color: '#0F172A',
   },
-  inboxButtonSubtitle: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginTop: 2,
+  inboxSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
   },
-  inboxButtonArrow: {
+  inboxArrow: {
     fontSize: 24,
-    color: '#C7C7CC',
+    color: '#94A3B8',
     fontWeight: '300',
   },
   offlineMessage: {
-    marginTop: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
+    padding: 16,
+    gap: 4,
+  },
+  offlineTitle: {
+    fontSize: 16,
+    color: '#0F172A',
+    fontWeight: '700',
   },
   offlineText: {
-    fontSize: 16,
-    color: '#8E8E93',
-    textAlign: 'center',
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
   },
 });

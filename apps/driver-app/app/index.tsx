@@ -4,7 +4,7 @@ import { Alert } from 'react-native';
 import { useAuthStore } from '../src/store';
 import { LoadingScreen } from '../src/ui';
 import { LoginScreen } from '../src/features/auth';
-import { signInAnonymouslyForDev, isUsingEmulators } from '../src/services/firebase';
+import { signInAnonymouslyForDev } from '../src/services/firebase';
 
 // Dev mode - use anonymous auth for testing with emulators
 const DEV_MODE = true;
@@ -21,20 +21,18 @@ export default function Index() {
 
     setIsLoggingIn(true);
     try {
-      Alert.alert('Login', 'Attempting to sign in...');
-
       if (DEV_MODE) {
-        const usingEmulators = isUsingEmulators();
-        Alert.alert('Debug', `Using emulators: ${usingEmulators}`);
-
         const { user, error } = await signInAnonymouslyForDev();
         if (user) {
-          Alert.alert('Success', `Logged in as: ${user.uid}`);
           setUser(user);
-        } else {
-          Alert.alert('Error', `Login failed: ${error?.message}`);
+          return;
         }
+
+        Alert.alert('Login failed', error?.message ?? 'Unable to sign in right now.');
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to sign in right now.';
+      Alert.alert('Login failed', message);
     } finally {
       setIsLoggingIn(false);
     }

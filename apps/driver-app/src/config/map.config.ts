@@ -8,8 +8,11 @@ import Constants from 'expo-constants';
  */
 
 // Get Mapbox token from environment
-const MAPBOX_TOKEN = Constants.expoConfig?.extra?.EXPO_PUBLIC_MAPBOX_TOKEN 
-  || process.env.EXPO_PUBLIC_MAPBOX_TOKEN 
+const MAPBOX_TOKEN = Constants.expoConfig?.extra?.mapboxAccessToken
+  || Constants.expoConfig?.extra?.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN
+  || process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN
+  || Constants.expoConfig?.extra?.EXPO_PUBLIC_MAPBOX_TOKEN
+  || process.env.EXPO_PUBLIC_MAPBOX_TOKEN
   || '';
 
 /**
@@ -31,10 +34,24 @@ export function getMapboxToken(): string {
  * Default map region (Addis Ababa, Ethiopia)
  */
 export const DEFAULT_REGION = {
-  latitude: 9.0173,
-  longitude: 38.7519,
+  latitude: 32.2211,
+  longitude: 35.2544,
   latitudeDelta: 0.02,
   longitudeDelta: 0.02,
+};
+
+/**
+ * Navigation-focused style gives cleaner roads and better contrast.
+ */
+export const MAP_STYLE_URL = 'mapbox://styles/mapbox/navigation-day-v1';
+
+/**
+ * Camera defaults tuned for driver navigation.
+ */
+export const CAMERA_DEFAULTS = {
+  zoomLevel: 15,
+  pitch: 42,
+  heading: 0,
 };
 
 /**
@@ -66,4 +83,4 @@ export const MARKER_COLORS = {
 /**
  * Log prefix for map-related operations
  */
-export const MAP_LOG_PREFIX = '🗺️ [Map]';
+export const MAP_LOG_PREFIX = '[Map]';

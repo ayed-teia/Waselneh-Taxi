@@ -38,8 +38,15 @@ export function StatusToggle({ status, isLoading, onToggle }: StatusToggleProps)
 
   return (
     <View style={styles.container}>
+      <View style={styles.statusHeader}>
+        <Text style={styles.statusLabel}>Driver status</Text>
+        <View style={styles.statusPill}>
+          <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
+          <Text style={styles.statusPillText}>{status.toUpperCase()}</Text>
+        </View>
+      </View>
+
       <View style={styles.statusRow}>
-        <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
         <Text style={styles.statusText}>{getStatusText()}</Text>
       </View>
 
@@ -66,29 +73,53 @@ export function StatusToggle({ status, isLoading, onToggle }: StatusToggleProps)
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#DDE3F0',
+    padding: 14,
+    gap: 12,
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statusLabel: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+    letterSpacing: 0.4,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    gap: 6,
+    backgroundColor: '#F8FAFC',
+  },
+  statusPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+    letterSpacing: 0.4,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
   },
   statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 999,
   },
   statusText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#1C1C1E',
+    color: '#0F172A',
   },
   toggleRow: {
     flexDirection: 'row',
@@ -97,12 +128,12 @@ const styles = StyleSheet.create({
   },
   toggleLabel: {
     fontSize: 16,
-    color: '#3C3C43',
+    color: '#334155',
+    fontWeight: '500',
   },
   busyNote: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: 13,
+    color: '#64748B',
     fontStyle: 'italic',
   },
 });

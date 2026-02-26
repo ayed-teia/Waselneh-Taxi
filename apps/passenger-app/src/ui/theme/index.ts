@@ -1,18 +1,28 @@
 export const colors = {
-  primary: '#007AFF',
-  secondary: '#5856D6',
-  success: '#34C759',
-  warning: '#FF9500',
-  error: '#FF3B30',
-  background: '#FFFFFF',
-  surface: '#F2F2F7',
+  primary: '#1D4ED8',
+  primaryDark: '#1E40AF',
+  secondary: '#0F172A',
+  accent: '#F59E0B',
+  success: '#16A34A',
+  warning: '#F97316',
+  error: '#DC2626',
+  background: '#F7F8FC',
+  surface: '#FFFFFF',
+  surfaceAlt: '#EEF2FF',
+  panel: '#111827',
   text: {
-    primary: '#000000',
-    secondary: '#666666',
-    tertiary: '#999999',
+    primary: '#0F172A',
+    secondary: '#334155',
+    tertiary: '#64748B',
     inverse: '#FFFFFF',
   },
-  border: '#E5E5EA',
+  border: '#DDE3F0',
+  map: {
+    route: '#2563EB',
+    roadblockClosed: '#EF4444',
+    roadblockCongested: '#F59E0B',
+    roadblockOpen: '#22C55E',
+  },
 };
 
 export const spacing = {
@@ -26,15 +36,15 @@ export const spacing = {
 
 export const typography = {
   h1: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: 'bold' as const,
   },
   h2: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold' as const,
   },
   h3: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '600' as const,
   },
   body: {

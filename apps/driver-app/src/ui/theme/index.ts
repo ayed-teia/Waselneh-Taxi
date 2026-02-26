@@ -1,22 +1,30 @@
 export const colors = {
-  primary: '#16213E',
-  secondary: '#0F3460',
-  accent: '#E94560',
-  success: '#34C759',
-  warning: '#FF9500',
-  error: '#FF3B30',
-  background: '#F2F2F7',
+  primary: '#0F172A',
+  primaryDark: '#020617',
+  secondary: '#1E293B',
+  accent: '#FACC15',
+  success: '#16A34A',
+  warning: '#F59E0B',
+  error: '#DC2626',
+  background: '#F6F7FB',
   surface: '#FFFFFF',
+  surfaceAlt: '#E2E8F0',
   text: {
-    primary: '#1C1C1E',
-    secondary: '#3C3C43',
-    tertiary: '#8E8E93',
+    primary: '#0F172A',
+    secondary: '#334155',
+    tertiary: '#64748B',
     inverse: '#FFFFFF',
   },
-  border: '#E5E5EA',
-  online: '#34C759',
-  offline: '#8E8E93',
-  busy: '#FF9500',
+  border: '#DDE3F0',
+  online: '#22C55E',
+  offline: '#94A3B8',
+  busy: '#F59E0B',
+  map: {
+    route: '#2563EB',
+    roadblockClosed: '#EF4444',
+    roadblockCongested: '#F59E0B',
+    roadblockOpen: '#22C55E',
+  },
 };
 
 export const spacing = {
@@ -30,15 +38,15 @@ export const spacing = {
 
 export const typography = {
   h1: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: 'bold' as const,
   },
   h2: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold' as const,
   },
   h3: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '600' as const,
   },
   body: {

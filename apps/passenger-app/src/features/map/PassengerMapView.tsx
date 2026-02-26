@@ -1,79 +1,84 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import Mapbox, { MapView, Camera, PointAnnotation, CircleLayer, ShapeSource, LineLayer, LocationPuck } from '@rnmapbox/maps';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import Mapbox, {
+  Camera,
+  CircleLayer,
+  LineLayer,
+  LocationPuck,
+  MapView,
+  PointAnnotation,
+  ShapeSource,
+} from '@rnmapbox/maps';
 import Constants from 'expo-constants';
-
-// Initialize Mapbox
-const MAPBOX_TOKEN = Constants.expoConfig?.extra?.mapboxAccessToken || process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
-Mapbox.setAccessToken(MAPBOX_TOKEN);
-import { 
-  subscribeToAllRoadblocks, 
-  RoadblockData, 
+import {
+  DriverLocation,
+  RoadblockData,
   getRoadblockStatusDisplay,
+  subscribeToAllRoadblocks,
   subscribeToDriverLocation,
-  DriverLocation 
 } from '../../services/realtime';
-import { DEFAULT_REGION, MAP_UPDATE_THROTTLE_MS, MARKER_COLORS, MAP_LOG_PREFIX } from '../../config/map.config';
+import {
+  CAMERA_DEFAULTS,
+  DEFAULT_REGION,
+  MAP_LOG_PREFIX,
+  MAP_STYLE_URL,
+  MAP_UPDATE_THROTTLE_MS,
+  MARKER_COLORS,
+} from '../../config/map.config';
 
-/**
- * ============================================================================
- * PASSENGER MAP VIEW
- * ============================================================================
- * 
- * Map view for passengers showing:
- * - Assigned driver location (when on active trip)
- * - Pickup point marker
- * - Dropoff point marker
- * - Roadblocks with status colors
- * 
- * Features:
- * - Realtime driver location updates
- * - Realtime roadblock updates from Firestore
- * - Throttled updates
- * - Auto-fit to show pickup, dropoff, and driver
- * 
- * ============================================================================
- */
+const MAPBOX_TOKEN =
+  Constants.expoConfig?.extra?.mapboxAccessToken || process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
+Mapbox.setAccessToken(MAPBOX_TOKEN);
+
+const SATELLITE_STYLE_URL = Mapbox.StyleURL.SatelliteStreet;
 
 interface PassengerMapViewProps {
-  /** Driver ID to track (for active trips) */
   driverId?: string | null;
-  /** Pickup location */
   pickup?: { lat: number; lng: number } | null;
-  /** Dropoff location */
   dropoff?: { lat: number; lng: number } | null;
 }
 
+/**
+ * Passenger map designed for ride-hailing use:
+ * clear navigation lines, compact controls, and responsive map overlays.
+ */
 export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapViewProps) {
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 390;
+  const cameraRef = useRef<Camera>(null);
+  const lastRoadblockUpdateRef = useRef(0);
+  const lastDriverUpdateRef = useRef(0);
+
   const [roadblocks, setRoadblocks] = useState<RoadblockData[]>([]);
   const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  const cameraRef = useRef<Camera>(null);
-  const lastRoadblockUpdateRef = useRef<number>(0);
-  const lastDriverUpdateRef = useRef<number>(0);
+  const [mapStyle, setMapStyle] = useState<string>(MAP_STYLE_URL);
 
-  // Subscribe to roadblocks
   useEffect(() => {
     console.log(`${MAP_LOG_PREFIX} Subscribing to roadblocks...`);
-    
+
     const unsubscribe = subscribeToAllRoadblocks(
       (data) => {
-        // Throttle updates
         const now = Date.now();
         if (now - lastRoadblockUpdateRef.current < MAP_UPDATE_THROTTLE_MS) {
           return;
         }
+
         lastRoadblockUpdateRef.current = now;
-        
         setRoadblocks(data);
         setLoading(false);
-        console.log(`${MAP_LOG_PREFIX} Roadblocks updated: ${data.length}`);
       },
       (err) => {
         console.error(`${MAP_LOG_PREFIX} Roadblocks error:`, err);
-        setError('Failed to load roadblocks');
+        setError('Could not load live road conditions.');
         setLoading(false);
       }
     );
@@ -84,45 +89,37 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
     };
   }, []);
 
-  // Subscribe to driver location when driver is assigned
   useEffect(() => {
     if (!driverId) {
       setDriverLocation(null);
       return;
     }
 
-    console.log(`${MAP_LOG_PREFIX} Subscribing to driver location: ${driverId}`);
-    
     const unsubscribe = subscribeToDriverLocation(
       driverId,
       (location) => {
-        // Throttle updates
         const now = Date.now();
         if (now - lastDriverUpdateRef.current < MAP_UPDATE_THROTTLE_MS) {
           return;
         }
+
         lastDriverUpdateRef.current = now;
-        
         setDriverLocation(location);
-        console.log(`${MAP_LOG_PREFIX} Driver location updated`);
       },
       (err) => {
         console.error(`${MAP_LOG_PREFIX} Driver location error:`, err);
       }
     );
 
-    return () => {
-      console.log(`${MAP_LOG_PREFIX} Unsubscribing from driver location`);
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [driverId]);
 
-  // Fit map to show all markers
   useEffect(() => {
-    if (!cameraRef.current) return;
+    if (!cameraRef.current) {
+      return;
+    }
 
     const coordinates: [number, number][] = [];
-    
     if (pickup) {
       coordinates.push([pickup.lng, pickup.lat]);
     }
@@ -133,62 +130,80 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
       coordinates.push([driverLocation.lng, driverLocation.lat]);
     }
 
-    if (coordinates.length >= 2) {
-      // Calculate bounds
-      const lngs = coordinates.map(c => c[0]);
-      const lats = coordinates.map(c => c[1]);
-      const bounds = {
-        ne: [Math.max(...lngs) + 0.01, Math.max(...lats) + 0.01] as [number, number],
-        sw: [Math.min(...lngs) - 0.01, Math.min(...lats) - 0.01] as [number, number],
-      };
-      
-      cameraRef.current.fitBounds(bounds.ne, bounds.sw, [50, 50, 100, 50], 500);
+    if (coordinates.length < 2) {
+      return;
     }
+
+    const lngs = coordinates.map((item) => item[0]);
+    const lats = coordinates.map((item) => item[1]);
+
+    const ne: [number, number] = [Math.max(...lngs) + 0.02, Math.max(...lats) + 0.015];
+    const sw: [number, number] = [Math.min(...lngs) - 0.02, Math.min(...lats) - 0.015];
+    cameraRef.current.fitBounds(ne, sw, [72, 56, 280, 56], 700);
   }, [pickup, dropoff, driverLocation]);
 
-  // GeoJSON for roadblock circles
+  const initialCenter: [number, number] = pickup
+    ? [pickup.lng, pickup.lat]
+    : [DEFAULT_REGION.longitude, DEFAULT_REGION.latitude];
+
   const roadblockCirclesGeoJSON = {
     type: 'FeatureCollection' as const,
-    features: roadblocks.map((rb) => ({
+    features: roadblocks.map((roadblock) => ({
       type: 'Feature' as const,
       properties: {
-        id: rb.id,
-        status: rb.status,
-        color: MARKER_COLORS.roadblock[rb.status] || MARKER_COLORS.roadblock.closed,
+        id: roadblock.id,
+        color: MARKER_COLORS.roadblock[roadblock.status] || MARKER_COLORS.roadblock.closed,
       },
       geometry: {
         type: 'Point' as const,
-        coordinates: [rb.lng, rb.lat],
+        coordinates: [roadblock.lng, roadblock.lat],
       },
     })),
   };
 
-  // GeoJSON for route line
-  const routeLineGeoJSON = pickup && dropoff ? {
-    type: 'Feature' as const,
-    properties: {},
-    geometry: {
-      type: 'LineString' as const,
-      coordinates: [
-        [pickup.lng, pickup.lat],
-        [dropoff.lng, dropoff.lat],
-      ],
-    },
-  } : null;
+  const routeLineGeoJSON =
+    pickup && dropoff
+      ? {
+          type: 'Feature' as const,
+          properties: {},
+          geometry: {
+            type: 'LineString' as const,
+            coordinates: [
+              [pickup.lng, pickup.lat],
+              [dropoff.lng, dropoff.lat],
+            ],
+          },
+        }
+      : null;
 
-  // Calculate initial center
-  const getInitialCenter = (): [number, number] => {
-    if (pickup) {
-      return [pickup.lng, pickup.lat];
+  const handleRecenter = () => {
+    if (!cameraRef.current) {
+      return;
     }
-    return [DEFAULT_REGION.longitude, DEFAULT_REGION.latitude];
+
+    const centerCoordinate: [number, number] = driverLocation
+      ? [driverLocation.lng, driverLocation.lat]
+      : pickup
+        ? [pickup.lng, pickup.lat]
+        : [DEFAULT_REGION.longitude, DEFAULT_REGION.latitude];
+
+    cameraRef.current.setCamera({
+      centerCoordinate,
+      zoomLevel: CAMERA_DEFAULTS.zoomLevel,
+      pitch: CAMERA_DEFAULTS.pitch,
+      animationDuration: 500,
+    });
+  };
+
+  const toggleStyle = () => {
+    setMapStyle((previous) => (previous === MAP_STYLE_URL ? SATELLITE_STYLE_URL : MAP_STYLE_URL));
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading map...</Text>
+        <ActivityIndicator size="large" color="#2563EB" />
+        <Text style={styles.loadingText}>Loading live map...</Text>
       </View>
     );
   }
@@ -197,146 +212,145 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
     <View style={styles.container}>
       <MapView
         style={styles.map}
-        styleURL={Mapbox.StyleURL.Street}
+        styleURL={mapStyle}
         logoEnabled={false}
         attributionEnabled={false}
-        compassEnabled={true}
-        scaleBarEnabled={true}
+        compassEnabled
+        rotateEnabled
+        pitchEnabled
+        scaleBarEnabled={false}
       >
         <Camera
           ref={cameraRef}
           defaultSettings={{
-            centerCoordinate: getInitialCenter(),
-            zoomLevel: 14,
+            centerCoordinate: initialCenter,
+            zoomLevel: CAMERA_DEFAULTS.zoomLevel,
+            pitch: CAMERA_DEFAULTS.pitch,
+            heading: CAMERA_DEFAULTS.heading,
           }}
         />
 
-        {/* Show user location */}
-        <LocationPuck visible={true} />
+        <LocationPuck visible />
 
-        {/* Route line between pickup and dropoff */}
         {routeLineGeoJSON && (
           <ShapeSource id="route-line" shape={routeLineGeoJSON}>
             <LineLayer
-              id="route-line-layer"
+              id="route-line-backdrop"
               style={{
-                lineColor: '#007AFF',
-                lineWidth: 3,
-                lineDasharray: [2, 2],
+                lineColor: '#0F172A',
+                lineOpacity: 0.18,
+                lineWidth: 8,
+              }}
+            />
+            <LineLayer
+              id="route-line-main"
+              style={{
+                lineColor: '#2563EB',
+                lineWidth: 4,
+                lineCap: 'round',
+                lineJoin: 'round',
               }}
             />
           </ShapeSource>
         )}
 
-        {/* Roadblock circles */}
         <ShapeSource id="roadblocks" shape={roadblockCirclesGeoJSON}>
           <CircleLayer
             id="roadblock-circles"
             style={{
-              circleRadius: 30,
+              circleRadius: 22,
               circleColor: ['get', 'color'],
-              circleOpacity: 0.3,
-              circleStrokeWidth: 2,
+              circleOpacity: 0.2,
+              circleStrokeWidth: 1.8,
               circleStrokeColor: ['get', 'color'],
             }}
           />
         </ShapeSource>
 
-        {/* Pickup marker */}
         {pickup && (
-          <PointAnnotation
-            id="pickup-marker"
-            coordinate={[pickup.lng, pickup.lat]}
-            title="Pickup"
-            snippet="Your pickup location"
-          >
-            <View style={[styles.markerContainer, { backgroundColor: MARKER_COLORS.trip.pickup }]}>
-              <Text style={styles.markerEmoji}>📍</Text>
+          <PointAnnotation id="pickup-marker" coordinate={[pickup.lng, pickup.lat]}>
+            <View style={styles.pickupMarkerOuter}>
+              <View style={styles.pickupMarkerInner} />
             </View>
           </PointAnnotation>
         )}
 
-        {/* Dropoff marker */}
         {dropoff && (
-          <PointAnnotation
-            id="dropoff-marker"
-            coordinate={[dropoff.lng, dropoff.lat]}
-            title="Destination"
-            snippet="Your destination"
-          >
-            <View style={[styles.markerContainer, { backgroundColor: MARKER_COLORS.trip.dropoff }]}>
-              <Text style={styles.markerEmoji}>🏁</Text>
+          <PointAnnotation id="dropoff-marker" coordinate={[dropoff.lng, dropoff.lat]}>
+            <View style={styles.dropoffMarker}>
+              <View style={styles.dropoffMarkerCenter} />
             </View>
           </PointAnnotation>
         )}
 
-        {/* Driver marker */}
         {driverLocation && (
-          <PointAnnotation
-            id="driver-marker"
-            coordinate={[driverLocation.lng, driverLocation.lat]}
-            title="Your Driver"
-            snippet={driverLocation.speed ? `${Math.round(driverLocation.speed * 3.6)} km/h` : 'Waiting'}
-          >
-            <View style={[styles.markerContainer, { backgroundColor: MARKER_COLORS.driver.assigned }]}>
-              <Text style={styles.markerEmoji}>🚕</Text>
+          <PointAnnotation id="driver-marker" coordinate={[driverLocation.lng, driverLocation.lat]}>
+            <View style={styles.driverMarker}>
+              <View style={styles.driverMarkerCabin} />
             </View>
           </PointAnnotation>
         )}
 
-        {/* Roadblock markers */}
         {roadblocks.map((roadblock) => {
           const statusDisplay = getRoadblockStatusDisplay(roadblock.status);
-          
           return (
             <PointAnnotation
               key={roadblock.id}
               id={`roadblock-${roadblock.id}`}
               coordinate={[roadblock.lng, roadblock.lat]}
-              title={`${statusDisplay.emoji} ${roadblock.name}`}
-              snippet={roadblock.note || `Status: ${statusDisplay.label}`}
+              title={roadblock.name}
+              snippet={roadblock.note || statusDisplay.label}
             >
-              <View style={[styles.markerContainer, { backgroundColor: MARKER_COLORS.roadblock[roadblock.status] || MARKER_COLORS.roadblock.closed }]}>
-                <Text style={styles.markerEmoji}>{statusDisplay.emoji}</Text>
-              </View>
+              <View
+                style={[
+                  styles.roadblockMarker,
+                  {
+                    backgroundColor:
+                      MARKER_COLORS.roadblock[roadblock.status] || MARKER_COLORS.roadblock.closed,
+                  },
+                ]}
+              />
             </PointAnnotation>
           );
         })}
       </MapView>
 
-      {/* Legend */}
-      <View style={styles.legend}>
-        <Text style={styles.legendTitle}>Map Legend</Text>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.trip.pickup }]} />
-          <Text style={styles.legendText}>Pickup</Text>
-        </View>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.trip.dropoff }]} />
-          <Text style={styles.legendText}>Destination</Text>
-        </View>
-        {driverId && (
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.driver.assigned }]} />
-            <Text style={styles.legendText}>Driver</Text>
-          </View>
-        )}
-        <View style={styles.legendDivider} />
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.closed }]} />
-          <Text style={styles.legendText}>Closed Road</Text>
-        </View>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.congested }]} />
-          <Text style={styles.legendText}>Congested</Text>
+      <View style={styles.topOverlay} pointerEvents="none">
+        <View style={styles.liveBadge}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveText}>Live road conditions</Text>
         </View>
       </View>
 
-      {error && (
+      <View style={[styles.legend, isNarrow && styles.legendNarrow]}>
+        <View style={styles.legendRow}>
+          <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
+          <Text style={styles.legendText}>Pickup</Text>
+        </View>
+        <View style={styles.legendRow}>
+          <View style={[styles.legendDot, { backgroundColor: '#22C55E' }]} />
+          <Text style={styles.legendText}>Dropoff</Text>
+        </View>
+        <View style={styles.legendRow}>
+          <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+          <Text style={styles.legendText}>Closed road</Text>
+        </View>
+      </View>
+
+      <View style={styles.controls}>
+        <Pressable style={styles.controlButton} onPress={toggleStyle}>
+          <Text style={styles.controlButtonText}>Layer</Text>
+        </Pressable>
+        <Pressable style={styles.controlButton} onPress={handleRecenter}>
+          <Text style={styles.controlButtonText}>Center</Text>
+        </Pressable>
+      </View>
+
+      {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -352,81 +366,162 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#E8EEF8',
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
-    color: '#8E8E93',
+    fontSize: 15,
+    color: '#475569',
+    fontWeight: '500',
   },
-  markerContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  pickupMarkerOuter: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2.5,
+    borderColor: '#2563EB',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  pickupMarkerInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+  },
+  dropoffMarker: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    backgroundColor: '#22C55E',
     borderWidth: 2,
     borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  markerEmoji: {
-    fontSize: 18,
+  dropoffMarkerCenter: {
+    width: 6,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+  },
+  driverMarker: {
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    backgroundColor: '#0F172A',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  driverMarkerCabin: {
+    width: 10,
+    height: 10,
+    borderRadius: 3,
+    backgroundColor: '#F8FAFC',
+  },
+  roadblockMarker: {
+    width: 14,
+    height: 14,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  topOverlay: {
+    position: 'absolute',
+    top: 16,
+    left: 14,
+    right: 14,
+  },
+  liveBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.86)',
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+  },
+  liveText: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   legend: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
+    left: 14,
+    bottom: 250,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 12,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 5,
   },
-  legendTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 8,
+  legendNarrow: {
+    bottom: 265,
   },
   legendRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 2,
+    gap: 7,
   },
   legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
+    width: 9,
+    height: 9,
+    borderRadius: 999,
   },
   legendText: {
-    fontSize: 12,
-    color: '#3C3C43',
+    fontSize: 11,
+    color: '#334155',
+    fontWeight: '600',
   },
-  legendDivider: {
-    height: 1,
-    backgroundColor: '#E5E5EA',
-    marginVertical: 6,
+  controls: {
+    position: 'absolute',
+    right: 14,
+    bottom: 252,
+    gap: 8,
+  },
+  controlButton: {
+    minWidth: 64,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  controlButtonText: {
+    color: '#0F172A',
+    fontSize: 12,
+    fontWeight: '700',
   },
   errorBanner: {
     position: 'absolute',
-    top: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: '#FF3B30',
-    borderRadius: 8,
-    padding: 12,
+    top: 60,
+    left: 14,
+    right: 14,
+    backgroundColor: '#DC2626',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   errorText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     textAlign: 'center',
+    fontWeight: '600',
   },
 });
