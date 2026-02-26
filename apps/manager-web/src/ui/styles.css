@@ -1,0 +1,90 @@
+.ws-text {
+  margin: 0;
+  color: var(--ws-text-primary);
+}
+
+.ws-text-h1 {
+  font: var(--ws-font-h1);
+}
+
+.ws-text-h2 {
+  font: var(--ws-font-h2);
+}
+
+.ws-text-body {
+  font: var(--ws-font-body);
+}
+
+.ws-text-caption {
+  font: var(--ws-font-caption);
+}
+
+.ws-text-muted {
+  color: var(--ws-text-secondary);
+}
+
+.ws-button {
+  border: 0;
+  border-radius: var(--ws-radius-md);
+  padding: var(--ws-space-md) var(--ws-space-lg);
+  min-height: 44px;
+  min-width: 120px;
+  font: var(--ws-font-body);
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ws-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ws-button-primary {
+  background: var(--ws-primary);
+  color: var(--ws-primary-text);
+}
+
+.ws-button-secondary {
+  background: var(--ws-secondary);
+  color: var(--ws-secondary-text);
+}
+
+.ws-button-destructive {
+  background: var(--ws-color-danger);
+  color: #ffffff;
+}
+
+.ws-button-label-hidden {
+  opacity: 0;
+}
+
+.ws-button-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  position: absolute;
+  animation: ws-spin 0.8s linear infinite;
+}
+
+@keyframes ws-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ws-card {
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius-lg);
+  padding: var(--ws-space-lg);
+}
+
+.ws-card-elevated {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+}

@@ -1,55 +1,54 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Button } from '../../../ui';
+import { StyleSheet, View } from 'react-native';
+import { Button, Card, ScreenContainer, Text } from '@waselneh/ui';
 
 interface LoginScreenProps {
   onLogin: () => void;
+  loading?: boolean;
 }
 
-export function LoginScreen({ onLogin }: LoginScreenProps) {
+export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Waselneh</Text>
-        <Text style={styles.subtitle}>Smart taxi service for West Bank cities</Text>
+        <Text variant="h1" style={styles.title}>
+          Waselneh
+        </Text>
+        <Text muted style={styles.subtitle}>
+          Smart taxi service for West Bank cities
+        </Text>
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.description}>
-          Book your ride between Nablus, Ramallah, and Jenin with ease.
-        </Text>
+        <Card elevated>
+          <Text style={styles.description}>
+            Book your ride between Nablus, Ramallah, and Jenin with ease.
+          </Text>
+        </Card>
       </View>
 
       <View style={styles.footer}>
-        <Button title="Sign in with Phone" onPress={onLogin} />
-        <Text style={styles.terms}>
+        <Button title="Sign in with Phone" onPress={onLogin} loading={loading} />
+        <Text variant="caption" muted style={styles.terms}>
           By continuing, you agree to our Terms of Service and Privacy Policy
         </Text>
       </View>
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    padding: 24,
+    paddingTop: 8,
   },
   header: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
   },
   title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#007AFF',
-    marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666666',
     textAlign: 'center',
   },
   content: {
@@ -57,18 +56,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   description: {
-    fontSize: 18,
-    color: '#333333',
     textAlign: 'center',
-    lineHeight: 26,
   },
   footer: {
-    paddingBottom: 32,
+    gap: 16,
+    paddingBottom: 12,
   },
   terms: {
-    fontSize: 12,
-    color: '#999999',
     textAlign: 'center',
-    marginTop: 16,
   },
 });

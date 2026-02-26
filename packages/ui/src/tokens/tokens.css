@@ -1,0 +1,47 @@
+:root {
+  --ws-color-brand-yellow: #f5c518;
+  --ws-color-brand-slate: #1f2937;
+
+  --ws-color-success: #16a34a;
+  --ws-color-warning: #d97706;
+  --ws-color-danger: #dc2626;
+
+  --ws-bg: #fffdf7;
+  --ws-surface: #ffffff;
+  --ws-text-primary: #1f2937;
+  --ws-text-secondary: #475569;
+  --ws-border: #e5e7eb;
+  --ws-primary: #f5c518;
+  --ws-primary-text: #111827;
+  --ws-secondary: #1f2937;
+  --ws-secondary-text: #f9fafb;
+
+  --ws-space-xs: 4px;
+  --ws-space-sm: 8px;
+  --ws-space-md: 12px;
+  --ws-space-lg: 16px;
+  --ws-space-xl: 24px;
+  --ws-space-xxl: 32px;
+
+  --ws-radius-sm: 8px;
+  --ws-radius-md: 12px;
+  --ws-radius-lg: 16px;
+  --ws-radius-pill: 999px;
+
+  --ws-font-h1: 700 32px/38px "Poppins", "Segoe UI", sans-serif;
+  --ws-font-h2: 700 24px/30px "Poppins", "Segoe UI", sans-serif;
+  --ws-font-body: 400 16px/24px "Poppins", "Segoe UI", sans-serif;
+  --ws-font-caption: 400 12px/18px "Poppins", "Segoe UI", sans-serif;
+}
+
+[data-theme='dark'] {
+  --ws-bg: #0b1220;
+  --ws-surface: #111827;
+  --ws-text-primary: #f9fafb;
+  --ws-text-secondary: #cbd5e1;
+  --ws-border: #334155;
+  --ws-primary: #f5c518;
+  --ws-primary-text: #111827;
+  --ws-secondary: #334155;
+  --ws-secondary-text: #f9fafb;
+}

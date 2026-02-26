@@ -1,21 +1,39 @@
 import { Outlet, Link } from 'react-router-dom';
+import { Button, Card, Text } from './ui';
 import './App.css';
 
 export function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>🚕 Waselneh Manager</h1>
+        <Text as="h1" variant="h2">
+          Waselneh Manager
+        </Text>
         <nav>
-          <Link to="/drivers">Drivers</Link>
-          <Link to="/live-map">Live Map</Link>
-          <Link to="/payments">Payments</Link>
-          <Link to="/roadblocks">Roadblocks</Link>
-          <Link to="/settings">Settings</Link>
+          <Link className="nav-link" to="/drivers">
+            Drivers
+          </Link>
+          <Link className="nav-link" to="/live-map">
+            Live Map
+          </Link>
+          <Link className="nav-link" to="/payments">
+            Payments
+          </Link>
+          <Link className="nav-link" to="/roadblocks">
+            Roadblocks
+          </Link>
+          <Link className="nav-link" to="/settings">
+            Settings
+          </Link>
+          <Button type="button" variant="primary" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
         </nav>
       </header>
       <main className="main">
-        <Outlet />
+        <Card elevated>
+          <Outlet />
+        </Card>
       </main>
     </div>
   );

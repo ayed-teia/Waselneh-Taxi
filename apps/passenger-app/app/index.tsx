@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Redirect } from 'expo-router';
 import { Alert } from 'react-native';
 import { useAuthStore } from '../src/store';
@@ -11,24 +11,34 @@ const DEV_MODE = true;
 
 export default function Index() {
   const { isAuthenticated, isLoading, setUser } = useAuthStore();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Dev mode: anonymous signin (creates real Firebase Auth user)
   const handleDevLogin = useCallback(async () => {
-    Alert.alert('Login', 'Attempting to sign in...');
-    
-    if (DEV_MODE) {
-      const usingEmulators = isUsingEmulators();
-      Alert.alert('Debug', `Using emulators: ${usingEmulators}`);
-      
-      const { user, error } = await signInAnonymouslyForDev();
-      if (user) {
-        Alert.alert('Success', `Logged in as: ${user.uid}`);
-        setUser(user);
-      } else {
-        Alert.alert('Error', `Login failed: ${error?.message}`);
-      }
+    if (isLoggingIn) {
+      return;
     }
-  }, [setUser]);
+
+    setIsLoggingIn(true);
+    try {
+      Alert.alert('Login', 'Attempting to sign in...');
+
+      if (DEV_MODE) {
+        const usingEmulators = isUsingEmulators();
+        Alert.alert('Debug', `Using emulators: ${usingEmulators}`);
+
+        const { user, error } = await signInAnonymouslyForDev();
+        if (user) {
+          Alert.alert('Success', `Logged in as: ${user.uid}`);
+          setUser(user);
+        } else {
+          Alert.alert('Error', `Login failed: ${error?.message}`);
+        }
+      }
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }, [isLoggingIn, setUser]);
 
   if (isLoading) {
     return <LoadingScreen message="Starting Waselneh..." />;
@@ -38,6 +48,7 @@ export default function Index() {
     return (
       <LoginScreen
         onLogin={handleDevLogin}
+        loading={isLoggingIn}
       />
     );
   }

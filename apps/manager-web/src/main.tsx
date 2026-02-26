@@ -7,6 +7,8 @@ import { DriversListPage } from './pages/DriversListPage';
 import { PaymentsListPage } from './pages/PaymentsListPage';
 import { RoadblocksPage } from './pages/RoadblocksPage';
 import { SystemSettingsPage } from './pages/SystemSettingsPage';
+import '@waselneh/ui/tokens.css';
+import './ui/styles.css';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@taxi-line/shared": "workspace:*",
+    "@waselneh/ui": "workspace:*",
     "@types/leaflet": "^1.9.21",
     "firebase": "^10.7.1",
     "leaflet": "^1.9.4",
