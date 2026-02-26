@@ -54,7 +54,7 @@ export function InboxScreen() {
       const result = await acceptTripRequest(requestId);
       
       // Navigate to active trip screen
-      router.replace({
+      router.push({
         pathname: '/trip',
         params: { tripId: result.tripId },
       });

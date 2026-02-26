@@ -1,7 +1,9 @@
 import React from 'react';
 import { useLocalSearchParams, useRouter, Redirect } from 'expo-router';
+import { View, StyleSheet } from 'react-native';
 import { useAuthStore } from '../src/store';
 import { SearchingDriverScreen } from '../src/features/trip';
+import { BackButton } from '../src/ui';
 
 export default function Searching() {
   const router = useRouter();
@@ -31,20 +33,29 @@ export default function Searching() {
 
   const handleDriverAssigned = (tripId: string) => {
     // Navigate to trip screen when driver is assigned
-    router.replace({
+    router.push({
       pathname: '/trip',
       params: { tripId },
     });
   };
 
   return (
-    <SearchingDriverScreen
-      requestId={params.requestId}
-      distanceKm={parseFloat(params.distanceKm || '0')}
-      durationMin={parseFloat(params.durationMin || '0')}
-      priceIls={parseInt(params.priceIls || '0', 10)}
-      onCancel={handleCancel}
-      onDriverAssigned={handleDriverAssigned}
-    />
+    <View style={styles.container}>
+      <BackButton fallbackRoute="/home" />
+      <SearchingDriverScreen
+        requestId={params.requestId}
+        distanceKm={parseFloat(params.distanceKm || '0')}
+        durationMin={parseFloat(params.durationMin || '0')}
+        priceIls={parseInt(params.priceIls || '0', 10)}
+        onCancel={handleCancel}
+        onDriverAssigned={handleDriverAssigned}
+      />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

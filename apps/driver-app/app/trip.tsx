@@ -1,23 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { useLocalSearchParams, useRouter, Redirect } from 'expo-router';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { useAuthStore } from '../src/store';
-import { ActiveTripScreen } from '../src/features/trip';
-import { subscribeToTrip, TripData } from '../src/services/realtime';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { TripStatus } from '@taxi-line/shared';
+import { ActiveTripScreen } from '../src/features/trip';
+import { TripData, subscribeToTrip } from '../src/services/realtime';
+import { useAuthStore } from '../src/store';
+import { BackButton } from '../src/ui';
 
 export default function Trip() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const params = useLocalSearchParams<{ tripId: string }>();
-  
+
   const [trip, setTrip] = useState<TripData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const tripId = params.tripId;
 
-  // Subscribe to trip updates
   useEffect(() => {
     if (!tripId) return;
 
@@ -27,8 +27,8 @@ export default function Trip() {
         setTrip(tripData);
         setLoading(false);
       },
-      (err) => {
-        setError(err.message);
+      (tripError) => {
+        setError(tripError.message);
         setLoading(false);
       }
     );
@@ -36,50 +36,59 @@ export default function Trip() {
     return () => unsubscribe();
   }, [tripId]);
 
-  // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Redirect href="/" />;
   }
 
-  // Validate required params
   if (!tripId) {
     return <Redirect href="/home" />;
   }
 
   const handleTripCompleted = () => {
-    // Navigate back to home after trip is completed
     router.replace('/home');
   };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading trip...</Text>
+      <View style={styles.routeContainer}>
+        <BackButton fallbackRoute="/home" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading trip...</Text>
+        </View>
       </View>
     );
   }
 
   if (error || !trip) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorIcon}>⚠️</Text>
-        <Text style={styles.errorText}>{error || 'Trip not found'}</Text>
+      <View style={styles.routeContainer}>
+        <BackButton fallbackRoute="/home" />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorIcon}>!</Text>
+          <Text style={styles.errorText}>{error || 'Trip not found'}</Text>
+        </View>
       </View>
     );
   }
 
   return (
-    <ActiveTripScreen
-      tripId={tripId}
-      status={trip.status as TripStatus}
-      estimatedPriceIls={trip.estimatedPriceIls}
-      onTripCompleted={handleTripCompleted}
-    />
+    <View style={styles.routeContainer}>
+      <BackButton fallbackRoute="/home" />
+      <ActiveTripScreen
+        tripId={tripId}
+        status={trip.status as TripStatus}
+        estimatedPriceIls={trip.estimatedPriceIls}
+        onTripCompleted={handleTripCompleted}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  routeContainer: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

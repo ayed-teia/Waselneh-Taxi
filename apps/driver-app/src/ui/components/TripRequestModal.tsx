@@ -112,7 +112,7 @@ export function TripRequestModal() {
 
       hideRequest();
 
-      router.replace({
+      router.push({
         pathname: '/trip',
         params: { tripId: result.tripId },
       });

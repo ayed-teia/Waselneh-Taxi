@@ -1,7 +1,9 @@
 import React from 'react';
 import { Redirect } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
 import { useAuthStore } from '../src/store';
 import { RoadblocksList } from '../src/features/roadblocks';
+import { BackButton } from '../src/ui';
 
 export default function Roadblocks() {
   const { isAuthenticated } = useAuthStore();
@@ -11,5 +13,16 @@ export default function Roadblocks() {
     return <Redirect href="/" />;
   }
 
-  return <RoadblocksList />;
+  return (
+    <View style={styles.container}>
+      <BackButton fallbackRoute="/home" />
+      <RoadblocksList />
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

@@ -1,13 +1,14 @@
 import React from 'react';
-import { useRouter, Redirect } from 'expo-router';
+import { Redirect } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
 import { useAuthStore } from '../src/store';
 import { RoadblocksList } from '../src/features/roadblocks';
+import { BackButton } from '../src/ui';
 
 /**
  * Roadblocks page - read-only list of all roadblocks
  */
 export default function Roadblocks() {
-  const router = useRouter();
   const { isAuthenticated } = useAuthStore();
 
   // Redirect to login if not authenticated
@@ -15,5 +16,16 @@ export default function Roadblocks() {
     return <Redirect href="/" />;
   }
 
-  return <RoadblocksList onClose={() => router.back()} />;
+  return (
+    <View style={styles.container}>
+      <BackButton fallbackRoute="/home" />
+      <RoadblocksList />
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

@@ -1,5 +1,7 @@
 import React from 'react';
 import { Redirect } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
+import { BackButton } from '../src/ui';
 import { useAuthStore } from '../src/store';
 import { EstimateTripScreen } from '../src/features/estimate';
 
@@ -11,5 +13,16 @@ export default function Estimate() {
     return <Redirect href="/" />;
   }
 
-  return <EstimateTripScreen />;
+  return (
+    <View style={styles.container}>
+      <BackButton fallbackRoute="/home" />
+      <EstimateTripScreen />
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

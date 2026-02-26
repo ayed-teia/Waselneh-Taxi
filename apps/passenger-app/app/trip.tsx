@@ -1,22 +1,18 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useLocalSearchParams, useRouter, Redirect } from 'expo-router';
-import { View, Text, ActivityIndicator, StyleSheet, Alert } from 'react-native';
-import { useAuthStore } from '../src/store';
-import { ActiveTripScreen, RatingScreen } from '../src/features/trip';
-import { 
-  subscribeToTrip, 
-  subscribeToDriverLocation,
-  TripData, 
-  DriverLocation 
-} from '../src/services/realtime';
-import { passengerCancelTrip, submitRating } from '../src/services/api';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { TripStatus } from '@taxi-line/shared';
+import { ActiveTripScreen, RatingScreen } from '../src/features/trip';
+import { passengerCancelTrip, submitRating } from '../src/services/api';
+import { DriverLocation, TripData, subscribeToDriverLocation, subscribeToTrip } from '../src/services/realtime';
+import { useAuthStore } from '../src/store';
+import { BackButton } from '../src/ui';
 
 export default function Trip() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const params = useLocalSearchParams<{ tripId: string }>();
-  
+
   const [trip, setTrip] = useState<TripData | null>(null);
   const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,7 +23,6 @@ export default function Trip() {
 
   const tripId = params.tripId;
 
-  // Subscribe to trip updates
   useEffect(() => {
     if (!tripId) return;
 
@@ -36,22 +31,25 @@ export default function Trip() {
       (tripData) => {
         setTrip(tripData);
         setLoading(false);
-        
-        // If trip is completed, show rating screen (unless already rated)
+
         if (tripData?.status === 'completed' && !hasRated) {
           setShowRating(true);
         }
-        
-        // If trip is cancelled or no driver, navigate home after delay
-        const cancelledStatuses = ['cancelled_by_passenger', 'cancelled_by_driver', 'cancelled_by_system', 'no_driver_available'];
+
+        const cancelledStatuses = [
+          'cancelled_by_passenger',
+          'cancelled_by_driver',
+          'cancelled_by_system',
+          'no_driver_available',
+        ];
         if (tripData && cancelledStatuses.includes(tripData.status)) {
           setTimeout(() => {
             router.replace('/home');
           }, 3000);
         }
       },
-      (err) => {
-        setError(err.message);
+      (tripError) => {
+        setError(tripError.message);
         setLoading(false);
       }
     );
@@ -59,44 +57,35 @@ export default function Trip() {
     return () => unsubscribe();
   }, [tripId, router, hasRated]);
 
-  // Subscribe to driver location when we have a driverId
   useEffect(() => {
     if (!trip?.driverId) {
       setDriverLocation(null);
       return;
     }
 
-    // Only track driver for active trips (accepted, arrived, in_progress)
     const activeStatuses = ['accepted', 'driver_arrived', 'in_progress'];
     if (!activeStatuses.includes(trip.status)) {
       setDriverLocation(null);
       return;
     }
 
-    console.log('📍 [Trip] Starting driver location subscription:', trip.driverId);
-
     const unsubscribe = subscribeToDriverLocation(
       trip.driverId,
       (location) => {
         setDriverLocation(location);
       },
-      (err) => {
-        console.error('Error subscribing to driver location:', err);
+      (driverError) => {
+        console.error('Error subscribing to driver location:', driverError);
       }
     );
 
-    return () => {
-      console.log('📍 [Trip] Stopping driver location subscription');
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [trip?.driverId, trip?.status]);
 
-  // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Redirect href="/" />;
   }
 
-  // Validate required params
   if (!tripId) {
     return <Redirect href="/home" />;
   }
@@ -121,17 +110,18 @@ export default function Trip() {
     router.replace('/home');
   };
 
-  // Handle rating submission
-  const handleSubmitRating = useCallback(async (rating: number, comment?: string) => {
-    if (!tripId) return;
-    
-    await submitRating(tripId, rating, comment);
-    setHasRated(true);
-    setShowRating(false);
-    router.replace('/home');
-  }, [tripId, router]);
+  const handleSubmitRating = useCallback(
+    async (rating: number, comment?: string) => {
+      if (!tripId) return;
 
-  // Handle skip rating
+      await submitRating(tripId, rating, comment);
+      setHasRated(true);
+      setShowRating(false);
+      router.replace('/home');
+    },
+    [tripId, router]
+  );
+
   const handleSkipRating = useCallback(() => {
     setShowRating(false);
     router.replace('/home');
@@ -139,48 +129,62 @@ export default function Trip() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading trip...</Text>
+      <View style={styles.routeContainer}>
+        <BackButton fallbackRoute="/home" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading trip...</Text>
+        </View>
       </View>
     );
   }
 
   if (error || !trip) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorIcon}>⚠️</Text>
-        <Text style={styles.errorText}>{error || 'Trip not found'}</Text>
+      <View style={styles.routeContainer}>
+        <BackButton fallbackRoute="/home" />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorIcon}>!</Text>
+          <Text style={styles.errorText}>{error || 'Trip not found'}</Text>
+        </View>
       </View>
     );
   }
 
-  // Show rating screen when trip is completed
   if (showRating && trip.status === 'completed') {
     return (
-      <RatingScreen
-        tripId={tripId}
-        finalPriceIls={trip.finalPriceIls ?? trip.estimatedPriceIls}
-        onSubmit={handleSubmitRating}
-        onSkip={handleSkipRating}
-      />
+      <View style={styles.routeContainer}>
+        <BackButton fallbackRoute="/home" />
+        <RatingScreen
+          tripId={tripId}
+          finalPriceIls={trip.finalPriceIls ?? trip.estimatedPriceIls}
+          onSubmit={handleSubmitRating}
+          onSkip={handleSkipRating}
+        />
+      </View>
     );
   }
 
   return (
-    <ActiveTripScreen
-      tripId={tripId}
-      status={trip.status as TripStatus}
-      estimatedPriceIls={trip.estimatedPriceIls}
-      driverLocation={driverLocation}
-      onCancel={handleCancel}
-      onGoHome={handleGoHome}
-      isCancelling={isCancelling}
-    />
+    <View style={styles.routeContainer}>
+      <BackButton fallbackRoute="/home" />
+      <ActiveTripScreen
+        tripId={tripId}
+        status={trip.status as TripStatus}
+        estimatedPriceIls={trip.estimatedPriceIls}
+        driverLocation={driverLocation}
+        onCancel={handleCancel}
+        onGoHome={handleGoHome}
+        isCancelling={isCancelling}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  routeContainer: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
