@@ -174,6 +174,88 @@ export function subscribeToIncomingTrips(
 }
 
 /**
+ * Subscribe to ALL pending trips (unassigned)
+ * 
+ * Listens to trips where:
+ * - status == 'pending'
+ * - assignedDriverId == null
+ * 
+ * This allows drivers to see ALL available trip requests.
+ * 
+ * @param driverLocation - Driver's current location for distance calculation
+ * @param onTrips - Callback when trips change (receives array of trips)
+ * @param onError - Error callback
+ * @returns Unsubscribe function
+ */
+export function subscribeToAvailableTrips(
+  driverLocation: { lat: number; lng: number } | null,
+  onTrips: (trips: IncomingTripRequest[]) => void,
+  onError: (error: Error) => void
+): Unsubscribe {
+  console.log('🎧 [AvailableTrips] Starting listener for ALL pending trips');
+
+  const unsubscribe = firebaseDB
+    .collection('trips')
+    .where('status', '==', 'pending')
+    .where('assignedDriverId', '==', null)
+    .orderBy('createdAt', 'desc')
+    .limit(20)
+    .onSnapshot(
+      (snapshot) => {
+        if (snapshot.empty) {
+          console.log('📭 [AvailableTrips] No pending trips available');
+          onTrips([]);
+          return;
+        }
+
+        const trips: IncomingTripRequest[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+
+          // Calculate distance from driver to pickup
+          let pickupDistanceKm = 0;
+          if (driverLocation && data?.pickup) {
+            pickupDistanceKm = calculateDistance(
+              driverLocation.lat,
+              driverLocation.lng,
+              data.pickup.lat,
+              data.pickup.lng
+            );
+          }
+
+          console.log('🚨 NEW TRIP REQUEST:', docSnap.id);
+
+          return {
+            tripId: docSnap.id,
+            passengerId: data?.passengerId,
+            pickup: data?.pickup || { lat: 0, lng: 0 },
+            dropoff: data?.destination || data?.dropoff || { lat: 0, lng: 0 },
+            estimatedPriceIls: data?.estimatedPriceIls || 0,
+            estimatedDistanceKm: data?.estimatedDistanceKm || 0,
+            estimatedDurationMin: data?.estimatedDurationMin || 0,
+            pickupDistanceKm: Math.round(pickupDistanceKm * 10) / 10,
+            status: data?.status,
+            createdAt: data?.createdAt?.toDate() ?? null,
+          };
+        });
+
+        console.log(`📥 [AvailableTrips] Found ${trips.length} pending trip(s)`);
+        onTrips(trips);
+      },
+      (error) => {
+        console.error('❌ [AvailableTrips] Listener error:', error);
+        onError(error);
+      }
+    );
+
+  console.log('✅ [AvailableTrips] Listener STARTED');
+
+  return () => {
+    console.log('🔇 [AvailableTrips] Listener STOPPED');
+    unsubscribe();
+  };
+}
+
+/**
  * Subscribe to driver's active trip (read-only)
  */
 export function subscribeToActiveTrip(

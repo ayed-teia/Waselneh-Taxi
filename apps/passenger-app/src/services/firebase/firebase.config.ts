@@ -18,14 +18,15 @@ export type UserCredential = FirebaseAuthTypes.UserCredential;
 const expoConfig = Constants.expoConfig?.extra ?? {};
 
 // Production Firebase configuration (for Firestore/Functions that still use JS SDK)
+// Note: These values should match your Firebase project settings
+// The native SDK uses google-services.json, but JS SDK needs this config
 const firebaseConfig = {
-  apiKey: "AIzaSyBxSBX302HrkHBt-m0s6rCQDpu74L4Wld0",
-  authDomain: "waselneh-prod.firebaseapp.com",
-  projectId: "waselneh-prod",
-  storageBucket: "waselneh-prod.firebasestorage.app",
-  messagingSenderId: "1041356838503",
-  appId: "1:1041356838503:web:68c077c6d834057e89a6c2",
-  measurementId: "G-FNY3H394G2"
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "",
+  authDomain: `${process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "your-project"}.firebaseapp.com`,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "",
+  storageBucket: `${process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "your-project"}.firebasestorage.app`,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "",
 };
 
 // Emulator config 
