@@ -1,12 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Animated,
-  Easing,
-} from 'react-native';
+import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PassengerMapView } from '../../map';
 import { Button } from '../../../ui';
 import { subscribeToTripRequest } from '../../../services/realtime';
 
@@ -17,11 +12,12 @@ interface SearchingDriverScreenProps {
   distanceKm: number;
   durationMin: number;
   priceIls: number;
+  pickup?: { lat: number; lng: number } | null;
+  dropoff?: { lat: number; lng: number } | null;
 }
 
 /**
- * Screen shown while searching for a driver
- * Displays a loading animation and trip summary
+ * Searching state with live map background and a responsive booking card.
  */
 export function SearchingDriverScreen({
   requestId,
@@ -30,21 +26,30 @@ export function SearchingDriverScreen({
   distanceKm,
   durationMin,
   priceIls,
+  pickup,
+  dropoff,
 }: SearchingDriverScreenProps) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.min(width - 16, 560);
   const [dots, setDots] = useState('');
-  const [pulseAnim] = useState(new Animated.Value(1));
   const [isMatched, setIsMatched] = useState(false);
+  const [pulseAnim] = useState(new Animated.Value(1));
+  const [cardHeight, setCardHeight] = useState(236);
+  const safeDistance = Number.isFinite(distanceKm) ? distanceKm : 0;
+  const safeDuration = Number.isFinite(durationMin) ? durationMin : 0;
+  const safePrice = Number.isFinite(priceIls) ? priceIls : 0;
+  const overlayBottomOffset = cardHeight + 10;
+  const topPadding = Math.max(74, insets.top + 52);
 
-  // Subscribe to trip request status changes
   useEffect(() => {
     const unsubscribe = subscribeToTripRequest(
       requestId,
       (request) => {
         if (request?.status === 'matched' && request.matchedTripId) {
           setIsMatched(true);
-          // Small delay to show matched state before navigating
           setTimeout(() => {
-            onDriverAssigned(request.matchedTripId!);
+            onDriverAssigned(request.matchedTripId as string);
           }, 500);
         }
       },
@@ -55,27 +60,25 @@ export function SearchingDriverScreen({
     return () => unsubscribe();
   }, [requestId, onDriverAssigned]);
 
-  // Animate loading dots
   useEffect(() => {
     const interval = setInterval(() => {
-      setDots((prev) => (prev.length >= 3 ? '' : prev + '.'));
+      setDots((prev) => (prev.length >= 3 ? '' : `${prev}.`));
     }, 500);
     return () => clearInterval(interval);
   }, []);
 
-  // Pulse animation for the car icon
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 800,
+          toValue: 1.14,
+          duration: 850,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 800,
+          duration: 850,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -87,74 +90,72 @@ export function SearchingDriverScreen({
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>
-          {isMatched ? 'Driver assigned 🎉' : `Searching for a driver${dots}`}
-        </Text>
-        <Text style={styles.subtitle}>
-          {isMatched
-            ? 'Your driver is on the way to pick you up'
-            : 'Please wait while we connect you with a nearby driver'}
-        </Text>
-      </View>
+      <PassengerMapView
+        pickup={pickup}
+        dropoff={dropoff}
+        overlayBottomOffset={overlayBottomOffset}
+        showLegend={false}
+        showControls={false}
+      />
 
-      {/* Animated car icon */}
-      <View style={styles.animationContainer}>
-        <Animated.View
-          style={[
-            styles.iconContainer,
-            isMatched && styles.matchedIconContainer,
-            { transform: [{ scale: isMatched ? 1 : pulseAnim }] },
-          ]}
-        >
-          <Text style={styles.carIcon}>{isMatched ? '✅' : '🚕'}</Text>
-        </Animated.View>
-        {!isMatched && (
-          <ActivityIndicator
-            size="large"
-            color="#007AFF"
-            style={styles.spinner}
-          />
-        )}
-      </View>
-
-      {/* Trip summary card */}
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>Trip Summary</Text>
-        
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Distance</Text>
-          <Text style={styles.summaryValue}>{distanceKm} km</Text>
-        </View>
-        
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Est. Duration</Text>
-          <Text style={styles.summaryValue}>
-            {durationMin < 60
-              ? `${Math.round(durationMin)} min`
-              : `${Math.floor(durationMin / 60)}h ${Math.round(durationMin % 60)}m`}
+      <View style={styles.overlay} pointerEvents="box-none">
+        <View style={[styles.topBadge, { marginTop: topPadding }]}>
+          <Text style={styles.topBadgeText}>
+            {isMatched ? 'Driver assigned' : `Searching${dots}`}
           </Text>
         </View>
-        
-        <View style={[styles.summaryRow, styles.priceRow]}>
-          <Text style={styles.priceLabel}>Estimated Fare</Text>
-          <Text style={styles.priceValue}>₪{priceIls}</Text>
+
+        <View
+          onLayout={(event) => {
+            const nextHeight = Math.round(event.nativeEvent.layout.height);
+            if (nextHeight > 0) {
+              setCardHeight(nextHeight);
+            }
+          }}
+          style={[styles.bottomCard, { width: cardWidth, paddingBottom: Math.max(14, insets.bottom + 8) }]}
+        >
+          <View style={styles.cardHeader}>
+            <Animated.View
+              style={[
+                styles.iconWrap,
+                { transform: [{ scale: isMatched ? 1 : pulseAnim }] },
+                isMatched && styles.iconWrapMatched,
+              ]}
+            >
+              <Text style={styles.iconText}>{isMatched ? 'OK' : 'CAB'}</Text>
+            </Animated.View>
+            <View style={styles.headerText}>
+              <Text style={styles.title}>{isMatched ? 'Driver is on the way' : 'Searching for a driver'}</Text>
+              <Text style={styles.subtitle}>
+                {isMatched
+                  ? 'A driver accepted your trip request.'
+                  : 'We are matching you with the nearest available driver.'}
+              </Text>
+            </View>
+            {!isMatched ? <ActivityIndicator size="small" color="#1D4ED8" /> : null}
+          </View>
+
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Distance</Text>
+              <Text style={styles.summaryValue}>{safeDistance.toFixed(1)} km</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>ETA</Text>
+              <Text style={styles.summaryValue}>
+                {safeDuration < 60
+                  ? `${Math.round(safeDuration)} min`
+                  : `${Math.floor(safeDuration / 60)}h ${Math.round(safeDuration % 60)}m`}
+              </Text>
+            </View>
+            <View style={[styles.summaryRow, styles.summaryRowNoBorder]}>
+              <Text style={styles.fareLabel}>Fare</Text>
+              <Text style={styles.fareValue}>NIS {safePrice}</Text>
+            </View>
+          </View>
+
+          {!isMatched ? <Button title="Cancel Trip" variant="outline" onPress={onCancel} /> : null}
         </View>
-      </View>
-
-      {/* Request ID (for debugging) */}
-      <Text style={styles.requestId}>Request ID: {requestId}</Text>
-
-      {/* Cancel button */}
-      <View style={styles.cancelContainer}>
-        {!isMatched && (
-          <Button
-            title="Cancel Request"
-            onPress={onCancel}
-            variant="secondary"
-          />
-        )}
       </View>
     </View>
   );
@@ -163,107 +164,116 @@ export function SearchingDriverScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
-    padding: 20,
+    backgroundColor: '#E8EEF8',
   },
-  header: {
-    alignItems: 'center',
-    marginTop: 40,
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#8E8E93',
-    textAlign: 'center',
-  },
-  animationContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 150,
-    marginBottom: 40,
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FFF9E6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  matchedIconContainer: {
-    backgroundColor: '#E8F5E9',
-  },
-  carIcon: {
-    fontSize: 40,
-  },
-  spinner: {
-    position: 'absolute',
-    bottom: 20,
-  },
-  summaryCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    marginBottom: 20,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 16,
-  },
-  summaryRow: {
-    flexDirection: 'row',
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingBottom: 0,
+  },
+  topBadge: {
+    borderRadius: 999,
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  topBadgeText: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  bottomCard: {
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderWidth: 1,
+    borderColor: '#DDE3F0',
+    backgroundColor: 'rgba(248, 250, 252, 0.98)',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    elevation: 10,
+    gap: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DBEAFE',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  iconWrapMatched: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#BBF7D0',
+  },
+  iconText: {
+    fontSize: 11,
+    color: '#1E3A8A',
+    fontWeight: '800',
+  },
+  headerText: {
+    flex: 1,
+    gap: 2,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  subtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#64748B',
+  },
+  summaryCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#DDE3F0',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  summaryRow: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: '#F1F5F9',
+  },
+  summaryRowNoBorder: {
+    borderBottomWidth: 0,
   },
   summaryLabel: {
-    fontSize: 16,
-    color: '#8E8E93',
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
   },
   summaryValue: {
+    fontSize: 15,
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  fareLabel: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
+    color: '#0F172A',
+    fontWeight: '700',
   },
-  priceRow: {
-    borderBottomWidth: 0,
-    paddingTop: 16,
-    marginTop: 4,
-  },
-  priceLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1C1C1E',
-  },
-  priceValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#34C759',
-  },
-  requestId: {
-    fontSize: 12,
-    color: '#8E8E93',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  cancelContainer: {
-    marginTop: 'auto',
-    paddingBottom: 20,
+  fareValue: {
+    fontSize: 22,
+    color: '#16A34A',
+    fontWeight: '800',
   },
 });

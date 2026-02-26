@@ -11,9 +11,9 @@ interface BackButtonProps {
 }
 
 /**
- * Floating back button with safe fallback route when stack history is empty.
+ * Compact floating back button with fallback route when stack history is empty.
  */
-export function BackButton({ fallbackRoute = '/home', style, label = 'Back' }: BackButtonProps) {
+export function BackButton({ fallbackRoute = '/home', style, label }: BackButtonProps) {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -23,18 +23,17 @@ export function BackButton({ fallbackRoute = '/home', style, label = 'Back' }: B
       (navigation as any).goBack();
       return;
     }
-
     router.replace(fallbackRoute as any);
   };
 
   return (
     <Pressable
       onPress={handleBack}
-      style={[styles.button, { top: Math.max(insets.top + 8, 14) }, style]}
+      style={[styles.button, { top: Math.max(insets.top + 10, 16) }, style]}
       hitSlop={10}
     >
       <Text style={styles.icon}>{'<'}</Text>
-      <Text style={styles.label}>{label}</Text>
+      {label ? <Text style={styles.label}>{label}</Text> : null}
     </Pressable>
   );
 }
@@ -43,21 +42,29 @@ const styles = StyleSheet.create({
   button: {
     position: 'absolute',
     left: 14,
-    zIndex: 1000,
+    zIndex: 1400,
+    minWidth: 40,
+    height: 40,
+    borderRadius: 999,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 999,
-    backgroundColor: 'rgba(15, 23, 42, 0.86)',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.45)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 6,
+    borderColor: 'rgba(203, 213, 225, 0.25)',
+    shadowColor: '#020617',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   icon: {
     color: '#F8FAFC',
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '900',
+    marginTop: -1,
   },
   label: {
     color: '#F8FAFC',

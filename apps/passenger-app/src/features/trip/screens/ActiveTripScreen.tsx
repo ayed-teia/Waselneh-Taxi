@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TripStatus } from '@taxi-line/shared';
+import { PassengerMapView } from '../../map';
 import { Button } from '../../../ui';
-import { DriverLocation, subscribeToActiveRoadblocks, checkRouteIntersectsRoadblocks, RoadblockData } from '../../../services/realtime';
+import { DriverLocation } from '../../../services/realtime';
 
 interface LocationCoords {
   lat: number;
@@ -14,6 +16,7 @@ interface ActiveTripScreenProps {
   status: TripStatus;
   estimatedPriceIls?: number;
   driverLocation?: DriverLocation | null;
+  driverId?: string;
   pickup?: LocationCoords;
   dropoff?: LocationCoords;
   onCancel: () => void;
@@ -21,150 +24,177 @@ interface ActiveTripScreenProps {
   isCancelling?: boolean;
 }
 
+const DEFAULT_PICKUP = { lat: 32.2211, lng: 35.2544 };
+
+function getStatusMeta(status: TripStatus): {
+  title: string;
+  description: string;
+  tone: 'neutral' | 'info' | 'success' | 'warning';
+} {
+  switch (status) {
+    case 'pending':
+      return {
+        title: 'Searching for driver',
+        description: 'Please wait while we match you with a nearby driver.',
+        tone: 'neutral',
+      };
+    case 'accepted':
+      return {
+        title: 'Driver assigned',
+        description: 'Your driver is heading to the pickup point.',
+        tone: 'info',
+      };
+    case 'driver_arrived':
+      return {
+        title: 'Driver arrived',
+        description: 'Your driver is waiting at pickup.',
+        tone: 'success',
+      };
+    case 'in_progress':
+      return {
+        title: 'On the way',
+        description: 'Trip is in progress.',
+        tone: 'info',
+      };
+    case 'completed':
+      return {
+        title: 'Trip completed',
+        description: 'Thanks for riding with us.',
+        tone: 'success',
+      };
+    case 'cancelled_by_passenger':
+    case 'cancelled_by_driver':
+    case 'cancelled_by_system':
+    case 'no_driver_available':
+      return {
+        title: 'Trip ended',
+        description: 'This trip is no longer active.',
+        tone: 'warning',
+      };
+    default:
+      return {
+        title: 'Trip update',
+        description: 'Status changed.',
+        tone: 'neutral',
+      };
+  }
+}
+
+function toneColor(tone: 'neutral' | 'info' | 'success' | 'warning'): string {
+  switch (tone) {
+    case 'info':
+      return '#2563EB';
+    case 'success':
+      return '#16A34A';
+    case 'warning':
+      return '#F59E0B';
+    default:
+      return '#334155';
+  }
+}
+
 /**
- * Active Trip Screen - shows trip progress
- * All data comes from Firestore realtime subscription (read-only)
+ * Passenger active trip screen with live map and responsive bottom details sheet.
  */
-export function ActiveTripScreen({ 
-  tripId, 
-  status, 
+export function ActiveTripScreen({
+  tripId,
+  status,
   estimatedPriceIls,
   driverLocation,
+  driverId,
   pickup,
   dropoff,
   onCancel,
   onGoHome,
   isCancelling = false,
 }: ActiveTripScreenProps) {
-  // Roadblock state
-  const [roadblocks, setRoadblocks] = useState<RoadblockData[]>([]);
-  const [intersectingRoadblocks, setIntersectingRoadblocks] = useState<RoadblockData[]>([]);
-  const hasValidDriverLocation =
-    driverLocation != null &&
-    Number.isFinite(driverLocation.lat) &&
-    Number.isFinite(driverLocation.lng);
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 390;
+  const cardWidth = Math.min(width - 16, 560);
+  const [cardHeight, setCardHeight] = useState(254);
 
-  // Subscribe to active roadblocks
-  useEffect(() => {
-    const unsubscribe = subscribeToActiveRoadblocks(
-      (data) => setRoadblocks(data),
-      (error) => console.error('❌ [ActiveTrip] Roadblocks subscription error:', error)
-    );
-    return () => unsubscribe();
-  }, []);
-
-  // Check for route intersection with closed roadblocks
-  useEffect(() => {
-    if (pickup && dropoff && roadblocks.length > 0) {
-      const intersecting = checkRouteIntersectsRoadblocks(pickup, dropoff, roadblocks);
-      setIntersectingRoadblocks(intersecting);
-    } else {
-      setIntersectingRoadblocks([]);
-    }
-  }, [pickup, dropoff, roadblocks]);
-
-  const getStatusDisplay = (status: TripStatus) => {
-    switch (status) {
-      case 'pending':
-        return { text: 'Searching for a driver…', icon: '🔍', description: 'Please wait while we find you a driver' };
-      case 'accepted':
-        return { text: 'Driver assigned', icon: '🚗', description: 'Your driver is on the way to pick you up' };
-      case 'driver_arrived':
-        return { text: 'Driver arrived', icon: '📍', description: 'Your driver is waiting at the pickup location' };
-      case 'in_progress':
-        return { text: 'On the way', icon: '🛣️', description: 'Enjoy your ride!' };
-      case 'completed':
-        return { text: 'Trip completed', icon: '✅', description: 'Thank you for riding with Waselneh!' };
-      case 'cancelled_by_passenger':
-      case 'cancelled_by_driver':
-      case 'cancelled_by_system':
-        return { text: 'Trip cancelled', icon: '❌', description: 'This trip has been cancelled' };
-      case 'no_driver_available':
-        return { text: 'No driver available', icon: '😞', description: 'Sorry, no drivers are available right now' };
-      default:
-        return { text: 'Unknown status', icon: '❓', description: '' };
-    }
-  };
-
-  const statusDisplay = getStatusDisplay(status);
+  const meta = getStatusMeta(status);
   const canCancel = status === 'pending' || status === 'accepted';
-  const isCompleted = status === 'completed';
-  const isCancelled = status === 'cancelled_by_passenger' || status === 'cancelled_by_driver' || status === 'cancelled_by_system' || status === 'no_driver_available';
+  const isEnded =
+    status === 'completed' ||
+    status === 'cancelled_by_passenger' ||
+    status === 'cancelled_by_driver' ||
+    status === 'cancelled_by_system' ||
+    status === 'no_driver_available';
+
+  const tone = toneColor(meta.tone);
+  const mappedPickup = pickup ?? DEFAULT_PICKUP;
+  const topPadding = Math.max(74, insets.top + 52);
+  const safeEstimatedFare = Number.isFinite(estimatedPriceIls ?? NaN) ? estimatedPriceIls : 0;
+  const hasDriverCoordinates =
+    Boolean(driverLocation) &&
+    Number.isFinite(driverLocation?.lat) &&
+    Number.isFinite(driverLocation?.lng);
 
   return (
     <View style={styles.container}>
-      {/* Roadblock Warning Banner */}
-      {intersectingRoadblocks.length > 0 && (
-        <View style={styles.roadblockBanner}>
-          <Text style={styles.roadblockBannerIcon}>🚧</Text>
-          <View style={styles.roadblockBannerText}>
-            <Text style={styles.roadblockBannerTitle}>Road Closure Ahead</Text>
-            <Text style={styles.roadblockBannerMessage}>
-              {intersectingRoadblocks.length === 1 
-                ? 'Your route may be affected by a road closure'
-                : `Your route may be affected by ${intersectingRoadblocks.length} road closures`}
+      <PassengerMapView
+        driverId={driverId}
+        pickup={mappedPickup}
+        dropoff={dropoff ?? null}
+        overlayBottomOffset={cardHeight + 10}
+        showLegend={false}
+        showControls={false}
+      />
+
+      <View style={styles.overlay} pointerEvents="box-none">
+        <View style={[styles.statusPill, { borderColor: `${tone}33`, marginTop: topPadding }]}>
+          <View style={[styles.statusDot, { backgroundColor: tone }]} />
+          <Text style={styles.statusPillText}>{meta.title}</Text>
+        </View>
+
+        <View
+          onLayout={(event) => {
+            const nextHeight = Math.round(event.nativeEvent.layout.height);
+            if (nextHeight > 0) {
+              setCardHeight(nextHeight);
+            }
+          }}
+          style={[styles.bottomCard, { width: cardWidth, paddingBottom: Math.max(14, insets.bottom + 8) }]}
+        >
+          <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{meta.title}</Text>
+          <Text style={styles.description}>{meta.description}</Text>
+
+          <View style={styles.divider} />
+
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Trip ID</Text>
+            <Text style={styles.metaValue}>{tripId.slice(0, 8)}...</Text>
+          </View>
+
+          {estimatedPriceIls != null ? (
+            <View style={styles.metaRow}>
+              <Text style={styles.fareLabel}>Fare</Text>
+              <Text style={styles.fareValue}>NIS {safeEstimatedFare}</Text>
+            </View>
+          ) : null}
+
+          {hasDriverCoordinates ? (
+            <Text style={styles.driverLive}>
+              Driver live: {driverLocation?.lat.toFixed(4)}, {driverLocation?.lng.toFixed(4)}
             </Text>
-            {intersectingRoadblocks[0]?.note && (
-              <Text style={styles.roadblockNote}>{intersectingRoadblocks[0].note}</Text>
-            )}
+          ) : null}
+
+          <View style={styles.actions}>
+            {canCancel ? (
+              <Button
+                title={isCancelling ? 'Cancelling...' : 'Cancel Trip'}
+                variant="outline"
+                onPress={onCancel}
+                loading={isCancelling}
+                disabled={isCancelling}
+              />
+            ) : null}
+
+            {isEnded && onGoHome ? <Button title="Back to Home" onPress={onGoHome} /> : null}
           </View>
         </View>
-      )}
-
-      {/* Map placeholder with driver location */}
-      <View style={styles.mapPlaceholder}>
-        <Text style={styles.mapEmoji}>🗺️</Text>
-        {hasValidDriverLocation && driverLocation && (
-          <View style={styles.driverMarker}>
-            <Text style={styles.driverMarkerIcon}>🚗</Text>
-            <Text style={styles.driverCoords}>
-              {driverLocation.lat.toFixed(4)}, {driverLocation.lng.toFixed(4)}
-            </Text>
-            {driverLocation.speed !== null && driverLocation.speed > 0 && (
-              <Text style={styles.driverSpeed}>
-                {Math.round(driverLocation.speed * 3.6)} km/h
-              </Text>
-            )}
-          </View>
-        )}
-        {/* Roadblock indicators on map */}
-        {roadblocks.length > 0 && (
-          <View style={styles.roadblockIndicator}>
-            <Text style={styles.roadblockIndicatorText}>🚧 {roadblocks.length} roadblock(s)</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Trip info card */}
-      <View style={styles.tripCard}>
-        <View style={styles.statusContainer}>
-          <Text style={styles.statusIcon}>{statusDisplay.icon}</Text>
-          <View style={styles.statusTextContainer}>
-            <Text style={styles.statusText}>{statusDisplay.text}</Text>
-            <Text style={styles.statusDescription}>{statusDisplay.description}</Text>
-          </View>
-        </View>
-
-        <View style={styles.tripDetails}>
-          <Text style={styles.tripId}>Trip: {tripId.slice(0, 8)}...</Text>
-          {estimatedPriceIls && (
-            <Text style={styles.priceText}>Fare: ₪{estimatedPriceIls}</Text>
-          )}
-        </View>
-
-        {canCancel && (
-          <Button
-            title={isCancelling ? 'Cancelling...' : 'Cancel Trip'}
-            variant="outline"
-            onPress={onCancel}
-            loading={isCancelling}
-            disabled={isCancelling}
-          />
-        )}
-
-        {(isCompleted || isCancelled) && onGoHome && (
-          <Button title="Back to Home" onPress={onGoHome} />
-        )}
       </View>
     </View>
   );
@@ -173,136 +203,103 @@ export function ActiveTripScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E5E5E5',
+    backgroundColor: '#E8EEF8',
   },
-  mapPlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#D4E4D4',
   },
-  mapEmoji: {
-    fontSize: 64,
-  },
-  driverMarker: {
-    position: 'absolute',
-    bottom: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  driverMarkerIcon: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  driverCoords: {
-    fontSize: 12,
-    color: '#666666',
-  },
-  driverSpeed: {
-    fontSize: 12,
-    color: '#007AFF',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  tripCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  statusIcon: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  statusTextContainer: {
-    flex: 1,
-  },
-  statusText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333333',
-  },
-  statusDescription: {
-    fontSize: 14,
-    color: '#666666',
-    marginTop: 4,
-  },
-  tripDetails: {
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
-    marginBottom: 16,
-  },
-  tripId: {
-    fontSize: 14,
-    color: '#999999',
-  },
-  priceText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#34C759',
-    marginTop: 8,
-  },
-  roadblockBanner: {
+  statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FF3B30',
-    padding: 12,
-    paddingHorizontal: 16,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 8,
   },
-  roadblockBannerIcon: {
-    fontSize: 24,
-    marginRight: 12,
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
   },
-  roadblockBannerText: {
-    flex: 1,
-  },
-  roadblockBannerTitle: {
-    fontSize: 16,
+  statusPillText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#0F172A',
+    letterSpacing: 0.2,
   },
-  roadblockBannerMessage: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.9,
+  bottomCard: {
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderWidth: 1,
+    borderColor: '#DDE3F0',
+    backgroundColor: 'rgba(248, 250, 252, 0.98)',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    elevation: 10,
   },
-  roadblockNote: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.8,
+  title: {
+    fontSize: 30,
+    lineHeight: 34,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.4,
+  },
+  titleNarrow: {
+    fontSize: 26,
+    lineHeight: 30,
+  },
+  description: {
     marginTop: 4,
-    fontStyle: 'italic',
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
   },
-  roadblockIndicator: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(255, 59, 48, 0.9)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+  divider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 12,
   },
-  roadblockIndicatorText: {
-    fontSize: 12,
-    color: '#FFFFFF',
+  metaRow: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  metaLabel: {
+    fontSize: 13,
+    color: '#64748B',
     fontWeight: '600',
+  },
+  metaValue: {
+    fontSize: 13,
+    color: '#334155',
+    fontWeight: '700',
+  },
+  fareLabel: {
+    fontSize: 17,
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  fareValue: {
+    fontSize: 23,
+    color: '#16A34A',
+    fontWeight: '800',
+  },
+  driverLive: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#64748B',
+  },
+  actions: {
+    marginTop: 12,
+    gap: 10,
   },
 });

@@ -15,9 +15,9 @@ export function StatusToggle({ status, isLoading, onToggle }: StatusToggleProps)
   const getStatusText = () => {
     switch (status) {
       case 'online':
-        return 'Online - Ready for trips';
+        return 'Online and ready for requests';
       case 'busy':
-        return 'Busy - On a trip';
+        return 'Busy on an active trip';
       case 'offline':
       default:
         return 'Offline';
@@ -51,7 +51,7 @@ export function StatusToggle({ status, isLoading, onToggle }: StatusToggleProps)
       </View>
 
       <View style={styles.toggleRow}>
-        <Text style={styles.toggleLabel}>{isOnline ? 'Go Offline' : 'Go Online'}</Text>
+        <Text style={styles.toggleLabel}>{isOnline ? 'Go offline' : 'Go online'}</Text>
         <Switch
           value={isOnline}
           onValueChange={(value: boolean) => onToggle(value)}
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#DDE3F0',
-    padding: 14,
+    padding: 13,
     gap: 12,
   },
   statusHeader: {
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   statusText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#0F172A',
   },
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toggleLabel: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#334155',
     fontWeight: '500',
   },

@@ -1,13 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import React, { useCallback } from 'react';
+import { Alert, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TripStatus } from '@taxi-line/shared';
 import { Button } from '../../../ui';
-import { driverArrived, startTrip, completeTrip } from '../../../services/api';
-import { 
-  subscribeToActiveRoadblocks, 
-  checkRouteIntersectsRoadblocks,
-  RoadblockData 
-} from '../../../services/realtime';
+import { completeTrip, driverArrived, startTrip } from '../../../services/api';
+import { DriverMapView } from '../../map';
+import { useDriverStore } from '../../../store';
 
 interface ActiveTripScreenProps {
   tripId: string;
@@ -18,195 +16,168 @@ interface ActiveTripScreenProps {
   pickup?: { lat: number; lng: number };
   dropoff?: { lat: number; lng: number };
   onTripCompleted: () => void;
-  onPaymentConfirmed?: () => void;
+}
+
+function getStatusMeta(status: TripStatus): { title: string; description: string; tone: string; action: string | null } {
+  switch (status) {
+    case 'accepted':
+      return {
+        title: 'Heading to pickup',
+        description: 'Drive to passenger pickup location.',
+        tone: '#2563EB',
+        action: 'Arrived at Pickup',
+      };
+    case 'driver_arrived':
+      return {
+        title: 'Waiting for passenger',
+        description: 'Passenger is expected at pickup.',
+        tone: '#16A34A',
+        action: 'Start Trip',
+      };
+    case 'in_progress':
+      return {
+        title: 'Trip in progress',
+        description: 'Follow route to destination.',
+        tone: '#2563EB',
+        action: 'Complete Trip',
+      };
+    case 'completed':
+      return {
+        title: 'Trip completed',
+        description: 'Collect payment and close trip.',
+        tone: '#16A34A',
+        action: null,
+      };
+    default:
+      return {
+        title: 'Trip update',
+        description: 'Status changed.',
+        tone: '#334155',
+        action: null,
+      };
+  }
 }
 
 /**
- * Active Trip Screen for Driver
- * Shows current trip details and allows status updates via Cloud Functions
+ * Driver active trip screen with live map + professional action sheet.
  */
-export function ActiveTripScreen({ 
-  tripId, 
-  status, 
+export function ActiveTripScreen({
+  tripId,
+  status,
   estimatedPriceIls,
   fareAmount,
   paymentStatus = 'pending',
   pickup,
   dropoff,
   onTripCompleted,
-  onPaymentConfirmed
 }: ActiveTripScreenProps) {
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [roadblocks, setRoadblocks] = useState<RoadblockData[]>([]);
-  const [intersectingRoadblocks, setIntersectingRoadblocks] = useState<RoadblockData[]>([]);
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 390;
+  const { currentLocation } = useDriverStore();
+  const [isUpdating, setIsUpdating] = React.useState(false);
+  const [cardHeight, setCardHeight] = React.useState(252);
 
-  // Subscribe to roadblocks
-  useEffect(() => {
-    const unsubscribe = subscribeToActiveRoadblocks(
-      (data) => {
-        setRoadblocks(data);
-      },
-      (error) => {
-        console.error('❌ [ActiveTrip] Roadblocks subscription error:', error);
-      }
-    );
-    return () => unsubscribe();
-  }, []);
-
-  // Check for route intersection with closed roadblocks
-  useEffect(() => {
-    if (pickup && dropoff && roadblocks.length > 0) {
-      const intersecting = checkRouteIntersectsRoadblocks(pickup, dropoff, roadblocks);
-      setIntersectingRoadblocks(intersecting);
-      if (intersecting.length > 0) {
-        console.log('🚧 [ActiveTrip] Route intersects roadblocks:', intersecting.length);
-      }
-    } else {
-      setIntersectingRoadblocks([]);
-    }
-  }, [pickup, dropoff, roadblocks]);
-
-  const getStatusDisplay = (tripStatus: TripStatus) => {
-    switch (tripStatus) {
-      case 'accepted':
-        return { text: 'Heading to pickup', icon: '🚗', action: 'Arrived at Pickup' };
-      case 'driver_arrived':
-        return { text: 'Waiting for passenger', icon: '📍', action: 'Start Trip' };
-      case 'in_progress':
-        return { text: 'Trip in progress', icon: '🛣️', action: 'Complete Trip' };
-      case 'completed':
-        return { text: 'Trip completed', icon: '✅', action: null }; // Payment handled separately
-      default:
-        return { text: 'Unknown status', icon: '❓', action: null };
-    }
-  };
+  const cardWidth = Math.min(width - 16, 560);
+  const statusMeta = getStatusMeta(status);
+  const hasAction = statusMeta.action != null && (status === 'accepted' || status === 'driver_arrived' || status === 'in_progress');
+  const topPadding = Math.max(74, insets.top + 52);
+  const safeEstimatedFare = Number.isFinite(estimatedPriceIls ?? NaN) ? estimatedPriceIls : 0;
+  const safeFareAmount = Number.isFinite(fareAmount ?? NaN) ? fareAmount : safeEstimatedFare;
 
   const handleAction = useCallback(async () => {
     setIsUpdating(true);
-    console.log(`🚗 [ActiveTrip] Action triggered for status: ${status}`);
-    
     try {
-      switch (status) {
-        case 'accepted':
-          console.log('📍 [ActiveTrip] Calling driverArrived...');
-          await driverArrived(tripId);
-          console.log('✅ [ActiveTrip] Driver marked as arrived');
-          break;
-        case 'driver_arrived':
-          console.log('🛣️ [ActiveTrip] Calling startTrip...');
-          await startTrip(tripId);
-          console.log('✅ [ActiveTrip] Trip started');
-          break;
-        case 'in_progress':
-          console.log('🏁 [ActiveTrip] Calling completeTrip...');
-          const result = await completeTrip(tripId);
-          console.log('✅ [ActiveTrip] Trip completed, fare:', result.finalPriceIls);
-          Alert.alert(
-            'Trip Completed!',
-            `Final fare: ₪${result.finalPriceIls}`,
-            [{ text: 'OK', onPress: onTripCompleted }]
-          );
-          return; // Don't reset isUpdating, we're navigating away
-        default:
-          console.log('⚠️ [ActiveTrip] Unknown status, no action');
-          return;
+      if (status === 'accepted') {
+        await driverArrived(tripId);
+      } else if (status === 'driver_arrived') {
+        await startTrip(tripId);
+      } else if (status === 'in_progress') {
+        const result = await completeTrip(tripId);
+        Alert.alert('Trip completed', `Final fare: NIS ${result.finalPriceIls}`, [
+          { text: 'OK', onPress: onTripCompleted },
+        ]);
+        return;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update trip';
-      console.error('❌ [ActiveTrip] Action failed:', message);
       Alert.alert('Error', message);
     } finally {
       setIsUpdating(false);
     }
-  }, [tripId, status, onTripCompleted]);
+  }, [status, tripId, onTripCompleted]);
 
-  const statusDisplay = getStatusDisplay(status);
-  const hasAction = status === 'accepted' || status === 'driver_arrived' || status === 'in_progress';
+  const driverLocation = currentLocation
+    ? { latitude: currentLocation.lat, longitude: currentLocation.lng }
+    : null;
 
   return (
     <View style={styles.container}>
-      {/* Roadblock Warning Banner */}
-      {intersectingRoadblocks.length > 0 && (
-        <View style={styles.roadblockBanner}>
-          <Text style={styles.roadblockBannerIcon}>🚧</Text>
-          <View style={styles.roadblockBannerText}>
-            <Text style={styles.roadblockBannerTitle}>Road Closure Ahead</Text>
-            <Text style={styles.roadblockBannerMessage}>
-              {intersectingRoadblocks.length === 1 
-                ? 'Your route passes through a closed road'
-                : `Your route passes through ${intersectingRoadblocks.length} closed roads`}
-            </Text>
-            {intersectingRoadblocks[0]?.note && (
-              <Text style={styles.roadblockNote}>{intersectingRoadblocks[0].note}</Text>
-            )}
-          </View>
-        </View>
-      )}
+      <DriverMapView
+        driverLocation={driverLocation}
+        followUser
+        overlayBottomOffset={cardHeight + 10}
+        showLegend={false}
+        showControls={false}
+      />
 
-      {/* Map placeholder */}
-      <View style={styles.mapPlaceholder}>
-        <Text style={styles.mapEmoji}>🗺️</Text>
-        <Text style={styles.routeText}>Route to destination</Text>
-        {/* Roadblock indicators on map placeholder */}
-        {roadblocks.length > 0 && (
-          <View style={styles.roadblockIndicator}>
-            <Text style={styles.roadblockIndicatorText}>🚧 {roadblocks.length} roadblock(s)</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Trip info card */}
-      <View style={styles.tripCard}>
-        <View style={styles.statusContainer}>
-          <Text style={styles.statusIcon}>{statusDisplay.icon}</Text>
-          <Text style={styles.statusText}>{statusDisplay.text}</Text>
+      <View style={styles.overlay} pointerEvents="box-none">
+        <View style={[styles.statusPill, { borderColor: `${statusMeta.tone}33`, marginTop: topPadding }]}>
+          <View style={[styles.statusDot, { backgroundColor: statusMeta.tone }]} />
+          <Text style={styles.statusPillText}>{statusMeta.title}</Text>
         </View>
 
-        <View style={styles.tripDetails}>
-          <Text style={styles.tripId}>Trip: {tripId.slice(0, 8)}...</Text>
-          
-          {estimatedPriceIls && (
-            <Text style={styles.priceText}>Fare: ₪{estimatedPriceIls}</Text>
-          )}
-          
-          {/* Placeholder passenger info */}
-          <View style={styles.passengerInfo}>
-            <Text style={styles.passengerName}>👤 Passenger Name</Text>
-            <Text style={styles.passengerPhone}>📞 +972-XXX-XXXX</Text>
+        <View
+          onLayout={(event) => {
+            const nextHeight = Math.round(event.nativeEvent.layout.height);
+            if (nextHeight > 0) {
+              setCardHeight(nextHeight);
+            }
+          }}
+          style={[styles.bottomCard, { width: cardWidth, paddingBottom: Math.max(14, insets.bottom + 8) }]}
+        >
+          <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{statusMeta.title}</Text>
+          <Text style={styles.description}>{statusMeta.description}</Text>
+
+          <View style={styles.divider} />
+
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Trip ID</Text>
+            <Text style={styles.metaValue}>{tripId.slice(0, 8)}...</Text>
           </View>
-        </View>
 
-        {hasAction && statusDisplay.action && (
-          <Button
-            title={isUpdating ? 'Updating...' : statusDisplay.action}
-            onPress={handleAction}
-            disabled={isUpdating}
-            loading={isUpdating}
-          />
-        )}
-
-        {status === 'completed' && paymentStatus === 'pending' && (
-          <View style={styles.paymentSection}>
-            <View style={styles.collectCashHeader}>
-              <Text style={styles.collectCashIcon}>💵</Text>
-              <Text style={styles.collectCashTitle}>Collect Cash from Passenger</Text>
+          {estimatedPriceIls != null ? (
+            <View style={styles.metaRow}>
+              <Text style={styles.fareLabel}>Fare</Text>
+              <Text style={styles.fareValue}>NIS {safeEstimatedFare}</Text>
             </View>
-            <View style={styles.amountContainer}>
-              <Text style={styles.amountLabel}>Amount to collect</Text>
-              <Text style={styles.amountValue}>₪{fareAmount || estimatedPriceIls}</Text>
-            </View>
-            <Text style={styles.paymentNote}>
-              Payment confirmation coming soon
-            </Text>
-          </View>
-        )}
+          ) : null}
 
-        {status === 'completed' && paymentStatus === 'paid' && (
-          <View style={styles.completedMessage}>
-            <Text style={styles.completedText}>✅ Trip completed</Text>
-            <Text style={styles.paidText}>💵 Payment collected</Text>
-          </View>
-        )}
+          {pickup ? (
+            <Text style={styles.metaHint}>Pickup: {pickup.lat.toFixed(4)}, {pickup.lng.toFixed(4)}</Text>
+          ) : null}
+          {dropoff ? (
+            <Text style={styles.metaHint}>Dropoff: {dropoff.lat.toFixed(4)}, {dropoff.lng.toFixed(4)}</Text>
+          ) : null}
+
+          {hasAction && statusMeta.action ? (
+            <View style={styles.actions}>
+              <Button
+                title={isUpdating ? 'Updating...' : statusMeta.action}
+                onPress={handleAction}
+                disabled={isUpdating}
+                loading={isUpdating}
+              />
+            </View>
+          ) : null}
+
+          {status === 'completed' && paymentStatus === 'pending' ? (
+            <View style={styles.paymentBox}>
+              <Text style={styles.paymentTitle}>Collect cash from passenger</Text>
+              <Text style={styles.paymentAmount}>NIS {safeFareAmount}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -215,187 +186,124 @@ export function ActiveTripScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#E8EEF8',
   },
-  mapPlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#C8D6C5',
   },
-  mapEmoji: {
-    fontSize: 64,
-  },
-  routeText: {
-    marginTop: 8,
-    fontSize: 16,
-    color: '#666666',
-  },
-  tripCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  statusContainer: {
+  statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  statusIcon: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  statusText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1C1C1E',
-  },
-  tripDetails: {
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#E5E5EA',
-    marginBottom: 16,
-  },
-  tripId: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 12,
-  },
-  priceText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#34C759',
-    marginBottom: 12,
-  },
-  passengerInfo: {
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     gap: 8,
   },
-  passengerName: {
-    fontSize: 16,
-    color: '#1C1C1E',
-    fontWeight: '500',
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
   },
-  passengerPhone: {
-    fontSize: 16,
-    color: '#3C3C43',
+  statusPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: 0.2,
   },
-  completedMessage: {
+  bottomCard: {
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderWidth: 1,
+    borderColor: '#DDE3F0',
+    backgroundColor: 'rgba(248, 250, 252, 0.98)',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  title: {
+    fontSize: 30,
+    lineHeight: 34,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.4,
+  },
+  titleNarrow: {
+    fontSize: 26,
+    lineHeight: 30,
+  },
+  description: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 12,
+  },
+  metaRow: {
+    minHeight: 34,
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
+    justifyContent: 'space-between',
   },
-  completedText: {
-    fontSize: 18,
-    color: '#34C759',
+  metaLabel: {
+    fontSize: 13,
+    color: '#64748B',
     fontWeight: '600',
   },
-  paymentSection: {
-    alignItems: 'center',
-    paddingVertical: 16,
-    backgroundColor: '#F0FFF4',
-    borderRadius: 12,
-    marginBottom: 16,
+  metaValue: {
+    fontSize: 13,
+    color: '#334155',
+    fontWeight: '700',
   },
-  paymentLabel: {
-    fontSize: 16,
-    color: '#666666',
-    marginBottom: 8,
+  fareLabel: {
+    fontSize: 17,
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  fareValue: {
+    fontSize: 23,
+    color: '#16A34A',
+    fontWeight: '800',
+  },
+  metaHint: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#64748B',
+  },
+  actions: {
+    marginTop: 12,
+    gap: 10,
+  },
+  paymentBox: {
+    marginTop: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    backgroundColor: '#F0FDF4',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  paymentTitle: {
+    fontSize: 13,
+    color: '#166534',
+    fontWeight: '700',
   },
   paymentAmount: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#34C759',
-    marginBottom: 16,
-  },
-  paidText: {
-    fontSize: 16,
-    color: '#34C759',
-    marginTop: 8,
-  },
-  roadblockBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FF3B30',
-    padding: 12,
-    paddingHorizontal: 16,
-  },
-  roadblockBannerIcon: {
+    marginTop: 2,
     fontSize: 24,
-    marginRight: 12,
-  },
-  roadblockBannerText: {
-    flex: 1,
-  },
-  roadblockBannerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  roadblockBannerMessage: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.9,
-  },
-  roadblockNote: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.8,
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-  roadblockIndicator: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(255, 59, 48, 0.9)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  roadblockIndicatorText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  // Collect cash styles
-  collectCashHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  collectCashIcon: {
-    fontSize: 28,
-    marginRight: 8,
-  },
-  collectCashTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1C1C1E',
-  },
-  amountContainer: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  amountLabel: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 4,
-  },
-  amountValue: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#34C759',
-  },
-  paymentNote: {
-    fontSize: 12,
-    color: '#8E8E93',
-    fontStyle: 'italic',
-    marginTop: 8,
+    color: '#166534',
+    fontWeight: '800',
   },
 });

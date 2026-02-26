@@ -13,6 +13,10 @@ export default function Searching() {
     distanceKm: string;
     durationMin: string;
     priceIls: string;
+    pickupLat?: string;
+    pickupLng?: string;
+    dropoffLat?: string;
+    dropoffLng?: string;
   }>();
 
   // Redirect to login if not authenticated
@@ -47,6 +51,16 @@ export default function Searching() {
         distanceKm={parseFloat(params.distanceKm || '0')}
         durationMin={parseFloat(params.durationMin || '0')}
         priceIls={parseInt(params.priceIls || '0', 10)}
+        pickup={
+          params.pickupLat && params.pickupLng
+            ? { lat: parseFloat(params.pickupLat), lng: parseFloat(params.pickupLng) }
+            : null
+        }
+        dropoff={
+          params.dropoffLat && params.dropoffLng
+            ? { lat: parseFloat(params.dropoffLat), lng: parseFloat(params.dropoffLng) }
+            : null
+        }
         onCancel={handleCancel}
         onDriverAssigned={handleDriverAssigned}
       />

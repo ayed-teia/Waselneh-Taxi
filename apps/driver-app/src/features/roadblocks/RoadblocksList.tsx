@@ -1,24 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
-import { subscribeToAllRoadblocks, RoadblockData, getRoadblockStatusDisplay } from '../../services/realtime';
+﻿import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { RoadblockData, getRoadblockStatusDisplay, subscribeToAllRoadblocks } from '../../services/realtime';
 
 /**
- * ============================================================================
- * ROADBLOCKS LIST SCREEN (DRIVER)
- * ============================================================================
- * 
- * Read-only view of all roadblocks for drivers.
- * Shows:
- * - Name
- * - Status badge (open/closed/congested)
- * - Note (if exists)
- * 
- * Data updates in realtime.
- * 
- * ============================================================================
+ * Read-only roadblocks screen for drivers.
  */
-
 export function RoadblocksList() {
+  const insets = useSafeAreaInsets();
   const [roadblocks, setRoadblocks] = useState<RoadblockData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,7 +18,7 @@ export function RoadblocksList() {
         setLoading(false);
       },
       (error) => {
-        console.error('❌ [RoadblocksList] Subscription error:', error);
+        console.error('[RoadblocksList] Subscription error:', error);
         setLoading(false);
       }
     );
@@ -39,33 +28,35 @@ export function RoadblocksList() {
 
   const renderRoadblock = ({ item }: { item: RoadblockData }) => {
     const statusDisplay = getRoadblockStatusDisplay(item.status);
-    
+
     return (
       <View style={[styles.card, { borderLeftColor: statusDisplay.color }]}>
         <View style={styles.cardHeader}>
           <Text style={styles.statusEmoji}>{statusDisplay.emoji}</Text>
           <View style={styles.nameContainer}>
             <Text style={styles.name}>{item.name}</Text>
-            {item.area && <Text style={styles.area}>({item.area})</Text>}
+            {item.area ? <Text style={styles.area}>({item.area})</Text> : null}
           </View>
           <View style={[styles.statusBadge, { backgroundColor: statusDisplay.bgColor }]}>
-            <Text style={[styles.statusText, { color: statusDisplay.color }]}>
-              {statusDisplay.label}
-            </Text>
+            <Text style={[styles.statusText, { color: statusDisplay.color }]}>{statusDisplay.label}</Text>
           </View>
         </View>
-        {item.note && (
-          <Text style={styles.note}>{item.note}</Text>
-        )}
+
+        {item.note ? <Text style={styles.note}>{item.note}</Text> : null}
       </View>
     );
+  };
+
+  const headerStyle = {
+    paddingTop: Math.max(92, insets.top + 72),
+    paddingLeft: 78,
   };
 
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>🚧 Roadblocks</Text>
+        <View style={[styles.header, headerStyle]}>
+          <Text style={styles.title}>Roadblocks</Text>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
@@ -77,16 +68,14 @@ export function RoadblocksList() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>🚧 Roadblocks</Text>
-        <Text style={styles.subtitle}>
-          {roadblocks.filter(r => r.status !== 'open').length} active
-        </Text>
+      <View style={[styles.header, headerStyle]}>
+        <Text style={styles.title}>Roadblocks</Text>
+        <Text style={styles.subtitle}>{roadblocks.filter((r) => r.status !== 'open').length} active</Text>
       </View>
 
       {roadblocks.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>✅</Text>
+          <Text style={styles.emptyIcon}>OK</Text>
           <Text style={styles.emptyText}>No roadblocks reported</Text>
           <Text style={styles.emptySubtext}>All roads are clear</Text>
         </View>
@@ -122,9 +111,9 @@ const styles = StyleSheet.create({
     color: '#1C1C1E',
   },
   subtitle: {
+    marginTop: 4,
     fontSize: 14,
     color: '#8E8E93',
-    marginTop: 4,
   },
   loadingContainer: {
     flex: 1,
@@ -140,11 +129,11 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
     marginBottom: 12,
     borderLeftWidth: 4,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -156,8 +145,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusEmoji: {
-    fontSize: 20,
     marginRight: 10,
+    fontSize: 20,
   },
   nameContainer: {
     flex: 1,
@@ -175,9 +164,9 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
   },
   statusBadge: {
+    borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
   },
   statusText: {
     fontSize: 12,
@@ -186,11 +175,11 @@ const styles = StyleSheet.create({
   },
   note: {
     marginTop: 10,
-    fontSize: 14,
-    color: '#3C3C43',
+    borderRadius: 8,
     backgroundColor: '#F2F2F7',
     padding: 10,
-    borderRadius: 8,
+    fontSize: 14,
+    color: '#3C3C43',
   },
   emptyContainer: {
     flex: 1,
@@ -199,14 +188,16 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   emptyIcon: {
-    fontSize: 48,
     marginBottom: 16,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#16A34A',
   },
   emptyText: {
+    marginBottom: 8,
     fontSize: 18,
     fontWeight: '600',
     color: '#1C1C1E',
-    marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,

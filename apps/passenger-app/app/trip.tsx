@@ -173,6 +173,9 @@ export default function Trip() {
         status={trip.status as TripStatus}
         estimatedPriceIls={trip.estimatedPriceIls}
         driverLocation={driverLocation}
+        driverId={trip.driverId}
+        pickup={trip.pickup}
+        dropoff={trip.dropoff}
         onCancel={handleCancel}
         onGoHome={handleGoHome}
         isCancelling={isCancelling}

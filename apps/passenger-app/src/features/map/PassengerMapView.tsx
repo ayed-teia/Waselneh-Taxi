@@ -7,6 +7,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Mapbox, {
   Camera,
   CircleLayer,
@@ -40,17 +41,28 @@ Mapbox.setAccessToken(MAPBOX_TOKEN);
 const SATELLITE_STYLE_URL = Mapbox.StyleURL.SatelliteStreet;
 
 interface PassengerMapViewProps {
-  driverId?: string | null;
-  pickup?: { lat: number; lng: number } | null;
-  dropoff?: { lat: number; lng: number } | null;
+  driverId?: string | null | undefined;
+  pickup?: { lat: number; lng: number } | null | undefined;
+  dropoff?: { lat: number; lng: number } | null | undefined;
+  overlayBottomOffset?: number;
+  showLegend?: boolean;
+  showControls?: boolean;
 }
 
 /**
- * Passenger map designed for ride-hailing use:
- * clear navigation lines, compact controls, and responsive map overlays.
+ * Passenger map focused on ride-hailing clarity:
+ * route emphasis, clean overlays, and responsive floating controls.
  */
-export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapViewProps) {
+export function PassengerMapView({
+  driverId,
+  pickup,
+  dropoff,
+  overlayBottomOffset = 252,
+  showLegend = true,
+  showControls = true,
+}: PassengerMapViewProps) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isNarrow = width < 390;
   const cameraRef = useRef<Camera>(null);
   const lastRoadblockUpdateRef = useRef(0);
@@ -63,15 +75,10 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
   const [mapStyle, setMapStyle] = useState<string>(MAP_STYLE_URL);
 
   useEffect(() => {
-    console.log(`${MAP_LOG_PREFIX} Subscribing to roadblocks...`);
-
     const unsubscribe = subscribeToAllRoadblocks(
       (data) => {
         const now = Date.now();
-        if (now - lastRoadblockUpdateRef.current < MAP_UPDATE_THROTTLE_MS) {
-          return;
-        }
-
+        if (now - lastRoadblockUpdateRef.current < MAP_UPDATE_THROTTLE_MS) return;
         lastRoadblockUpdateRef.current = now;
         setRoadblocks(data);
         setLoading(false);
@@ -99,10 +106,7 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
       driverId,
       (location) => {
         const now = Date.now();
-        if (now - lastDriverUpdateRef.current < MAP_UPDATE_THROTTLE_MS) {
-          return;
-        }
-
+        if (now - lastDriverUpdateRef.current < MAP_UPDATE_THROTTLE_MS) return;
         lastDriverUpdateRef.current = now;
         setDriverLocation(location);
       },
@@ -115,30 +119,20 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
   }, [driverId]);
 
   useEffect(() => {
-    if (!cameraRef.current) {
-      return;
-    }
+    if (!cameraRef.current) return;
 
     const coordinates: [number, number][] = [];
-    if (pickup) {
-      coordinates.push([pickup.lng, pickup.lat]);
-    }
-    if (dropoff) {
-      coordinates.push([dropoff.lng, dropoff.lat]);
-    }
-    if (driverLocation) {
-      coordinates.push([driverLocation.lng, driverLocation.lat]);
-    }
+    if (pickup) coordinates.push([pickup.lng, pickup.lat]);
+    if (dropoff) coordinates.push([dropoff.lng, dropoff.lat]);
+    if (driverLocation) coordinates.push([driverLocation.lng, driverLocation.lat]);
 
-    if (coordinates.length < 2) {
-      return;
-    }
+    if (coordinates.length < 2) return;
 
     const lngs = coordinates.map((item) => item[0]);
     const lats = coordinates.map((item) => item[1]);
-
     const ne: [number, number] = [Math.max(...lngs) + 0.02, Math.max(...lats) + 0.015];
     const sw: [number, number] = [Math.min(...lngs) - 0.02, Math.min(...lats) - 0.015];
+
     cameraRef.current.fitBounds(ne, sw, [72, 56, 280, 56], 700);
   }, [pickup, dropoff, driverLocation]);
 
@@ -177,9 +171,7 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
       : null;
 
   const handleRecenter = () => {
-    if (!cameraRef.current) {
-      return;
-    }
+    if (!cameraRef.current) return;
 
     const centerCoordinate: [number, number] = driverLocation
       ? [driverLocation.lng, driverLocation.lat]
@@ -199,11 +191,14 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
     setMapStyle((previous) => (previous === MAP_STYLE_URL ? SATELLITE_STYLE_URL : MAP_STYLE_URL));
   };
 
+  const topOverlayOffset = Math.max(insets.top + 8, 16);
+  const minBottomWithInset = (isNarrow ? 236 : 220) + insets.bottom;
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={styles.loadingText}>Loading live map...</Text>
+        <Text style={styles.loadingText}>Loading map...</Text>
       </View>
     );
   }
@@ -238,7 +233,7 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
               id="route-line-backdrop"
               style={{
                 lineColor: '#0F172A',
-                lineOpacity: 0.18,
+                lineOpacity: 0.2,
                 lineWidth: 8,
               }}
             />
@@ -315,39 +310,49 @@ export function PassengerMapView({ driverId, pickup, dropoff }: PassengerMapView
         })}
       </MapView>
 
-      <View style={styles.topOverlay} pointerEvents="none">
+      <View style={[styles.topOverlay, { top: topOverlayOffset }]} pointerEvents="none">
         <View style={styles.liveBadge}>
           <View style={styles.liveDot} />
           <Text style={styles.liveText}>Live road conditions</Text>
         </View>
       </View>
 
-      <View style={[styles.legend, isNarrow && styles.legendNarrow]}>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
-          <Text style={styles.legendText}>Pickup</Text>
+      {showLegend ? (
+        <View
+          style={[
+            styles.legend,
+            isNarrow && styles.legendNarrow,
+            { bottom: Math.max(overlayBottomOffset, minBottomWithInset) },
+          ]}
+        >
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
+            <Text style={styles.legendText}>Pickup</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: '#22C55E' }]} />
+            <Text style={styles.legendText}>Dropoff</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+            <Text style={styles.legendText}>Closed road</Text>
+          </View>
         </View>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: '#22C55E' }]} />
-          <Text style={styles.legendText}>Dropoff</Text>
-        </View>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
-          <Text style={styles.legendText}>Closed road</Text>
-        </View>
-      </View>
+      ) : null}
 
-      <View style={styles.controls}>
-        <Pressable style={styles.controlButton} onPress={toggleStyle}>
-          <Text style={styles.controlButtonText}>Layer</Text>
-        </Pressable>
-        <Pressable style={styles.controlButton} onPress={handleRecenter}>
-          <Text style={styles.controlButtonText}>Center</Text>
-        </Pressable>
-      </View>
+      {showControls ? (
+        <View style={[styles.controls, { bottom: Math.max(overlayBottomOffset + 4, 222 + insets.bottom) }]}>
+          <Pressable style={styles.controlButton} onPress={toggleStyle}>
+            <Text style={styles.controlButtonText}>Layer</Text>
+          </Pressable>
+          <Pressable style={styles.controlButton} onPress={handleRecenter}>
+            <Text style={styles.controlButtonText}>Center</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {error ? (
-        <View style={styles.errorBanner}>
+        <View style={[styles.errorBanner, { top: topOverlayOffset + 46 }]}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : null}
@@ -431,17 +436,16 @@ const styles = StyleSheet.create({
   },
   topOverlay: {
     position: 'absolute',
-    top: 16,
     left: 14,
     right: 14,
+    alignItems: 'center',
   },
   liveBadge: {
-    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.86)',
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
     borderRadius: 999,
-    paddingVertical: 8,
+    paddingVertical: 7,
     paddingHorizontal: 12,
     gap: 8,
   },
@@ -460,7 +464,6 @@ const styles = StyleSheet.create({
   legend: {
     position: 'absolute',
     left: 14,
-    bottom: 250,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 12,
     borderWidth: 1,
@@ -470,7 +473,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   legendNarrow: {
-    bottom: 265,
+    paddingHorizontal: 9,
   },
   legendRow: {
     flexDirection: 'row',
@@ -490,7 +493,6 @@ const styles = StyleSheet.create({
   controls: {
     position: 'absolute',
     right: 14,
-    bottom: 252,
     gap: 8,
   },
   controlButton: {
@@ -510,7 +512,6 @@ const styles = StyleSheet.create({
   },
   errorBanner: {
     position: 'absolute',
-    top: 60,
     left: 14,
     right: 14,
     backgroundColor: '#DC2626',

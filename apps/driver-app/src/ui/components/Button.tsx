@@ -1,11 +1,12 @@
 import React from 'react';
 import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
   ActivityIndicator,
-  ViewStyle,
+  StyleProp,
+  StyleSheet,
+  Text,
   TextStyle,
+  TouchableOpacity,
+  ViewStyle,
 } from 'react-native';
 
 interface ButtonProps {
@@ -14,7 +15,7 @@ interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'outline' | 'danger';
   disabled?: boolean;
   loading?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function Button({
@@ -29,22 +30,15 @@ export function Button({
 
   return (
     <TouchableOpacity
-      style={[
-        styles.button,
-        styles[variant],
-        isDisabled && styles.disabled,
-        style,
-      ]}
+      style={[styles.button, styles[variant], isDisabled && styles.disabled, style]}
       onPress={onPress}
       disabled={isDisabled}
-      activeOpacity={0.7}
+      activeOpacity={0.9}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'outline' ? '#16213E' : '#FFFFFF'} />
+        <ActivityIndicator color={variant === 'outline' ? '#0F172A' : '#FFFFFF'} />
       ) : (
-        <Text style={[styles.text, styles[`${variant}Text` as keyof typeof styles] as TextStyle]}>
-          {title}
-        </Text>
+        <Text style={[styles.text, styles[`${variant}Text` as keyof typeof styles] as TextStyle]}>{title}</Text>
       )}
     </TouchableOpacity>
   );
@@ -52,33 +46,33 @@ export function Button({
 
 const styles = StyleSheet.create({
   button: {
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    minHeight: 54,
+    borderRadius: 14,
+    paddingHorizontal: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 50,
   },
   primary: {
-    backgroundColor: '#16213E',
+    backgroundColor: '#0F172A',
   },
   secondary: {
-    backgroundColor: '#0F3460',
+    backgroundColor: '#1E293B',
   },
   outline: {
     backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#16213E',
+    borderWidth: 1.5,
+    borderColor: '#0F172A',
   },
   danger: {
-    backgroundColor: '#E94560',
+    backgroundColor: '#DC2626',
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.55,
   },
   text: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.1,
   },
   primaryText: {
     color: '#FFFFFF',
@@ -87,7 +81,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   outlineText: {
-    color: '#16213E',
+    color: '#0F172A',
   },
   dangerText: {
     color: '#FFFFFF',

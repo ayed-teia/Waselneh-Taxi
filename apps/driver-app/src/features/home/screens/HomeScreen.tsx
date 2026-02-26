@@ -1,5 +1,12 @@
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import React, { useState } from 'react';
+import {
+  LayoutChangeEvent,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { DriverMapView } from '../../map';
@@ -11,33 +18,42 @@ interface HomeScreenProps {
 }
 
 /**
- * Driver home screen with responsive bottom control panel.
+ * Driver home with responsive bottom control panel.
  */
 export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { status, isUpdatingStatus, currentLocation } = useDriverStore();
+  const [panelHeight, setPanelHeight] = useState(286);
 
   const isCompact = height < 760;
-  const panelWidth = Math.min(width - 20, 520);
+  const panelWidth = Math.min(width - 18, 560);
 
   const driverLocation = currentLocation
     ? { latitude: currentLocation.lat, longitude: currentLocation.lng }
     : null;
 
+  const handlePanelLayout = (event: LayoutChangeEvent) => {
+    const measuredHeight = event.nativeEvent.layout.height;
+    if (measuredHeight > 0) {
+      setPanelHeight(Math.round(measuredHeight));
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <DriverMapView driverLocation={driverLocation} followUser />
+      <DriverMapView driverLocation={driverLocation} followUser overlayBottomOffset={panelHeight + 10} />
 
       <View style={styles.panelLayer} pointerEvents="box-none">
         <View
+          onLayout={handlePanelLayout}
           style={[
             styles.bottomPanel,
             {
               width: panelWidth,
-              paddingHorizontal: isCompact ? 16 : 20,
-              paddingTop: isCompact ? 12 : 14,
+              paddingHorizontal: isCompact ? 14 : 18,
+              paddingTop: isCompact ? 10 : 14,
               paddingBottom: Math.max(14, insets.bottom + 8),
             },
           ]}
@@ -62,7 +78,7 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
             <View style={styles.offlineMessage}>
               <Text style={styles.offlineTitle}>You are offline</Text>
               <Text style={styles.offlineText}>
-                Switch online when ready to receive new trip requests from nearby passengers.
+                Switch online when ready to receive nearby trip requests.
               </Text>
             </View>
           )}
@@ -81,19 +97,19 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
   },
   bottomPanel: {
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     borderWidth: 1,
     borderColor: '#DDE3F0',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(248, 250, 252, 0.98)',
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 10,
     gap: 12,
   },
   handle: {
@@ -108,7 +124,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionTitle: {
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: '700',
     color: '#0F172A',
   },

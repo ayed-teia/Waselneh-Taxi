@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  LayoutChangeEvent,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -24,21 +25,33 @@ const QUICK_LOCATIONS = [
 ];
 
 /**
- * Passenger map with a responsive, ride-hailing style action panel.
+ * Passenger map with a polished ride-hailing style bottom sheet.
  */
 export function MapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [isCreatingTrip, setIsCreatingTrip] = useState(false);
+  const [sheetHeight, setSheetHeight] = useState(306);
 
   const isCompact = height < 760;
-  const panelWidth = Math.min(width - 20, 520);
+  const isNarrow = width < 390;
+  const panelWidth = Math.min(width - 16, 560);
   const sheetPaddingBottom = Math.max(14, insets.bottom + 8);
+  const mapOverlayBottom = sheetHeight + 14;
+  const titleFontSize = isNarrow ? 34 : 40;
+  const titleLineHeight = isNarrow ? 36 : 42;
+  const subtitleFontSize = isNarrow ? 13 : 14;
+
+  const handleSheetLayout = (event: LayoutChangeEvent) => {
+    const measuredHeight = event.nativeEvent.layout.height;
+    if (measuredHeight > 0) {
+      setSheetHeight(Math.round(measuredHeight));
+    }
+  };
 
   const handleRequestTrip = useCallback(async () => {
     setIsCreatingTrip(true);
-
     try {
       const estimate = await estimateTrip(DEFAULT_PICKUP, DEFAULT_DESTINATION);
       const result = await createTripRequest(DEFAULT_PICKUP, DEFAULT_DESTINATION, estimate);
@@ -60,6 +73,10 @@ export function MapScreen() {
           distanceKm: estimate.distanceKm.toString(),
           durationMin: estimate.durationMin.toString(),
           priceIls: estimate.priceIls.toString(),
+          pickupLat: DEFAULT_PICKUP.lat.toString(),
+          pickupLng: DEFAULT_PICKUP.lng.toString(),
+          dropoffLat: DEFAULT_DESTINATION.lat.toString(),
+          dropoffLng: DEFAULT_DESTINATION.lng.toString(),
         },
       });
     } catch (error) {
@@ -74,7 +91,7 @@ export function MapScreen() {
   const quickChips = useMemo(
     () =>
       QUICK_LOCATIONS.map((item) => (
-        <TouchableOpacity key={item.id} style={styles.quickChip} activeOpacity={0.85}>
+        <TouchableOpacity key={item.id} style={styles.quickChip} activeOpacity={0.9}>
           <Text style={styles.quickChipTitle}>{item.title}</Text>
           <Text style={styles.quickChipSubtitle}>{item.subtitle}</Text>
         </TouchableOpacity>
@@ -84,16 +101,22 @@ export function MapScreen() {
 
   return (
     <View style={styles.container}>
-      <PassengerMapView pickup={DEFAULT_PICKUP} dropoff={DEFAULT_DESTINATION} />
+      <PassengerMapView
+        pickup={DEFAULT_PICKUP}
+        dropoff={DEFAULT_DESTINATION}
+        overlayBottomOffset={mapOverlayBottom}
+      />
 
       <View style={styles.sheetLayer} pointerEvents="box-none">
         <View
+          onLayout={handleSheetLayout}
           style={[
             styles.bottomSheet,
             {
               width: panelWidth,
+              maxWidth: 560,
               paddingBottom: sheetPaddingBottom,
-              paddingHorizontal: isCompact ? 16 : 20,
+              paddingHorizontal: isCompact ? 14 : 18,
               paddingTop: isCompact ? 10 : 14,
             },
           ]}
@@ -101,13 +124,20 @@ export function MapScreen() {
           <View style={styles.handle} />
 
           <View style={styles.sheetHeaderRow}>
-            <Text style={styles.sheetTitle}>Where to?</Text>
+            <View>
+              <Text style={[styles.sheetTitle, { fontSize: titleFontSize, lineHeight: titleLineHeight }]}>
+                Where to?
+              </Text>
+              <Text style={[styles.sheetSubtitle, { fontSize: subtitleFontSize }]}>
+                Book a ride in seconds.
+              </Text>
+            </View>
             <View style={styles.scheduleBadge}>
               <Text style={styles.scheduleBadgeText}>Now</Text>
             </View>
           </View>
 
-          <TouchableOpacity style={styles.searchBox} activeOpacity={0.9}>
+          <TouchableOpacity style={styles.searchBox} activeOpacity={0.92}>
             <View style={styles.searchDot} />
             <Text style={styles.searchPlaceholder}>Choose destination</Text>
           </TouchableOpacity>
@@ -147,19 +177,19 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
   },
   bottomSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    backgroundColor: 'rgba(248, 250, 252, 0.98)',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DDE3F0',
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    elevation: 10,
     gap: 14,
   },
   handle: {
@@ -173,12 +203,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
   },
   sheetTitle: {
-    fontSize: 34,
+    fontSize: 40,
+    lineHeight: 42,
     fontWeight: '800',
     color: '#0F172A',
-    letterSpacing: -0.4,
+    letterSpacing: -0.8,
+  },
+  sheetSubtitle: {
+    marginTop: 2,
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
   },
   scheduleBadge: {
     backgroundColor: '#E2E8F0',
@@ -194,9 +232,9 @@ const styles = StyleSheet.create({
   searchBox: {
     minHeight: 54,
     borderRadius: 14,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#EEF2F7',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DDE3F0',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
@@ -210,7 +248,7 @@ const styles = StyleSheet.create({
   },
   searchPlaceholder: {
     color: '#475569',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '500',
   },
   quickChipsRow: {
@@ -220,7 +258,7 @@ const styles = StyleSheet.create({
   quickChip: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DDE3F0',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingVertical: 10,
@@ -228,7 +266,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   quickChipTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
     color: '#0F172A',
   },
@@ -257,6 +295,6 @@ const styles = StyleSheet.create({
   requestButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: 18,
   },
 });

@@ -113,6 +113,10 @@ export function EstimateTripScreen() {
             distanceKm: estimate.distanceKm.toString(),
             durationMin: estimate.durationMin.toString(),
             priceIls: estimate.priceIls.toString(),
+            pickupLat: pickup.lat.toString(),
+            pickupLng: pickup.lng.toString(),
+            dropoffLat: dropoff.lat.toString(),
+            dropoffLng: dropoff.lng.toString(),
           },
         });
       }

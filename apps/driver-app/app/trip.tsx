@@ -79,6 +79,8 @@ export default function Trip() {
         tripId={tripId}
         status={trip.status as TripStatus}
         estimatedPriceIls={trip.estimatedPriceIls}
+        pickup={trip.pickup}
+        dropoff={trip.dropoff}
         onTripCompleted={handleTripCompleted}
       />
     </View>

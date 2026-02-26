@@ -7,6 +7,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Mapbox, {
   Camera,
   CircleLayer,
@@ -16,7 +17,7 @@ import Mapbox, {
   ShapeSource,
 } from '@rnmapbox/maps';
 import Constants from 'expo-constants';
-import { getRoadblockStatusDisplay, RoadblockData, subscribeToAllRoadblocks } from '../../services/realtime';
+import { RoadblockData, getRoadblockStatusDisplay, subscribeToAllRoadblocks } from '../../services/realtime';
 import {
   CAMERA_DEFAULTS,
   DEFAULT_REGION,
@@ -38,13 +39,23 @@ interface DriverMapViewProps {
     longitude: number;
   } | null;
   followUser?: boolean;
+  overlayBottomOffset?: number;
+  showLegend?: boolean;
+  showControls?: boolean;
 }
 
 /**
- * Driver map focused on navigation visibility and live road conditions.
+ * Driver map focused on live road conditions and route awareness.
  */
-export function DriverMapView({ driverLocation, followUser = true }: DriverMapViewProps) {
+export function DriverMapView({
+  driverLocation,
+  followUser = true,
+  overlayBottomOffset = 244,
+  showLegend = true,
+  showControls = true,
+}: DriverMapViewProps) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isNarrow = width < 390;
   const cameraRef = useRef<Camera>(null);
   const lastUpdateRef = useRef(0);
@@ -55,15 +66,10 @@ export function DriverMapView({ driverLocation, followUser = true }: DriverMapVi
   const [mapStyle, setMapStyle] = useState<string>(MAP_STYLE_URL);
 
   useEffect(() => {
-    console.log(`${MAP_LOG_PREFIX} Subscribing to roadblocks...`);
-
     const unsubscribe = subscribeToAllRoadblocks(
       (data) => {
         const now = Date.now();
-        if (now - lastUpdateRef.current < MAP_UPDATE_THROTTLE_MS) {
-          return;
-        }
-
+        if (now - lastUpdateRef.current < MAP_UPDATE_THROTTLE_MS) return;
         lastUpdateRef.current = now;
         setRoadblocks(data);
         setLoading(false);
@@ -83,10 +89,7 @@ export function DriverMapView({ driverLocation, followUser = true }: DriverMapVi
 
   const animateToLocation = useCallback(
     (latitude: number, longitude: number) => {
-      if (!cameraRef.current || !followUser) {
-        return;
-      }
-
+      if (!cameraRef.current || !followUser) return;
       cameraRef.current.setCamera({
         centerCoordinate: [longitude, latitude],
         zoomLevel: CAMERA_DEFAULTS.zoomLevel,
@@ -98,10 +101,7 @@ export function DriverMapView({ driverLocation, followUser = true }: DriverMapVi
   );
 
   useEffect(() => {
-    if (!driverLocation) {
-      return;
-    }
-
+    if (!driverLocation) return;
     animateToLocation(driverLocation.latitude, driverLocation.longitude);
   }, [driverLocation, animateToLocation]);
 
@@ -129,10 +129,7 @@ export function DriverMapView({ driverLocation, followUser = true }: DriverMapVi
   };
 
   const recenter = () => {
-    if (!cameraRef.current) {
-      return;
-    }
-
+    if (!cameraRef.current) return;
     const centerCoordinate: [number, number] = driverLocation
       ? [driverLocation.longitude, driverLocation.latitude]
       : [DEFAULT_REGION.longitude, DEFAULT_REGION.latitude];
@@ -145,11 +142,14 @@ export function DriverMapView({ driverLocation, followUser = true }: DriverMapVi
     });
   };
 
+  const topOverlayOffset = Math.max(insets.top + 8, 16);
+  const minBottomWithInset = (isNarrow ? 232 : 218) + insets.bottom;
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={styles.loadingText}>Loading driver map...</Text>
+        <Text style={styles.loadingText}>Loading map...</Text>
       </View>
     );
   }
@@ -215,39 +215,49 @@ export function DriverMapView({ driverLocation, followUser = true }: DriverMapVi
         })}
       </MapView>
 
-      <View style={styles.topOverlay} pointerEvents="none">
+      <View style={[styles.topOverlay, { top: topOverlayOffset }]} pointerEvents="none">
         <View style={styles.liveBadge}>
           <View style={styles.liveDot} />
           <Text style={styles.liveText}>Driver navigation map</Text>
         </View>
       </View>
 
-      <View style={[styles.legend, isNarrow && styles.legendNarrow]}>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.open }]} />
-          <Text style={styles.legendText}>Open</Text>
+      {showLegend ? (
+        <View
+          style={[
+            styles.legend,
+            isNarrow && styles.legendNarrow,
+            { bottom: Math.max(overlayBottomOffset, minBottomWithInset) },
+          ]}
+        >
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.open }]} />
+            <Text style={styles.legendText}>Open</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.congested }]} />
+            <Text style={styles.legendText}>Congested</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.closed }]} />
+            <Text style={styles.legendText}>Closed</Text>
+          </View>
         </View>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.congested }]} />
-          <Text style={styles.legendText}>Congested</Text>
-        </View>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.closed }]} />
-          <Text style={styles.legendText}>Closed</Text>
-        </View>
-      </View>
+      ) : null}
 
-      <View style={styles.controls}>
-        <Pressable style={styles.controlButton} onPress={toggleStyle}>
-          <Text style={styles.controlButtonText}>Layer</Text>
-        </Pressable>
-        <Pressable style={styles.controlButton} onPress={recenter}>
-          <Text style={styles.controlButtonText}>Center</Text>
-        </Pressable>
-      </View>
+      {showControls ? (
+        <View style={[styles.controls, { bottom: Math.max(overlayBottomOffset + 4, 220 + insets.bottom) }]}>
+          <Pressable style={styles.controlButton} onPress={toggleStyle}>
+            <Text style={styles.controlButtonText}>Layer</Text>
+          </Pressable>
+          <Pressable style={styles.controlButton} onPress={recenter}>
+            <Text style={styles.controlButtonText}>Center</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {error ? (
-        <View style={styles.errorBanner}>
+        <View style={[styles.errorBanner, { top: topOverlayOffset + 46 }]}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : null}
@@ -283,17 +293,16 @@ const styles = StyleSheet.create({
   },
   topOverlay: {
     position: 'absolute',
-    top: 16,
     left: 14,
     right: 14,
+    alignItems: 'center',
   },
   liveBadge: {
-    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.86)',
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
     borderRadius: 999,
-    paddingVertical: 8,
+    paddingVertical: 7,
     paddingHorizontal: 12,
     gap: 8,
   },
@@ -312,7 +321,6 @@ const styles = StyleSheet.create({
   legend: {
     position: 'absolute',
     left: 14,
-    bottom: 240,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 12,
     borderWidth: 1,
@@ -322,7 +330,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   legendNarrow: {
-    bottom: 252,
+    paddingHorizontal: 9,
   },
   legendRow: {
     flexDirection: 'row',
@@ -342,7 +350,6 @@ const styles = StyleSheet.create({
   controls: {
     position: 'absolute',
     right: 14,
-    bottom: 242,
     gap: 8,
   },
   controlButton: {
@@ -362,7 +369,6 @@ const styles = StyleSheet.create({
   },
   errorBanner: {
     position: 'absolute',
-    top: 60,
     left: 14,
     right: 14,
     backgroundColor: '#DC2626',
