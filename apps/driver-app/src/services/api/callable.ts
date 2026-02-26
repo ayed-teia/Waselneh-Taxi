@@ -12,7 +12,7 @@ export async function callFunction<TRequest, TResponse>(
   functionName: string,
   data: TRequest
 ): Promise<TResponse> {
-  const callable = firebaseFunctions.httpsCallable<TRequest & { devUserId?: string }, TResponse>(functionName);
+  const callable = firebaseFunctions.httpsCallable(functionName);
   
   // In dev mode, inject devUserId for backend authentication
   const requestData = DEV_MODE 
@@ -20,7 +20,7 @@ export async function callFunction<TRequest, TResponse>(
     : data;
   
   const result = await callable(requestData as TRequest & { devUserId?: string });
-  return result.data;
+  return result.data as TResponse;
 }
 
 /**

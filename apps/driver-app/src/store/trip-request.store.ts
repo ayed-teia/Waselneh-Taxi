@@ -66,12 +66,15 @@ export const useTripRequestStore = create<TripRequestState>((set) => ({
   showRequest: (request) => set({
     pendingRequest: request,
     isModalVisible: true,
+    isProcessing: false,
+    processingAction: null,
     errorMessage: null,
   }),
 
   hideRequest: () => set({
     isModalVisible: false,
     pendingRequest: null,
+    isProcessing: false,
     processingAction: null,
     errorMessage: null,
   }),

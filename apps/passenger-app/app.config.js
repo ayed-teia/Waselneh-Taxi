@@ -7,6 +7,7 @@ module.exports = {
     icon: './assets/icon.png',
     scheme: 'waselneh',
     userInterfaceStyle: 'automatic',
+    newArchEnabled: false,
     splash: {
       image: './assets/splash.png',
       resizeMode: 'contain',
@@ -47,7 +48,11 @@ module.exports = {
       [
         '@rnmapbox/maps',
         {
-          RNMapboxMapsDownloadToken: process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN || '',
+          RNMAPBOX_MAPS_DOWNLOAD_TOKEN:
+            process.env.RNMAPBOX_MAPS_DOWNLOAD_TOKEN ||
+            process.env.MAPBOX_DOWNLOADS_TOKEN ||
+            process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ||
+            '',
         },
       ],
     ],

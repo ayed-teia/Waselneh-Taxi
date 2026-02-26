@@ -37,6 +37,10 @@ export function ActiveTripScreen({
   // Roadblock state
   const [roadblocks, setRoadblocks] = useState<RoadblockData[]>([]);
   const [intersectingRoadblocks, setIntersectingRoadblocks] = useState<RoadblockData[]>([]);
+  const hasValidDriverLocation =
+    driverLocation != null &&
+    Number.isFinite(driverLocation.lat) &&
+    Number.isFinite(driverLocation.lng);
 
   // Subscribe to active roadblocks
   useEffect(() => {
@@ -108,7 +112,7 @@ export function ActiveTripScreen({
       {/* Map placeholder with driver location */}
       <View style={styles.mapPlaceholder}>
         <Text style={styles.mapEmoji}>🗺️</Text>
-        {driverLocation && (
+        {hasValidDriverLocation && driverLocation && (
           <View style={styles.driverMarker}>
             <Text style={styles.driverMarkerIcon}>🚗</Text>
             <Text style={styles.driverCoords}>

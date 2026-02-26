@@ -7,24 +7,36 @@ import {
   Animated,
   Vibration,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Button } from './Button';
 import { useTripRequestStore } from '../../store/trip-request.store';
 import { acceptTripRequest, rejectTripRequest } from '../../services/api';
-import { useRouter } from 'expo-router';
+
+const DEFAULT_TIMEOUT_SECONDS = 30;
+
+function getRemainingSeconds(expiresAt: Date | null | undefined): number {
+  if (!expiresAt) {
+    return DEFAULT_TIMEOUT_SECONDS;
+  }
+  const remainingMs = expiresAt.getTime() - Date.now();
+  return Math.max(0, Math.ceil(remainingMs / 1000));
+}
+
+function isNotFoundError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes('not-found') || normalized.includes('not found');
+}
 
 /**
  * ============================================================================
  * TRIP REQUEST MODAL
  * ============================================================================
- * 
+ *
  * Full-screen modal displayed when a new trip request arrives.
- * Shows pickup distance, estimated price, and accept/reject buttons.
- * 
- * AUTO-DISMISS: Request expires after 30 seconds if not acted upon.
- * 
+ * Shows pickup distance, estimated price, and accept/reject actions.
+ *
  * ============================================================================
  */
-
 export function TripRequestModal() {
   const router = useRouter();
   const {
@@ -38,91 +50,113 @@ export function TripRequestModal() {
     setError,
   } = useTripRequestStore();
 
-  // Animation for the modal slide-up
   const [slideAnim] = useState(new Animated.Value(300));
-  
-  // Countdown timer
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(DEFAULT_TIMEOUT_SECONDS);
 
-  // Vibrate when request appears
   useEffect(() => {
-    if (isModalVisible && pendingRequest) {
-      Vibration.vibrate([0, 500, 200, 500]); // Pattern: pause, vibrate, pause, vibrate
-      setCountdown(30);
-
-      // Slide up animation
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }).start();
+    if (!isModalVisible || !pendingRequest) {
+      return;
     }
-  }, [isModalVisible, pendingRequest]);
 
-  // Countdown timer
+    Vibration.vibrate([0, 500, 200, 500]);
+    setCountdown(getRemainingSeconds(pendingRequest.expiresAt));
+
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      tension: 50,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, [isModalVisible, pendingRequest, slideAnim]);
+
   useEffect(() => {
-    if (!isModalVisible || !pendingRequest) return;
+    if (!isModalVisible || !pendingRequest) {
+      return;
+    }
 
     const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          // Time expired - auto dismiss
-          console.log('⏰ [TripRequestModal] Request expired');
-          hideRequest();
-          return 30;
+      setCountdown((previous) => {
+        if (!pendingRequest.expiresAt) {
+          return Math.max(previous - 1, 0);
         }
-        return prev - 1;
+        return getRemainingSeconds(pendingRequest.expiresAt);
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isModalVisible, pendingRequest, hideRequest]);
+  }, [isModalVisible, pendingRequest]);
 
-  // Handle accept
+  useEffect(() => {
+    if (!isModalVisible || !pendingRequest) {
+      return;
+    }
+    if (countdown > 0) {
+      return;
+    }
+
+    console.log('[TripRequestModal] Request expired');
+    hideRequest();
+  }, [countdown, hideRequest, isModalVisible, pendingRequest]);
+
   const handleAccept = useCallback(async () => {
-    if (!pendingRequest) return;
+    if (!pendingRequest) {
+      return;
+    }
 
     setProcessing(true, 'accept');
-    console.log('✅ [TripRequestModal] Accepting trip:', pendingRequest.tripId);
+    console.log('[TripRequestModal] Accepting trip:', pendingRequest.tripId);
 
     try {
       const result = await acceptTripRequest(pendingRequest.tripId);
-      console.log('🎉 [TripRequestModal] Trip accepted:', result.tripId);
+      console.log('[TripRequestModal] Trip accepted:', result.tripId);
 
       hideRequest();
-      
-      // Navigate to active trip screen
+
       router.replace({
         pathname: '/trip',
         params: { tripId: result.tripId },
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to accept trip';
-      console.error('❌ [TripRequestModal] Accept error:', message);
+      console.error('[TripRequestModal] Accept error:', message);
+
+      if (isNotFoundError(message)) {
+        hideRequest();
+        return;
+      }
+
       setError(message);
     }
   }, [pendingRequest, router, hideRequest, setProcessing, setError]);
 
-  // Handle reject
   const handleReject = useCallback(async () => {
-    if (!pendingRequest) return;
+    if (!pendingRequest) {
+      return;
+    }
 
     setProcessing(true, 'reject');
-    console.log('❌ [TripRequestModal] Rejecting trip:', pendingRequest.tripId);
+    console.log('[TripRequestModal] Rejecting trip:', pendingRequest.tripId);
 
     try {
       await rejectTripRequest(pendingRequest.tripId);
-      console.log('👋 [TripRequestModal] Trip rejected');
+      console.log('[TripRequestModal] Trip rejected');
       hideRequest();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to reject trip';
-      console.error('❌ [TripRequestModal] Reject error:', message);
+      console.error('[TripRequestModal] Reject error:', message);
+
+      if (isNotFoundError(message)) {
+        hideRequest();
+        return;
+      }
+
       setError(message);
     }
   }, [pendingRequest, hideRequest, setProcessing, setError]);
 
-  if (!pendingRequest) return null;
+  if (!pendingRequest) {
+    return null;
+  }
 
   return (
     <Modal
@@ -138,24 +172,21 @@ export function TripRequestModal() {
             { transform: [{ translateY: slideAnim }] },
           ]}
         >
-          {/* Header with countdown */}
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>🚕 New Trip Request</Text>
+            <Text style={styles.headerTitle}>New Trip Request</Text>
             <View style={styles.timerContainer}>
               <Text style={styles.timerText}>{countdown}s</Text>
             </View>
           </View>
 
-          {/* Price highlight */}
           <View style={styles.priceContainer}>
             <Text style={styles.priceLabel}>Estimated Fare</Text>
-            <Text style={styles.priceValue}>₪{pendingRequest.estimatedPriceIls}</Text>
+            <Text style={styles.priceValue}>NIS {pendingRequest.estimatedPriceIls}</Text>
           </View>
 
-          {/* Trip details */}
           <View style={styles.detailsContainer}>
             <View style={styles.detailRow}>
-              <Text style={styles.detailIcon}>📍</Text>
+              <Text style={styles.detailIcon}>KM</Text>
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Pickup Distance</Text>
                 <Text style={styles.detailValue}>
@@ -165,7 +196,7 @@ export function TripRequestModal() {
             </View>
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailIcon}>🧭</Text>
+              <Text style={styles.detailIcon}>PU</Text>
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Pickup Location</Text>
                 <Text style={styles.detailValue}>
@@ -175,7 +206,7 @@ export function TripRequestModal() {
             </View>
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailIcon}>🎯</Text>
+              <Text style={styles.detailIcon}>DO</Text>
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Dropoff Location</Text>
                 <Text style={styles.detailValue}>
@@ -185,14 +216,12 @@ export function TripRequestModal() {
             </View>
           </View>
 
-          {/* Error message */}
           {errorMessage && (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
+              <Text style={styles.errorText}>{errorMessage}</Text>
             </View>
           )}
 
-          {/* Action buttons */}
           <View style={styles.buttonsContainer}>
             <Button
               title={processingAction === 'reject' ? 'Rejecting...' : 'Reject'}
@@ -282,8 +311,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   detailIcon: {
-    fontSize: 24,
+    fontSize: 12,
+    fontWeight: '700',
     marginRight: 12,
+    color: '#8E8E93',
+    minWidth: 20,
+    marginTop: 5,
   },
   detailContent: {
     flex: 1,

@@ -1,5 +1,4 @@
-import { firebaseDB, serverTimestamp } from '../firebase';
-import firestore from '@react-native-firebase/firestore';
+import { firebaseDB, geoPoint, serverTimestamp } from '../firebase';
 
 /**
  * ============================================================================
@@ -145,9 +144,7 @@ export async function setDriverAvailability(
         isOnline: true,
         isAvailable: true, // When going online, driver is available for trips
         availability: 'available', // Trip lifecycle controls this field
-        lastLocation: currentLocation
-          ? new firestore.GeoPoint(currentLocation.lat, currentLocation.lng)
-          : null,
+        lastLocation: currentLocation ? geoPoint(currentLocation.lat, currentLocation.lng) : null,
         lastSeen: serverTimestamp(),
         onlineSince: serverTimestamp(),
         updatedAt: serverTimestamp(),

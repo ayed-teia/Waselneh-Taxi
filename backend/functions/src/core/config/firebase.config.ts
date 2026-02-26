@@ -43,7 +43,7 @@ export const getAuth = () => {
   return admin.auth();
 };
 
-export const getMessaging = () => {
+export const getMessaging = (): admin.messaging.Messaging => {
   initializeFirebase();
   return admin.messaging();
 };

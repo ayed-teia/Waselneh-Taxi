@@ -25,7 +25,6 @@ export function subscribeToActiveRoadblocks(
   return firebaseDB
     .collection('roadblocks')
     .where('status', 'in', ['closed', 'congested'])
-    .orderBy('updatedAt', 'desc')
     .onSnapshot(
       (snapshot) => {
         const roadblocks: RoadblockData[] = snapshot.docs.map((docSnap) => {
@@ -42,6 +41,9 @@ export function subscribeToActiveRoadblocks(
             updatedAt: data?.updatedAt?.toDate() ?? null,
           };
         });
+        roadblocks.sort(
+          (a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0)
+        );
         onData(roadblocks);
       },
       onError

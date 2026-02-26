@@ -11,13 +11,10 @@ import Constants from 'expo-constants';
  */
 export function getEmulatorHost(): string {
   const expoConfig = Constants.expoConfig?.extra ?? {};
-  const envHost = expoConfig.emulatorHost as string;
-  
-  // If explicitly set via env var and on physical device, use that
-  if (envHost && !Constants.isDevice) {
-    // On emulator/simulator, still auto-detect
-  } else if (envHost && Constants.isDevice) {
-    // Physical device - must use the LAN IP from env
+  const envHost = (expoConfig.emulatorHost as string | undefined)?.trim();
+
+  // Honor explicit env host on all platforms (emulator/simulator/physical device)
+  if (envHost) {
     return envHost;
   }
   

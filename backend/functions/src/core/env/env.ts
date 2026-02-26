@@ -1,7 +1,7 @@
 import { defineString, defineInt } from 'firebase-functions/params';
 
 /** Firebase project region */
-export const REGION = defineString('REGION', { default: 'europe-west1' });
+export const REGION: ReturnType<typeof defineString> = defineString('REGION', { default: 'europe-west1' });
 
 /** 
  * Environment name: 'dev' | 'pilot' | 'prod'
@@ -9,21 +9,25 @@ export const REGION = defineString('REGION', { default: 'europe-west1' });
  * - pilot: Limited production testing
  * - prod: Full production
  */
-export const ENVIRONMENT = defineString('ENVIRONMENT', { default: 'dev' });
+export const ENVIRONMENT: ReturnType<typeof defineString> = defineString('ENVIRONMENT', { default: 'dev' });
 
 /** Log level */
-export const LOG_LEVEL = defineString('LOG_LEVEL', { default: 'info' });
+export const LOG_LEVEL: ReturnType<typeof defineString> = defineString('LOG_LEVEL', { default: 'info' });
 
 /** Maximum trip search radius in meters */
-export const MAX_SEARCH_RADIUS_METERS = defineInt('MAX_SEARCH_RADIUS_METERS', { default: 5000 });
+export const MAX_SEARCH_RADIUS_METERS: ReturnType<typeof defineInt> = defineInt('MAX_SEARCH_RADIUS_METERS', {
+  default: 5000,
+});
 
 /** Trip request timeout in seconds */
-export const TRIP_REQUEST_TIMEOUT_SECONDS = defineInt('TRIP_REQUEST_TIMEOUT_SECONDS', {
+export const TRIP_REQUEST_TIMEOUT_SECONDS: ReturnType<typeof defineInt> = defineInt('TRIP_REQUEST_TIMEOUT_SECONDS', {
   default: 120,
 });
 
 /** Mapbox Access Token for directions API */
-export const MAPBOX_ACCESS_TOKEN = defineString('MAPBOX_ACCESS_TOKEN', { default: '' });
+export const MAPBOX_ACCESS_TOKEN: ReturnType<typeof defineString> = defineString('MAPBOX_ACCESS_TOKEN', {
+  default: '',
+});
 
 export const env = {
   get region() {

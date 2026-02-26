@@ -9,6 +9,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\"",
     "typecheck": "pnpm -r run typecheck",
+    "emulators:core": "npx firebase-tools emulators:start --only \"auth,firestore,functions\"",
     "emulators": "npx firebase-tools emulators:start",
     "emulators:persist": "npx firebase-tools emulators:start --import=./emulator-data --export-on-exit=./emulator-data",
     "build:functions": "pnpm --filter @taxi-line/functions build",

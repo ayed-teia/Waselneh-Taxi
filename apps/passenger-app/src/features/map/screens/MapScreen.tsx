@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PassengerMapView } from '../PassengerMapView';
-import { createTrip } from '../../../services/trips';
+import { estimateTrip, createTripRequest } from '../../../services/api';
 
 // Default test locations (Nablus to Ramallah)
 const DEFAULT_PICKUP = { lat: 32.2211, lng: 35.2544 };
@@ -17,30 +17,41 @@ export function MapScreen() {
   const [isCreatingTrip, setIsCreatingTrip] = useState(false);
 
   /**
-   * Handle trip creation when Estimate button is pressed
+   * Backend-authoritative flow:
+   * estimateTrip -> createTripRequest (callable)
    */
-  const handleEstimateTrip = useCallback(async () => {
+  const handleRequestTrip = useCallback(async () => {
     setIsCreatingTrip(true);
 
     try {
-      // Create trip in Firestore
-      const result = await createTrip({
-        pickup: DEFAULT_PICKUP,
-        destination: DEFAULT_DESTINATION,
-      });
+      const estimate = await estimateTrip(DEFAULT_PICKUP, DEFAULT_DESTINATION);
+      const result = await createTripRequest(
+        DEFAULT_PICKUP,
+        DEFAULT_DESTINATION,
+        estimate
+      );
 
-      console.log('🚖 Trip created! ID:', result.tripId);
-
-      // Navigate to searching/waiting screen
-      router.push({
-        pathname: '/searching',
-        params: {
-          tripId: result.tripId,
-        },
-      });
+      if (result.status === 'matched' && result.tripId) {
+        router.push({
+          pathname: '/trip',
+          params: {
+            tripId: result.tripId,
+          },
+        });
+      } else {
+        router.push({
+          pathname: '/searching',
+          params: {
+            requestId: result.requestId,
+            distanceKm: estimate.distanceKm.toString(),
+            durationMin: estimate.durationMin.toString(),
+            priceIls: estimate.priceIls.toString(),
+          },
+        });
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create trip';
-      console.error('❌ Trip creation failed:', message);
+      const message = error instanceof Error ? error.message : 'Failed to request trip';
+      console.error('[MapScreen] Trip request failed:', message);
       Alert.alert('Error', message);
     } finally {
       setIsCreatingTrip(false);
@@ -49,12 +60,10 @@ export function MapScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Real Map View */}
       <View style={styles.mapContainer}>
         <PassengerMapView />
       </View>
 
-      {/* Bottom sheet placeholder */}
       <View style={styles.bottomSheet}>
         <View style={styles.handle} />
         <Text style={styles.greeting}>Where to?</Text>
@@ -64,33 +73,32 @@ export function MapScreen() {
 
         <View style={styles.quickActions}>
           <View style={styles.quickAction}>
-            <Text style={styles.quickActionIcon}>🏠</Text>
+            <Text style={styles.quickActionIcon}>H</Text>
             <Text style={styles.quickActionText}>Home</Text>
           </View>
           <View style={styles.quickAction}>
-            <Text style={styles.quickActionIcon}>💼</Text>
+            <Text style={styles.quickActionIcon}>W</Text>
             <Text style={styles.quickActionText}>Work</Text>
           </View>
           <View style={styles.quickAction}>
-            <Text style={styles.quickActionIcon}>⭐</Text>
+            <Text style={styles.quickActionIcon}>S</Text>
             <Text style={styles.quickActionText}>Saved</Text>
           </View>
         </View>
 
-        {/* Estimate Trip button - now creates trip directly */}
         <TouchableOpacity
           style={[styles.estimateButton, isCreatingTrip && styles.estimateButtonDisabled]}
-          onPress={handleEstimateTrip}
+          onPress={handleRequestTrip}
           disabled={isCreatingTrip}
         >
           {isCreatingTrip ? (
             <>
               <ActivityIndicator size="small" color="#FFFFFF" />
-              <Text style={styles.estimateButtonText}>Creating Trip...</Text>
+              <Text style={styles.estimateButtonText}>Requesting Trip...</Text>
             </>
           ) : (
             <>
-              <Text style={styles.estimateButtonIcon}>🚖</Text>
+              <Text style={styles.estimateButtonIcon}>Ride</Text>
               <Text style={styles.estimateButtonText}>Request Trip</Text>
             </>
           )}
@@ -151,7 +159,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickActionIcon: {
-    fontSize: 24,
+    fontSize: 16,
+    fontWeight: '700',
     marginBottom: 4,
   },
   quickActionText: {
@@ -172,7 +181,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#999999',
   },
   estimateButtonIcon: {
-    fontSize: 20,
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   estimateButtonText: {
     color: '#FFFFFF',

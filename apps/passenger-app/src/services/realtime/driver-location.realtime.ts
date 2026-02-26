@@ -11,6 +11,13 @@ export interface DriverLocation {
   updatedAt: Date | null;
 }
 
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  return null;
+}
+
 /**
  * Subscribe to a driver's live location (read-only)
  * Used by passengers to track their driver during active trips
@@ -32,11 +39,27 @@ export function subscribeToDriverLocation(
     .doc(driverId)
     .onSnapshot(
       (snapshot) => {
-        if (snapshot.exists) {
+        if (snapshot.exists()) {
           const data = snapshot.data();
+          const lat =
+            toNumber(data?.lat) ??
+            toNumber(data?.location?.lat) ??
+            toNumber(data?.lastLocation?.latitude) ??
+            toNumber(data?.lastLocation?._latitude);
+          const lng =
+            toNumber(data?.lng) ??
+            toNumber(data?.location?.lng) ??
+            toNumber(data?.lastLocation?.longitude) ??
+            toNumber(data?.lastLocation?._longitude);
+
+          if (lat === null || lng === null) {
+            onData(null);
+            return;
+          }
+
           onData({
-            lat: data?.lat,
-            lng: data?.lng,
+            lat,
+            lng,
             heading: data?.heading ?? null,
             speed: data?.speed ?? null,
             updatedAt: data?.updatedAt?.toDate() ?? null,

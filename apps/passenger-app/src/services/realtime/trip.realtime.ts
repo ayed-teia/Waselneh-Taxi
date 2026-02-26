@@ -53,7 +53,7 @@ export function subscribeToTripRequest(
     .doc(requestId)
     .onSnapshot(
       (snapshot) => {
-        if (snapshot.exists) {
+        if (snapshot.exists()) {
           const data = snapshot.data();
           onData({
             id: snapshot.id,
@@ -93,7 +93,7 @@ export function subscribeToTrip(
     .doc(tripId)
     .onSnapshot(
       (snapshot) => {
-        if (snapshot.exists) {
+        if (snapshot.exists()) {
           const data = snapshot.data();
           console.log('📡 [TripSubscription] Update received:', { tripId, status: data?.status });
           onData({
