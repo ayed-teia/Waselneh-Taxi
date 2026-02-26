@@ -136,3 +136,29 @@ export async function submitRating(
   );
 }
 
+/**
+ * Cancel trip request payload
+ */
+export interface PassengerCancelTripRequest {
+  tripId: string;
+}
+
+/**
+ * Cancel trip response
+ */
+export interface PassengerCancelTripResponse {
+  tripId: string;
+  cancelled: boolean;
+}
+
+/**
+ * Cancel an active trip as passenger.
+ * Valid only for pending/accepted states.
+ */
+export async function passengerCancelTrip(tripId: string): Promise<PassengerCancelTripResponse> {
+  return callFunction<PassengerCancelTripRequest, PassengerCancelTripResponse>(
+    'passengerCancelTrip',
+    { tripId }
+  );
+}
+

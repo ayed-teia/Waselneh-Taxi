@@ -1,15 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Redirect, useRouter } from 'expo-router';
+import { Alert } from 'react-native';
 import { useAuthStore, useTripStore } from '../src/store';
 import { MapScreen } from '../src/features/map';
 import { ActiveTripScreen } from '../src/features/trip';
 import { subscribeToActiveTrip } from '../src/services/realtime';
+import { passengerCancelTrip } from '../src/services/api';
 import { TripStatus } from '@taxi-line/shared';
 
 export default function Home() {
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
   const { activeTripId, tripStatus, setActiveTrip, clearTrip } = useTripStore();
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Check for active trip on mount (handles app reload mid-trip)
   useEffect(() => {
@@ -39,7 +42,23 @@ export default function Home() {
     );
 
     return () => unsubscribe();
-  }, [isAuthenticated, user?.uid]);
+  }, [isAuthenticated, user?.uid, setActiveTrip, clearTrip, router]);
+
+  const handleCancelTrip = useCallback(async () => {
+    if (!activeTripId || isCancelling) return;
+
+    setIsCancelling(true);
+    try {
+      await passengerCancelTrip(activeTripId);
+      clearTrip();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to cancel trip';
+      console.error('Failed to cancel trip:', message);
+      Alert.alert('Cancel failed', message);
+    } finally {
+      setIsCancelling(false);
+    }
+  }, [activeTripId, isCancelling, clearTrip]);
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
@@ -52,10 +71,8 @@ export default function Home() {
       <ActiveTripScreen
         tripId={activeTripId}
         status={tripStatus}
-        onCancel={() => {
-          // TODO: Call Cloud Function to cancel trip
-          console.log('Cancel trip - will call Cloud Function');
-        }}
+        onCancel={handleCancelTrip}
+        isCancelling={isCancelling}
       />
     );
   }

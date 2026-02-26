@@ -18,6 +18,7 @@ interface ActiveTripScreenProps {
   dropoff?: LocationCoords;
   onCancel: () => void;
   onGoHome?: () => void;
+  isCancelling?: boolean;
 }
 
 /**
@@ -32,7 +33,8 @@ export function ActiveTripScreen({
   pickup,
   dropoff,
   onCancel,
-  onGoHome 
+  onGoHome,
+  isCancelling = false,
 }: ActiveTripScreenProps) {
   // Roadblock state
   const [roadblocks, setRoadblocks] = useState<RoadblockData[]>([]);
@@ -151,7 +153,13 @@ export function ActiveTripScreen({
         </View>
 
         {canCancel && (
-          <Button title="Cancel Trip" variant="outline" onPress={onCancel} />
+          <Button
+            title={isCancelling ? 'Cancelling...' : 'Cancel Trip'}
+            variant="outline"
+            onPress={onCancel}
+            loading={isCancelling}
+            disabled={isCancelling}
+          />
         )}
 
         {(isCompleted || isCancelled) && onGoHome && (

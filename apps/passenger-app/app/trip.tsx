@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useLocalSearchParams, useRouter, Redirect } from 'expo-router';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { useAuthStore } from '../src/store';
 import { ActiveTripScreen, RatingScreen } from '../src/features/trip';
 import { 
@@ -9,7 +9,7 @@ import {
   TripData, 
   DriverLocation 
 } from '../src/services/realtime';
-import { submitRating } from '../src/services/api';
+import { passengerCancelTrip, submitRating } from '../src/services/api';
 import { TripStatus } from '@taxi-line/shared';
 
 export default function Trip() {
@@ -23,6 +23,7 @@ export default function Trip() {
   const [error, setError] = useState<string | null>(null);
   const [showRating, setShowRating] = useState(false);
   const [hasRated, setHasRated] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const tripId = params.tripId;
 
@@ -100,11 +101,21 @@ export default function Trip() {
     return <Redirect href="/home" />;
   }
 
-  const handleCancel = () => {
-    // TODO: Call Cloud Function to cancel trip
-    console.log('Cancel trip - will call Cloud Function');
-    router.replace('/home');
-  };
+  const handleCancel = useCallback(async () => {
+    if (!tripId || isCancelling) return;
+
+    setIsCancelling(true);
+    try {
+      await passengerCancelTrip(tripId);
+      router.replace('/home');
+    } catch (cancelError) {
+      const message = cancelError instanceof Error ? cancelError.message : 'Failed to cancel trip';
+      console.error('Failed to cancel trip:', message);
+      Alert.alert('Cancel failed', message);
+    } finally {
+      setIsCancelling(false);
+    }
+  }, [tripId, router, isCancelling]);
 
   const handleGoHome = () => {
     router.replace('/home');
@@ -164,6 +175,7 @@ export default function Trip() {
       driverLocation={driverLocation}
       onCancel={handleCancel}
       onGoHome={handleGoHome}
+      isCancelling={isCancelling}
     />
   );
 }
