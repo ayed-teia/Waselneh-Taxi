@@ -52,6 +52,12 @@ module.exports = {
             'Allow Waselneh Driver to use your location to match you with passengers.',
         },
       ],
+      [
+        '@rnmapbox/maps',
+        {
+          RNMapboxMapsDownloadToken: process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN || '',
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,

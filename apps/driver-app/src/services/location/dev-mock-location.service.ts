@@ -1,5 +1,4 @@
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { getFirestoreAsync } from '../firebase';
+import { firebaseDB, serverTimestamp } from '../firebase';
 
 /**
  * ============================================================================
@@ -51,13 +50,10 @@ function getRandomOffset(): number {
  */
 async function updateMockLocation(driverId: string): Promise<void> {
   try {
-    const db = await getFirestoreAsync();
-    const driverRef = doc(db, 'drivers', driverId);
-
     const lat = BASE_LOCATION.lat + getRandomOffset();
     const lng = BASE_LOCATION.lng + getRandomOffset();
 
-    await setDoc(driverRef, {
+    await firebaseDB.collection('drivers').doc(driverId).set({
       status: 'online',
       location: {
         lat,
@@ -125,10 +121,7 @@ export async function stopMockLocationUpdates(): Promise<void> {
   // Update status to offline
   if (currentDriverId) {
     try {
-      const db = await getFirestoreAsync();
-      const driverRef = doc(db, 'drivers', currentDriverId);
-      
-      await setDoc(driverRef, {
+      await firebaseDB.collection('drivers').doc(currentDriverId).set({
         status: 'offline',
         lastSeen: serverTimestamp(),
       }, { merge: true });

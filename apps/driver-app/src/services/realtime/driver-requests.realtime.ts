@@ -1,4 +1,4 @@
-import { Unsubscribe } from 'firebase/firestore';
+import type { Unsubscribe } from '../firebase';
 import { TripRequest, useTripRequestStore } from '../../store/trip-request.store';
 import { useDriverStore } from '../../store';
 import { subscribeToIncomingTrips, IncomingTripRequest } from './trips.realtime';

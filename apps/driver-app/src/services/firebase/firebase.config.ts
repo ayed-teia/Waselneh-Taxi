@@ -2,8 +2,8 @@
  * Firebase configuration for Driver App
  * Using @react-native-firebase (Native SDK) for better reliability
  */
-import firebaseApp from '@react-native-firebase/app';
-import firebaseAuth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { firebase } from '@react-native-firebase/app';
+import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import type { Firestore } from 'firebase/firestore';
 import type { Functions } from 'firebase/functions';
@@ -16,6 +16,20 @@ export type User = FirebaseAuthTypes.User;
 export type UserCredential = FirebaseAuthTypes.UserCredential;
 
 const expoConfig = Constants.expoConfig?.extra ?? {};
+
+// Ensure native Firebase app is initialized
+function ensureNativeAppInitialized() {
+  try {
+    const apps = firebase.apps;
+    if (apps.length === 0) {
+      console.warn('⚠️ No native Firebase apps found. Firebase should auto-initialize from google-services.json');
+    } else {
+      console.log('✓ Native Firebase app initialized:', apps[0]?.name);
+    }
+  } catch (error) {
+    console.error('Error checking native Firebase app:', error);
+  }
+}
 
 // Production Firebase configuration (for Firestore/Functions that still use JS SDK)
 const firebaseConfig = {
@@ -60,12 +74,14 @@ let _functionsEmulatorConnected = false;
  * This is the most reliable way to use Firebase Auth in React Native
  */
 export function getFirebaseAuth(): Auth {
-  return firebaseAuth();
+  ensureNativeAppInitialized();
+  return auth();
 }
 
 // Async version for compatibility with existing code
 export async function getFirebaseAuthAsync(): Promise<Auth> {
-  return firebaseAuth();
+  ensureNativeAppInitialized();
+  return auth();
 }
 
 // ============================================================================

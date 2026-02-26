@@ -1,5 +1,4 @@
-import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
-import { getFirestoreAsync } from '../firebase';
+import { firebaseDB, Unsubscribe } from '../firebase';
 
 /**
  * Trip request data from Firestore
@@ -49,45 +48,33 @@ export function subscribeToTripRequest(
   onData: (request: TripRequestData | null) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  let unsubscribe: Unsubscribe | null = null;
-
-  getFirestoreAsync()
-    .then((db) => {
-      const requestRef = doc(db, 'tripRequests', requestId);
-
-      unsubscribe = onSnapshot(
-        requestRef,
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            onData({
-              id: snapshot.id,
-              passengerId: data.passengerId,
-              pickup: data.pickup,
-              dropoff: data.dropoff,
-              estimatedDistanceKm: data.estimatedDistanceKm,
-              estimatedDurationMin: data.estimatedDurationMin,
-              estimatedPriceIls: data.estimatedPriceIls,
-              status: data.status,
-              matchedDriverId: data.matchedDriverId,
-              matchedTripId: data.matchedTripId,
-              matchedAt: data.matchedAt?.toDate(),
-              createdAt: data.createdAt?.toDate(),
-            });
-          } else {
-            onData(null);
-          }
-        },
-        onError
-      );
-    })
-    .catch(onError);
-
-  return () => {
-    if (unsubscribe) {
-      unsubscribe();
-    }
-  };
+  return firebaseDB
+    .collection('tripRequests')
+    .doc(requestId)
+    .onSnapshot(
+      (snapshot) => {
+        if (snapshot.exists) {
+          const data = snapshot.data();
+          onData({
+            id: snapshot.id,
+            passengerId: data?.passengerId,
+            pickup: data?.pickup,
+            dropoff: data?.dropoff,
+            estimatedDistanceKm: data?.estimatedDistanceKm,
+            estimatedDurationMin: data?.estimatedDurationMin,
+            estimatedPriceIls: data?.estimatedPriceIls,
+            status: data?.status,
+            matchedDriverId: data?.matchedDriverId,
+            matchedTripId: data?.matchedTripId,
+            matchedAt: data?.matchedAt?.toDate(),
+            createdAt: data?.createdAt?.toDate(),
+          });
+        } else {
+          onData(null);
+        }
+      },
+      onError
+    );
 }
 
 /**
@@ -99,53 +86,40 @@ export function subscribeToTrip(
   onData: (trip: TripData | null) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  let unsubscribe: Unsubscribe | null = null;
-
   console.log('🔔 [TripSubscription] Starting for tripId:', tripId);
 
-  getFirestoreAsync()
-    .then((db) => {
-      const tripRef = doc(db, 'trips', tripId);
-
-      unsubscribe = onSnapshot(
-        tripRef,
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            console.log('📡 [TripSubscription] Update received:', { tripId, status: data.status });
-            onData({
-              id: snapshot.id,
-              passengerId: data.passengerId,
-              driverId: data.driverId,
-              pickup: data.pickup,
-              dropoff: data.dropoff,
-              estimatedDistanceKm: data.estimatedDistanceKm,
-              estimatedDurationMin: data.estimatedDurationMin,
-              estimatedPriceIls: data.estimatedPriceIls,
-              finalPriceIls: data.finalPriceIls,
-              status: data.status,
-              createdAt: data.createdAt?.toDate(),
-              matchedAt: data.matchedAt?.toDate(),
-              arrivedAt: data.arrivedAt?.toDate(),
-              startedAt: data.startedAt?.toDate(),
-              completedAt: data.completedAt?.toDate(),
-            });
-          } else {
-            console.log('⚠️ [TripSubscription] Trip not found:', tripId);
-            onData(null);
-          }
-        },
-        onError
-      );
-    })
-    .catch(onError);
-
-  return () => {
-    console.log('🔇 [TripSubscription] Unsubscribing from tripId:', tripId);
-    if (unsubscribe) {
-      unsubscribe();
-    }
-  };
+  return firebaseDB
+    .collection('trips')
+    .doc(tripId)
+    .onSnapshot(
+      (snapshot) => {
+        if (snapshot.exists) {
+          const data = snapshot.data();
+          console.log('📡 [TripSubscription] Update received:', { tripId, status: data?.status });
+          onData({
+            id: snapshot.id,
+            passengerId: data?.passengerId,
+            driverId: data?.driverId,
+            pickup: data?.pickup,
+            dropoff: data?.dropoff,
+            estimatedDistanceKm: data?.estimatedDistanceKm,
+            estimatedDurationMin: data?.estimatedDurationMin,
+            estimatedPriceIls: data?.estimatedPriceIls,
+            finalPriceIls: data?.finalPriceIls,
+            status: data?.status,
+            createdAt: data?.createdAt?.toDate(),
+            matchedAt: data?.matchedAt?.toDate(),
+            arrivedAt: data?.arrivedAt?.toDate(),
+            startedAt: data?.startedAt?.toDate(),
+            completedAt: data?.completedAt?.toDate(),
+          });
+        } else {
+          console.log('⚠️ [TripSubscription] Trip not found:', tripId);
+          onData(null);
+        }
+      },
+      onError
+    );
 }
 
 /**
@@ -159,68 +133,47 @@ export function subscribeToActiveTrip(
   onData: (trip: TripData | null) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  let unsubscribe: Unsubscribe | null = null;
-
   console.log('🔔 [ActiveTrip] Starting subscription for user:', userId);
 
-  getFirestoreAsync()
-    .then(async (db) => {
-      const { collection, query, where, onSnapshot: firestoreOnSnapshot, orderBy, limit } = await import('firebase/firestore');
-      
-      const tripsRef = collection(db, 'trips');
-      
-      // Query for active trips where this user is the passenger
-      // Active = not completed or cancelled
-      const activeStatuses = ['pending', 'accepted', 'driver_arrived', 'in_progress'];
-      const q = query(
-        tripsRef,
-        where('passengerId', '==', userId),
-        where('status', 'in', activeStatuses),
-        orderBy('createdAt', 'desc'),
-        limit(1)
-      );
+  const activeStatuses = ['pending', 'accepted', 'driver_arrived', 'in_progress'];
 
-      unsubscribe = firestoreOnSnapshot(
-        q,
-        (snapshot) => {
-          if (snapshot.empty) {
-            console.log('ℹ️ [ActiveTrip] No active trip found for user:', userId);
-            onData(null);
-            return;
-          }
+  return firebaseDB
+    .collection('trips')
+    .where('passengerId', '==', userId)
+    .where('status', 'in', activeStatuses)
+    .orderBy('createdAt', 'desc')
+    .limit(1)
+    .onSnapshot(
+      (snapshot) => {
+        if (snapshot.empty) {
+          console.log('ℹ️ [ActiveTrip] No active trip found for user:', userId);
+          onData(null);
+          return;
+        }
 
-          const docSnap = snapshot.docs[0];
-          const data = docSnap.data();
-          console.log('📡 [ActiveTrip] Found active trip:', { tripId: docSnap.id, status: data.status });
-          
-          onData({
-            id: docSnap.id,
-            passengerId: data.passengerId,
-            driverId: data.driverId,
-            pickup: data.pickup,
-            dropoff: data.dropoff,
-            estimatedDistanceKm: data.estimatedDistanceKm,
-            estimatedDurationMin: data.estimatedDurationMin,
-            estimatedPriceIls: data.estimatedPriceIls,
-            finalPriceIls: data.finalPriceIls,
-            status: data.status,
-            createdAt: data.createdAt?.toDate(),
-            matchedAt: data.matchedAt?.toDate(),
-            arrivedAt: data.arrivedAt?.toDate(),
-            startedAt: data.startedAt?.toDate(),
-            completedAt: data.completedAt?.toDate(),
-          });
-        },
-        onError
-      );
-    })
-    .catch(onError);
-
-  return () => {
-    console.log('🔇 [ActiveTrip] Unsubscribing for user:', userId);
-    if (unsubscribe) {
-      unsubscribe();
-    }
-  };
+        const docSnap = snapshot.docs[0]!;
+        const data = docSnap.data();
+        console.log('📡 [ActiveTrip] Found active trip:', { tripId: docSnap.id, status: data?.status });
+        
+        onData({
+          id: docSnap.id,
+          passengerId: data?.passengerId,
+          driverId: data?.driverId,
+          pickup: data?.pickup,
+          dropoff: data?.dropoff,
+          estimatedDistanceKm: data?.estimatedDistanceKm,
+          estimatedDurationMin: data?.estimatedDurationMin,
+          estimatedPriceIls: data?.estimatedPriceIls,
+          finalPriceIls: data?.finalPriceIls,
+          status: data?.status,
+          createdAt: data?.createdAt?.toDate(),
+          matchedAt: data?.matchedAt?.toDate(),
+          arrivedAt: data?.arrivedAt?.toDate(),
+          startedAt: data?.startedAt?.toDate(),
+          completedAt: data?.completedAt?.toDate(),
+        });
+      },
+      onError
+    );
 }
 

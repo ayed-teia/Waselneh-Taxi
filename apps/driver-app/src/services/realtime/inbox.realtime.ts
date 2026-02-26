@@ -1,13 +1,4 @@
-import {
-  collection,
-  query,
-  onSnapshot,
-  Unsubscribe,
-  orderBy,
-  QuerySnapshot,
-  DocumentData,
-} from 'firebase/firestore';
-import { getFirestoreAsync } from '../firebase';
+import { firebaseDB, Unsubscribe } from '../firebase';
 
 /**
  * Inbox item from driver's inbox subcollection
@@ -33,47 +24,29 @@ export function subscribeToInbox(
   onData: (items: InboxItem[]) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  let unsubscribe: Unsubscribe | null = null;
-
-  // Start async subscription
-  getFirestoreAsync()
-    .then((db) => {
-      const inboxRef = collection(db, 'drivers', driverId, 'inbox');
-
-      // Query inbox ordered by creation time (newest first)
-      const q = query(
-        inboxRef,
-        orderBy('createdAt', 'desc')
-      );
-
-      unsubscribe = onSnapshot(
-        q,
-        (snapshot: QuerySnapshot<DocumentData>) => {
-          const items: InboxItem[] = snapshot.docs.map((docSnap) => {
-            const data = docSnap.data();
-            return {
-              id: docSnap.id,
-              requestId: data.requestId,
-              passengerId: data.passengerId,
-              pickup: data.pickup,
-              dropoff: data.dropoff,
-              estimatedDistanceKm: data.estimatedDistanceKm,
-              estimatedDurationMin: data.estimatedDurationMin,
-              estimatedPriceIls: data.estimatedPriceIls,
-              createdAt: data.createdAt?.toDate() ?? null,
-            };
-          });
-          onData(items);
-        },
-        onError
-      );
-    })
-    .catch(onError);
-
-  // Return unsubscribe function
-  return () => {
-    if (unsubscribe) {
-      unsubscribe();
-    }
-  };
+  return firebaseDB
+    .collection('drivers')
+    .doc(driverId)
+    .collection('inbox')
+    .orderBy('createdAt', 'desc')
+    .onSnapshot(
+      (snapshot) => {
+        const items: InboxItem[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            requestId: data?.requestId,
+            passengerId: data?.passengerId,
+            pickup: data?.pickup,
+            dropoff: data?.dropoff,
+            estimatedDistanceKm: data?.estimatedDistanceKm,
+            estimatedDurationMin: data?.estimatedDurationMin,
+            estimatedPriceIls: data?.estimatedPriceIls,
+            createdAt: data?.createdAt?.toDate() ?? null,
+          };
+        });
+        onData(items);
+      },
+      onError
+    );
 }

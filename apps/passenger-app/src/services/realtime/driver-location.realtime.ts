@@ -1,5 +1,4 @@
-import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
-import { getFirestoreAsync } from '../firebase';
+import { firebaseDB, Unsubscribe } from '../firebase';
 
 /**
  * Driver live location data from Firestore
@@ -26,39 +25,26 @@ export function subscribeToDriverLocation(
   onData: (location: DriverLocation | null) => void,
   onError: (error: Error) => void
 ): Unsubscribe {
-  let unsubscribe: Unsubscribe | null = null;
-
   console.log('📍 [DriverLocation] Starting subscription for driver:', driverId);
 
-  getFirestoreAsync()
-    .then((db) => {
-      const locationRef = doc(db, 'driverLive', driverId);
-
-      unsubscribe = onSnapshot(
-        locationRef,
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            onData({
-              lat: data.lat,
-              lng: data.lng,
-              heading: data.heading ?? null,
-              speed: data.speed ?? null,
-              updatedAt: data.updatedAt?.toDate() ?? null,
-            });
-          } else {
-            onData(null);
-          }
-        },
-        onError
-      );
-    })
-    .catch(onError);
-
-  return () => {
-    console.log('📍 [DriverLocation] Stopping subscription for driver:', driverId);
-    if (unsubscribe) {
-      unsubscribe();
-    }
-  };
+  return firebaseDB
+    .collection('driverLive')
+    .doc(driverId)
+    .onSnapshot(
+      (snapshot) => {
+        if (snapshot.exists) {
+          const data = snapshot.data();
+          onData({
+            lat: data?.lat,
+            lng: data?.lng,
+            heading: data?.heading ?? null,
+            speed: data?.speed ?? null,
+            updatedAt: data?.updatedAt?.toDate() ?? null,
+          });
+        } else {
+          onData(null);
+        }
+      },
+      onError
+    );
 }
