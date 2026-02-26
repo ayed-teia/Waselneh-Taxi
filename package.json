@@ -11,7 +11,9 @@
     "typecheck": "pnpm -r run typecheck",
     "emulators": "npx firebase-tools emulators:start",
     "emulators:persist": "npx firebase-tools emulators:start --import=./emulator-data --export-on-exit=./emulator-data",
-    "build:functions": "pnpm --filter @taxi-line/functions build"
+    "build:functions": "pnpm --filter @taxi-line/functions build",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",
@@ -26,5 +28,10 @@
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@8.15.0"
+  "packageManager": "pnpm@8.15.0",
+  "dependencies": {
+    "expo": "~54.0.33",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  }
 }
