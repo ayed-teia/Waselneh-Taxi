@@ -2,7 +2,6 @@
  * Firebase configuration for Driver App
  * Using @react-native-firebase (Native SDK) for better reliability
  */
-import firebaseApp from '@react-native-firebase/app';
 import firebaseAuth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import type { Firestore } from 'firebase/firestore';

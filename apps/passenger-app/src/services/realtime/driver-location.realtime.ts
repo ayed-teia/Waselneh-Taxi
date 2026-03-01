@@ -11,9 +11,27 @@ export interface DriverLocation {
   updatedAt: Date | null;
 }
 
+export interface DriverProfile {
+  id: string;
+  name: string;
+  photoUrl: string | null;
+  rating: number | null;
+  completedTrips: number | null;
+  vehicleModel: string | null;
+  plateNumber: string | null;
+}
+
 function toNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
+  }
+  return null;
+}
+
+function toStringOrNull(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
   }
   return null;
 }
@@ -67,6 +85,71 @@ export function subscribeToDriverLocation(
         } else {
           onData(null);
         }
+      },
+      onError
+    );
+}
+
+/**
+ * Subscribe to driver profile fields shown in passenger trip card.
+ * This is resilient to schema differences across environments.
+ */
+export function subscribeToDriverProfile(
+  driverId: string,
+  onData: (profile: DriverProfile | null) => void,
+  onError: (error: Error) => void
+): Unsubscribe {
+  return firebaseDB
+    .collection('drivers')
+    .doc(driverId)
+    .onSnapshot(
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          onData(null);
+          return;
+        }
+
+        const data = snapshot.data() || {};
+
+        const name =
+          toStringOrNull(data.name) ||
+          toStringOrNull(data.displayName) ||
+          toStringOrNull(data.fullName) ||
+          'Driver';
+
+        const photoUrl =
+          toStringOrNull(data.photoUrl) ||
+          toStringOrNull(data.avatarUrl) ||
+          toStringOrNull(data.profileImageUrl) ||
+          toStringOrNull(data.profilePictureUrl);
+
+        const rating =
+          toNumber(data.ratingAvg) ??
+          toNumber(data.averageRating) ??
+          toNumber(data.rating);
+
+        const completedTrips =
+          toNumber(data.completedTrips) ??
+          toNumber(data.tripsCount) ??
+          toNumber(data.totalTrips);
+
+        const vehicleModel =
+          toStringOrNull(data.vehicleModel) ||
+          toStringOrNull(data?.vehicle?.model);
+
+        const plateNumber =
+          toStringOrNull(data.plateNumber) ||
+          toStringOrNull(data?.vehicle?.plate);
+
+        onData({
+          id: snapshot.id,
+          name,
+          photoUrl,
+          rating,
+          completedTrips,
+          vehicleModel,
+          plateNumber,
+        });
       },
       onError
     );

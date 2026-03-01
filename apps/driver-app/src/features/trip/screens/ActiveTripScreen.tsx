@@ -76,14 +76,20 @@ export function ActiveTripScreen({
   const isNarrow = width < 390;
   const { currentLocation } = useDriverStore();
   const [isUpdating, setIsUpdating] = React.useState(false);
-  const [cardHeight, setCardHeight] = React.useState(252);
 
-  const cardWidth = Math.min(width - 16, 560);
+  const cardWidth = width >= 768 ? 560 : width;
   const statusMeta = getStatusMeta(status);
   const hasAction = statusMeta.action != null && (status === 'accepted' || status === 'driver_arrived' || status === 'in_progress');
   const topPadding = Math.max(74, insets.top + 52);
+  const mapHeightRatio = isNarrow ? 0.5 : 0.52;
   const safeEstimatedFare = Number.isFinite(estimatedPriceIls ?? NaN) ? estimatedPriceIls : 0;
   const safeFareAmount = Number.isFinite(fareAmount ?? NaN) ? fareAmount : safeEstimatedFare;
+  const routeMode =
+    status === 'in_progress'
+      ? 'toDropoff'
+      : status === 'accepted' || status === 'driver_arrived'
+        ? 'toPickup'
+        : 'auto';
 
   const handleAction = useCallback(async () => {
     setIsUpdating(true);
@@ -116,7 +122,11 @@ export function ActiveTripScreen({
       <DriverMapView
         driverLocation={driverLocation}
         followUser
-        overlayBottomOffset={cardHeight + 10}
+        pickup={pickup ?? null}
+        dropoff={dropoff ?? null}
+        routeMode={routeMode}
+        mapHeightRatio={mapHeightRatio}
+        overlayBottomOffset={16}
         showLegend={false}
         showControls={false}
       />
@@ -128,12 +138,6 @@ export function ActiveTripScreen({
         </View>
 
         <View
-          onLayout={(event) => {
-            const nextHeight = Math.round(event.nativeEvent.layout.height);
-            if (nextHeight > 0) {
-              setCardHeight(nextHeight);
-            }
-          }}
           style={[styles.bottomCard, { width: cardWidth, paddingBottom: Math.max(14, insets.bottom + 8) }]}
         >
           <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{statusMeta.title}</Text>
@@ -215,6 +219,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   bottomCard: {
+    alignSelf: 'stretch',
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
     borderWidth: 1,

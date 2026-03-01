@@ -44,6 +44,7 @@ export const DEFAULT_REGION = {
  * Navigation-focused style gives cleaner roads and better contrast.
  */
 export const MAP_STYLE_URL = 'mapbox://styles/mapbox/navigation-day-v1';
+export const MAP_FALLBACK_STYLE_URL = 'https://demotiles.maplibre.org/style.json';
 
 /**
  * Camera defaults tuned for driver navigation.

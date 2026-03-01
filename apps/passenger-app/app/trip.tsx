@@ -5,7 +5,14 @@ import { ErrorState, LoadingState, ScreenContainer } from '@waselneh/ui';
 import { TripStatus } from '@taxi-line/shared';
 import { ActiveTripScreen, RatingScreen } from '../src/features/trip';
 import { passengerCancelTrip, submitRating } from '../src/services/api';
-import { DriverLocation, TripData, subscribeToDriverLocation, subscribeToTrip } from '../src/services/realtime';
+import {
+  DriverLocation,
+  DriverProfile,
+  TripData,
+  subscribeToDriverLocation,
+  subscribeToDriverProfile,
+  subscribeToTrip,
+} from '../src/services/realtime';
 import { useAuthStore } from '../src/store';
 import { BackButton } from '../src/ui';
 
@@ -16,6 +23,7 @@ export default function Trip() {
 
   const [trip, setTrip] = useState<TripData | null>(null);
   const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
+  const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showRating, setShowRating] = useState(false);
@@ -82,6 +90,25 @@ export default function Trip() {
 
     return () => unsubscribe();
   }, [trip?.driverId, trip?.status]);
+
+  useEffect(() => {
+    if (!trip?.driverId) {
+      setDriverProfile(null);
+      return;
+    }
+
+    const unsubscribe = subscribeToDriverProfile(
+      trip.driverId,
+      (profile) => {
+        setDriverProfile(profile);
+      },
+      (driverProfileError) => {
+        console.error('Error subscribing to driver profile:', driverProfileError);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [trip?.driverId]);
 
   if (!isAuthenticated) {
     return <Redirect href="/" />;
@@ -173,6 +200,7 @@ export default function Trip() {
         status={trip.status as TripStatus}
         estimatedPriceIls={trip.estimatedPriceIls}
         driverLocation={driverLocation}
+        driverProfile={driverProfile}
         driverId={trip.driverId}
         pickup={trip.pickup}
         dropoff={trip.dropoff}

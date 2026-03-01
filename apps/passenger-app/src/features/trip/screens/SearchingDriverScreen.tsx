@@ -31,7 +31,7 @@ export function SearchingDriverScreen({
 }: SearchingDriverScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const cardWidth = Math.min(width - 16, 560);
+  const cardWidth = width >= 768 ? 560 : width;
   const [dots, setDots] = useState('');
   const [isMatched, setIsMatched] = useState(false);
   const [pulseAnim] = useState(new Animated.Value(1));
@@ -93,6 +93,8 @@ export function SearchingDriverScreen({
       <PassengerMapView
         pickup={pickup}
         dropoff={dropoff}
+        routeMode={isMatched ? 'toPickup' : 'auto'}
+        mapHeightRatio={0.5}
         overlayBottomOffset={overlayBottomOffset}
         showLegend={false}
         showControls={false}
@@ -185,6 +187,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   bottomCard: {
+    alignSelf: 'stretch',
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
     borderWidth: 1,

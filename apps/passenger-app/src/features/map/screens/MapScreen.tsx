@@ -36,7 +36,7 @@ export function MapScreen() {
 
   const isCompact = height < 760;
   const isNarrow = width < 390;
-  const panelWidth = Math.min(width - 16, 560);
+  const panelWidth = width >= 768 ? 560 : width;
   const sheetPaddingBottom = Math.max(14, insets.bottom + 8);
   const mapOverlayBottom = sheetHeight + 14;
   const titleFontSize = isNarrow ? 34 : 40;
@@ -104,6 +104,7 @@ export function MapScreen() {
       <PassengerMapView
         pickup={DEFAULT_PICKUP}
         dropoff={DEFAULT_DESTINATION}
+        mapHeightRatio={0.52}
         overlayBottomOffset={mapOverlayBottom}
       />
 
@@ -177,9 +178,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingHorizontal: 9,
+    paddingHorizontal: 0,
   },
   bottomSheet: {
+    alignSelf: 'stretch',
     backgroundColor: 'rgba(248, 250, 252, 0.98)',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -11,25 +11,28 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Mapbox, {
   Camera,
   CircleLayer,
+  LineLayer,
   LocationPuck,
   MapView,
   PointAnnotation,
   ShapeSource,
 } from '@rnmapbox/maps';
-import Constants from 'expo-constants';
 import { RoadblockData, getRoadblockStatusDisplay, subscribeToAllRoadblocks } from '../../services/realtime';
 import {
   CAMERA_DEFAULTS,
   DEFAULT_REGION,
+  MAP_FALLBACK_STYLE_URL,
   MAP_LOG_PREFIX,
   MAP_STYLE_URL,
   MAP_UPDATE_THROTTLE_MS,
   MARKER_COLORS,
+  getMapboxToken,
 } from '../../config/map.config';
 
-const MAPBOX_TOKEN =
-  Constants.expoConfig?.extra?.mapboxAccessToken || process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
-Mapbox.setAccessToken(MAPBOX_TOKEN);
+const MAPBOX_TOKEN = getMapboxToken();
+if (MAPBOX_TOKEN) {
+  Mapbox.setAccessToken(MAPBOX_TOKEN);
+}
 
 const SATELLITE_STYLE_URL = Mapbox.StyleURL.SatelliteStreet;
 
@@ -39,10 +42,17 @@ interface DriverMapViewProps {
     longitude: number;
   } | null;
   followUser?: boolean;
+  pickup?: { lat: number; lng: number } | null;
+  dropoff?: { lat: number; lng: number } | null;
+  routeMode?: 'auto' | 'toPickup' | 'toDropoff';
+  mapHeightRatio?: number;
   overlayBottomOffset?: number;
   showLegend?: boolean;
   showControls?: boolean;
 }
+
+const MAPBOX_DIRECTIONS_URL = 'https://api.mapbox.com/directions/v5/mapbox/driving';
+const ROUTE_REFRESH_MS = 10000;
 
 /**
  * Driver map focused on live road conditions and route awareness.
@@ -50,20 +60,28 @@ interface DriverMapViewProps {
 export function DriverMapView({
   driverLocation,
   followUser = true,
+  pickup,
+  dropoff,
+  routeMode = 'auto',
+  mapHeightRatio,
   overlayBottomOffset = 244,
   showLegend = true,
   showControls = true,
 }: DriverMapViewProps) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isNarrow = width < 390;
   const cameraRef = useRef<Camera>(null);
   const lastUpdateRef = useRef(0);
+  const lastRouteFetchAtRef = useRef(0);
+  const lastRouteFromRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const [roadblocks, setRoadblocks] = useState<RoadblockData[]>([]);
+  const [routeCoordinates, setRouteCoordinates] = useState<[number, number][] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mapStyle, setMapStyle] = useState<string>(MAP_STYLE_URL);
+  const [mapStyle, setMapStyle] = useState<string>(MAPBOX_TOKEN ? MAP_STYLE_URL : MAP_FALLBACK_STYLE_URL);
+  const [isFallbackStyle, setIsFallbackStyle] = useState<boolean>(!MAPBOX_TOKEN);
 
   useEffect(() => {
     const unsubscribe = subscribeToAllRoadblocks(
@@ -124,8 +142,143 @@ export function DriverMapView({
     ? [driverLocation.longitude, driverLocation.latitude]
     : [DEFAULT_REGION.longitude, DEFAULT_REGION.latitude];
 
+  const straightLineFallback = useMemo(() => {
+    if (driverLocation && pickup && (routeMode === 'toPickup' || routeMode === 'auto')) {
+      const nearPickup =
+        Math.abs(driverLocation.latitude - pickup.lat) < 0.0013 &&
+        Math.abs(driverLocation.longitude - pickup.lng) < 0.0013;
+
+      if (routeMode === 'toPickup' || (routeMode === 'auto' && !nearPickup)) {
+        return [
+          [driverLocation.longitude, driverLocation.latitude] as [number, number],
+          [pickup.lng, pickup.lat] as [number, number],
+        ];
+      }
+    }
+
+    if (driverLocation && dropoff && (routeMode === 'toDropoff' || routeMode === 'auto')) {
+      return [
+        [driverLocation.longitude, driverLocation.latitude] as [number, number],
+        [dropoff.lng, dropoff.lat] as [number, number],
+      ];
+    }
+
+    if (pickup && dropoff) {
+      return [
+        [pickup.lng, pickup.lat] as [number, number],
+        [dropoff.lng, dropoff.lat] as [number, number],
+      ];
+    }
+
+    return null;
+  }, [driverLocation, pickup, dropoff, routeMode]);
+
+  useEffect(() => {
+    if (!MAPBOX_TOKEN) {
+      setRouteCoordinates(straightLineFallback);
+      return;
+    }
+
+    const toCoordinate = (() => {
+      if (routeMode === 'toPickup') return pickup ? { lat: pickup.lat, lng: pickup.lng } : null;
+      if (routeMode === 'toDropoff') return dropoff ? { lat: dropoff.lat, lng: dropoff.lng } : null;
+
+      if (driverLocation && pickup) {
+        const nearPickup =
+          Math.abs(driverLocation.latitude - pickup.lat) < 0.0013 &&
+          Math.abs(driverLocation.longitude - pickup.lng) < 0.0013;
+        if (!nearPickup) return { lat: pickup.lat, lng: pickup.lng };
+      }
+
+      if (dropoff) return { lat: dropoff.lat, lng: dropoff.lng };
+      if (pickup) return { lat: pickup.lat, lng: pickup.lng };
+      return null;
+    })();
+
+    const fromCoordinate = driverLocation
+      ? { lat: driverLocation.latitude, lng: driverLocation.longitude }
+      : pickup
+        ? { lat: pickup.lat, lng: pickup.lng }
+        : null;
+
+    if (!fromCoordinate || !toCoordinate) {
+      setRouteCoordinates(straightLineFallback);
+      return;
+    }
+
+    const now = Date.now();
+    const lastFrom = lastRouteFromRef.current;
+    const movedEnough =
+      !lastFrom ||
+      Math.abs(lastFrom.lat - fromCoordinate.lat) > 0.0013 ||
+      Math.abs(lastFrom.lng - fromCoordinate.lng) > 0.0013;
+    const canFetch = now - lastRouteFetchAtRef.current >= ROUTE_REFRESH_MS || movedEnough;
+
+    if (!canFetch) {
+      return;
+    }
+
+    lastRouteFetchAtRef.current = now;
+    lastRouteFromRef.current = fromCoordinate;
+
+    const controller = new AbortController();
+    const url =
+      `${MAPBOX_DIRECTIONS_URL}/` +
+      `${fromCoordinate.lng},${fromCoordinate.lat};${toCoordinate.lng},${toCoordinate.lat}` +
+      `?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+
+    fetch(url, { signal: controller.signal })
+      .then((response) => response.json())
+      .then((json) => {
+        const coordinates = json?.routes?.[0]?.geometry?.coordinates;
+        if (Array.isArray(coordinates) && coordinates.length > 1) {
+          setRouteCoordinates(
+            coordinates.filter(
+              (point: unknown) =>
+                Array.isArray(point) &&
+                point.length === 2 &&
+                typeof point[0] === 'number' &&
+                typeof point[1] === 'number'
+            ) as [number, number][]
+          );
+          return;
+        }
+        setRouteCoordinates(straightLineFallback);
+      })
+      .catch(() => {
+        setRouteCoordinates(straightLineFallback);
+      });
+
+    return () => controller.abort();
+  }, [driverLocation, pickup, dropoff, routeMode, straightLineFallback]);
+
+  const routeLineGeoJSON =
+    routeCoordinates && routeCoordinates.length > 1
+      ? {
+          type: 'Feature' as const,
+          properties: {},
+          geometry: {
+            type: 'LineString' as const,
+            coordinates: routeCoordinates,
+          },
+        }
+      : null;
+
   const toggleStyle = () => {
+    if (isFallbackStyle) return;
     setMapStyle((previous) => (previous === MAP_STYLE_URL ? SATELLITE_STYLE_URL : MAP_STYLE_URL));
+  };
+
+  const handleMapLoadError = () => {
+    if (!isFallbackStyle) {
+      console.warn(`${MAP_LOG_PREFIX} Failed loading Mapbox style. Switching to fallback style.`);
+      setMapStyle(MAP_FALLBACK_STYLE_URL);
+      setIsFallbackStyle(true);
+      setError((current) => current ?? 'Mapbox style unavailable. Using fallback map style.');
+      return;
+    }
+
+    setError((current) => current ?? 'Map failed to load. Please check network or map token.');
   };
 
   const recenter = () => {
@@ -144,6 +297,7 @@ export function DriverMapView({
 
   const topOverlayOffset = Math.max(insets.top + 8, 16);
   const minBottomWithInset = (isNarrow ? 232 : 218) + insets.bottom;
+  const mapHeight = mapHeightRatio ? Math.round(height * mapHeightRatio) : null;
 
   if (loading) {
     return (
@@ -155,10 +309,11 @@ export function DriverMapView({
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, mapHeight ? { height: mapHeight, flexGrow: 0 } : null]}>
       <MapView
         style={styles.map}
         styleURL={mapStyle}
+        onDidFailLoadingMap={handleMapLoadError}
         logoEnabled={false}
         attributionEnabled={false}
         compassEnabled
@@ -178,6 +333,28 @@ export function DriverMapView({
 
         <LocationPuck puckBearing="heading" puckBearingEnabled visible />
 
+        {routeLineGeoJSON && (
+          <ShapeSource id="driver-route-line" shape={routeLineGeoJSON}>
+            <LineLayer
+              id="driver-route-line-backdrop"
+              style={{
+                lineColor: '#0F172A',
+                lineOpacity: 0.18,
+                lineWidth: 8,
+              }}
+            />
+            <LineLayer
+              id="driver-route-line-main"
+              style={{
+                lineColor: '#2563EB',
+                lineWidth: 4,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+            />
+          </ShapeSource>
+        )}
+
         <ShapeSource id="roadblocks" shape={roadblockCirclesGeoJSON}>
           <CircleLayer
             id="roadblock-circles"
@@ -190,6 +367,18 @@ export function DriverMapView({
             }}
           />
         </ShapeSource>
+
+        {pickup ? (
+          <PointAnnotation id="driver-pickup-marker" coordinate={[pickup.lng, pickup.lat]}>
+            <View style={styles.pickupMarker} />
+          </PointAnnotation>
+        ) : null}
+
+        {dropoff ? (
+          <PointAnnotation id="driver-dropoff-marker" coordinate={[dropoff.lng, dropoff.lat]}>
+            <View style={styles.dropoffMarker} />
+          </PointAnnotation>
+        ) : null}
 
         {roadblocks.map((roadblock) => {
           const statusDisplay = getRoadblockStatusDisplay(roadblock.status);
@@ -288,6 +477,22 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  pickupMarker: {
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  dropoffMarker: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    backgroundColor: '#22C55E',
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },

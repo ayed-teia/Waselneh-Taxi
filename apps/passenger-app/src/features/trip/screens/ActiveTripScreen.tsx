@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TripStatus } from '@taxi-line/shared';
 import { PassengerMapView } from '../../map';
 import { Button } from '../../../ui';
-import { DriverLocation } from '../../../services/realtime';
+import { DriverLocation, DriverProfile } from '../../../services/realtime';
 
 interface LocationCoords {
   lat: number;
@@ -16,6 +16,7 @@ interface ActiveTripScreenProps {
   status: TripStatus;
   estimatedPriceIls?: number;
   driverLocation?: DriverLocation | null;
+  driverProfile?: DriverProfile | null;
   driverId?: string;
   pickup?: LocationCoords;
   dropoff?: LocationCoords;
@@ -101,6 +102,7 @@ export function ActiveTripScreen({
   status,
   estimatedPriceIls,
   driverLocation,
+  driverProfile,
   driverId,
   pickup,
   dropoff,
@@ -111,7 +113,7 @@ export function ActiveTripScreen({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isNarrow = width < 390;
-  const cardWidth = Math.min(width - 16, 560);
+  const cardWidth = width >= 768 ? 560 : width;
   const [cardHeight, setCardHeight] = useState(254);
 
   const meta = getStatusMeta(status);
@@ -127,10 +129,25 @@ export function ActiveTripScreen({
   const mappedPickup = pickup ?? DEFAULT_PICKUP;
   const topPadding = Math.max(74, insets.top + 52);
   const safeEstimatedFare = Number.isFinite(estimatedPriceIls ?? NaN) ? estimatedPriceIls : 0;
+  const mapHeightRatio = isNarrow ? 0.5 : 0.52;
   const hasDriverCoordinates =
     Boolean(driverLocation) &&
     Number.isFinite(driverLocation?.lat) &&
     Number.isFinite(driverLocation?.lng);
+  const routeMode =
+    status === 'in_progress'
+      ? 'toDropoff'
+      : status === 'accepted' || status === 'driver_arrived'
+        ? 'toPickup'
+        : 'auto';
+  const driverName = driverProfile?.name || 'Assigned driver';
+  const driverInitial = driverName.slice(0, 1).toUpperCase();
+  const ratingText =
+    typeof driverProfile?.rating === 'number' ? driverProfile.rating.toFixed(1) : 'New';
+  const tripsText =
+    typeof driverProfile?.completedTrips === 'number' ? `${driverProfile.completedTrips}` : '--';
+  const vehicleText =
+    [driverProfile?.vehicleModel, driverProfile?.plateNumber].filter(Boolean).join(' • ') || 'Vehicle info pending';
 
   return (
     <View style={styles.container}>
@@ -138,6 +155,8 @@ export function ActiveTripScreen({
         driverId={driverId}
         pickup={mappedPickup}
         dropoff={dropoff ?? null}
+        routeMode={routeMode}
+        mapHeightRatio={mapHeightRatio}
         overlayBottomOffset={cardHeight + 10}
         showLegend={false}
         showControls={false}
@@ -167,6 +186,29 @@ export function ActiveTripScreen({
             <Text style={styles.metaLabel}>Trip ID</Text>
             <Text style={styles.metaValue}>{tripId.slice(0, 8)}...</Text>
           </View>
+
+          {(driverId || driverProfile) ? (
+            <View style={styles.driverCard}>
+              <View style={styles.driverHeader}>
+                {driverProfile?.photoUrl ? (
+                  <Image source={{ uri: driverProfile.photoUrl }} style={styles.driverAvatar} />
+                ) : (
+                  <View style={styles.driverAvatarFallback}>
+                    <Text style={styles.driverAvatarInitial}>{driverInitial}</Text>
+                  </View>
+                )}
+                <View style={styles.driverIdentity}>
+                  <Text style={styles.driverName}>{driverName}</Text>
+                  <Text style={styles.driverVehicle}>{vehicleText}</Text>
+                </View>
+              </View>
+              <View style={styles.driverMetaRow}>
+                <Text style={styles.driverMetaItem}>★ {ratingText}</Text>
+                <Text style={styles.driverMetaDivider}>•</Text>
+                <Text style={styles.driverMetaItem}>{tripsText} trips</Text>
+              </View>
+            </View>
+          ) : null}
 
           {estimatedPriceIls != null ? (
             <View style={styles.metaRow}>
@@ -232,6 +274,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   bottomCard: {
+    alignSelf: 'stretch',
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
     borderWidth: 1,
@@ -297,6 +340,67 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 12,
     color: '#64748B',
+  },
+  driverCard: {
+    marginTop: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#DDE3F0',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  driverHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  driverAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+  },
+  driverAvatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  driverAvatarInitial: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1D4ED8',
+  },
+  driverIdentity: {
+    flex: 1,
+    gap: 2,
+  },
+  driverName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  driverVehicle: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  driverMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  driverMetaItem: {
+    fontSize: 13,
+    color: '#334155',
+    fontWeight: '700',
+  },
+  driverMetaDivider: {
+    fontSize: 12,
+    color: '#94A3B8',
   },
   actions: {
     marginTop: 12,

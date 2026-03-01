@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  LayoutChangeEvent,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -25,29 +24,25 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { status, isUpdatingStatus, currentLocation } = useDriverStore();
-  const [panelHeight, setPanelHeight] = useState(286);
 
   const isCompact = height < 760;
-  const panelWidth = Math.min(width - 18, 560);
+  const panelWidth = width >= 768 ? 560 : width;
 
   const driverLocation = currentLocation
     ? { latitude: currentLocation.lat, longitude: currentLocation.lng }
     : null;
 
-  const handlePanelLayout = (event: LayoutChangeEvent) => {
-    const measuredHeight = event.nativeEvent.layout.height;
-    if (measuredHeight > 0) {
-      setPanelHeight(Math.round(measuredHeight));
-    }
-  };
-
   return (
     <View style={styles.container}>
-      <DriverMapView driverLocation={driverLocation} followUser overlayBottomOffset={panelHeight + 10} />
+      <DriverMapView
+        driverLocation={driverLocation}
+        followUser
+        mapHeightRatio={0.52}
+        overlayBottomOffset={16}
+      />
 
       <View style={styles.panelLayer} pointerEvents="box-none">
         <View
-          onLayout={handlePanelLayout}
           style={[
             styles.bottomPanel,
             {
@@ -97,9 +92,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingHorizontal: 9,
+    paddingHorizontal: 0,
   },
   bottomPanel: {
+    alignSelf: 'stretch',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderWidth: 1,

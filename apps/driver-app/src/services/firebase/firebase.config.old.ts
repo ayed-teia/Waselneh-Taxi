@@ -87,13 +87,26 @@ async function initAuthInternal(): Promise<Auth> {
   // Wait another tick after imports
   await waitForNextTick();
   
-  const { initializeAuth, getAuth, getReactNativePersistence, connectAuthEmulator } = authModule;
+  const {
+    initializeAuth,
+    getAuth,
+    connectAuthEmulator,
+  } = authModule as unknown as {
+    initializeAuth: typeof import('firebase/auth').initializeAuth;
+    getAuth: typeof import('firebase/auth').getAuth;
+    connectAuthEmulator: typeof import('firebase/auth').connectAuthEmulator;
+  };
+  const getReactNativePersistence = (authModule as any).getReactNativePersistence as
+    | ((storage: unknown) => unknown)
+    | undefined;
   const AsyncStorage = asyncStorageModule.default;
   
   try {
-    _auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage)
-    });
+    _auth = getReactNativePersistence
+      ? initializeAuth(app, {
+          persistence: getReactNativePersistence(AsyncStorage),
+        })
+      : getAuth(app);
     console.log('✓ Firebase Auth initialized with AsyncStorage persistence');
   } catch (error: any) {
     if (error.code === 'auth/already-initialized' || 

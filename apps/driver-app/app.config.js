@@ -81,6 +81,8 @@ module.exports = {
       firebaseStorageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
       firebaseMessagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
       firebaseAppId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+      // Mapbox configuration
+      mapboxAccessToken: process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN,
       // Emulator configuration (only used in DEV mode)
       useEmulators: process.env.EXPO_PUBLIC_USE_EMULATORS === 'true',
       emulatorHost: process.env.EXPO_PUBLIC_EMULATOR_HOST || '127.0.0.1',
