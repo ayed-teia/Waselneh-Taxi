@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { LoadingState, ScreenContainer } from '@waselneh/ui';
 import { onAuthStateChanged, type User } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
 
@@ -11,25 +11,27 @@ export default function RootLayout() {
 
   useEffect(() => {
     let isMounted = true;
-    
-    // Using @react-native-firebase - much simpler and more reliable
+
     const unsubscribe = onAuthStateChanged((user: User | null) => {
       if (isMounted) {
-        // Convert native user to compatible format for store
-        setUser(user ? {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          emailVerified: user.emailVerified,
-          phoneNumber: user.phoneNumber,
-          isAnonymous: user.isAnonymous,
-        } as any : null);
+        setUser(
+          user
+            ? ({
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName,
+                photoURL: user.photoURL,
+                emailVerified: user.emailVerified,
+                phoneNumber: user.phoneNumber,
+                isAnonymous: user.isAnonymous,
+              } as any)
+            : null
+        );
         setIsReady(true);
-        console.log('✓ Auth state changed:', user ? `User ${user.uid}` : 'No user');
+        console.log('Auth state changed:', user ? `User ${user.uid}` : 'No user');
       }
     });
-    
+
     return () => {
       isMounted = false;
       unsubscribe();
@@ -38,9 +40,9 @@ export default function RootLayout() {
 
   if (!isReady) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
+      <ScreenContainer padded={false}>
+        <LoadingState title="Initializing passenger app..." />
+      </ScreenContainer>
     );
   }
 
@@ -55,11 +57,3 @@ export default function RootLayout() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});

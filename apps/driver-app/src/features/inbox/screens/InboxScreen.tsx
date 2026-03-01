@@ -1,17 +1,26 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
-  Text,
+  TouchableOpacity,
   View,
-  useWindowDimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Button } from '../../../ui';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Header,
+  LoadingState,
+  Text as UIText,
+  getModeColors,
+  waselnehRadius,
+  waselnehShadows,
+  waselnehSpacing,
+} from '@waselneh/ui';
 import { useAuthStore } from '../../../store';
 import { InboxItem, subscribeToInbox } from '../../../services/realtime';
 import { acceptTripRequest } from '../../../services/api';
@@ -21,9 +30,7 @@ import { acceptTripRequest } from '../../../services/api';
  */
 export function InboxScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isNarrow = width < 390;
+  const colors = getModeColors('light');
   const { user } = useAuthStore();
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,30 +77,53 @@ export function InboxScreen() {
     [router]
   );
 
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/home');
+  }, [router]);
+
   const renderItem = useCallback(
     ({ item }: { item: InboxItem }) => {
       const isAccepting = acceptingId === item.requestId;
+      const estimatedDistanceKm =
+        typeof item.estimatedDistanceKm === 'number' && Number.isFinite(item.estimatedDistanceKm)
+          ? item.estimatedDistanceKm
+          : null;
+      const estimatedDurationMin =
+        typeof item.estimatedDurationMin === 'number' && Number.isFinite(item.estimatedDurationMin)
+          ? item.estimatedDurationMin
+          : null;
+
       return (
-        <View style={styles.card}>
+        <Card elevated style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.priceText}>NIS {item.estimatedPriceIls}</Text>
-            <Text style={styles.distanceText}>{item.estimatedDistanceKm.toFixed(1)} km</Text>
+            <UIText style={styles.priceText}>NIS {item.estimatedPriceIls ?? 0}</UIText>
+            <UIText muted style={styles.distanceText}>
+              {estimatedDistanceKm !== null ? `${estimatedDistanceKm.toFixed(1)} km` : '-- km'}
+            </UIText>
           </View>
 
           <View style={styles.cardBody}>
-            <Text style={styles.coordLabel}>Pickup</Text>
-            <Text style={styles.coordValue}>
+            <UIText muted style={styles.coordLabel}>Pickup</UIText>
+            <UIText style={styles.coordValue}>
               {item.pickup.lat.toFixed(4)}, {item.pickup.lng.toFixed(4)}
-            </Text>
+            </UIText>
 
-            <Text style={[styles.coordLabel, styles.coordLabelSpacer]}>Dropoff</Text>
-            <Text style={styles.coordValue}>
+            <UIText muted style={[styles.coordLabel, styles.coordLabelSpacer]}>
+              Dropoff
+            </UIText>
+            <UIText style={styles.coordValue}>
               {item.dropoff.lat.toFixed(4)}, {item.dropoff.lng.toFixed(4)}
-            </Text>
+            </UIText>
           </View>
 
           <View style={styles.cardFooter}>
-            <Text style={styles.durationText}>~{Math.round(item.estimatedDurationMin)} min</Text>
+            <UIText muted style={styles.durationText}>
+              {estimatedDurationMin !== null ? `~${Math.round(estimatedDurationMin)} min` : '--'}
+            </UIText>
             <Button
               title={isAccepting ? 'Accepting...' : 'Accept'}
               onPress={() => handleAccept(item.requestId)}
@@ -102,60 +132,52 @@ export function InboxScreen() {
               style={styles.acceptButton}
             />
           </View>
-        </View>
+        </Card>
       );
     },
     [acceptingId, handleAccept]
   );
 
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0F172A" />
-        <Text style={styles.loadingText}>Loading inbox...</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: Math.max(96, insets.top + 74),
-            paddingLeft: 78,
-            paddingRight: 18,
-          },
-        ]}
-      >
-        <Text style={[styles.title, isNarrow && styles.titleNarrow]}>Trip Requests</Text>
-        <Text style={styles.subtitle}>
-          {inboxItems.length} pending request{inboxItems.length !== 1 ? 's' : ''}
-        </Text>
-      </View>
-
-      {error ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      ) : null}
-
-      <FlatList
-        data={inboxItems}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No trip requests</Text>
-            <Text style={styles.emptySubtitle}>
-              New requests will appear here when passengers request rides.
-            </Text>
-          </View>
+      <Header
+        title="Trip Requests"
+        subtitle={`${inboxItems.length} pending request${inboxItems.length !== 1 ? 's' : ''}`}
+        leftAction={
+          <TouchableOpacity onPress={handleBack} style={styles.headerAction} activeOpacity={0.85}>
+            <UIText style={styles.headerActionText}>{'< Back'}</UIText>
+          </TouchableOpacity>
         }
-        contentContainerStyle={inboxItems.length === 0 ? styles.emptyList : styles.list}
-        refreshControl={<RefreshControl refreshing={false} onRefresh={() => {}} tintColor="#0F172A" />}
       />
+
+      {isLoading ? (
+        <LoadingState title="Loading inbox..." />
+      ) : error ? (
+        <ErrorState
+          title="Inbox error"
+          message={error}
+          onRetry={() => {
+            setIsLoading(true);
+            setError(null);
+          }}
+          style={styles.errorState}
+        />
+      ) : (
+        <FlatList
+          data={inboxItems}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          ListEmptyComponent={
+            <EmptyState
+              title="No trip requests"
+              subtitle="New requests will appear here when passengers request rides."
+              style={styles.emptyState}
+            />
+          }
+          contentContainerStyle={inboxItems.length === 0 ? styles.emptyList : styles.list}
+          refreshControl={<RefreshControl refreshing={false} onRefresh={() => {}} tintColor={colors.primary} />}
+        />
+      )}
     </View>
   );
 }
@@ -163,146 +185,88 @@ export function InboxScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F6F7FB',
+    backgroundColor: getModeColors('light').background,
   },
-  header: {
-    backgroundColor: '#0F172A',
-    paddingHorizontal: 20,
-    paddingBottom: 18,
-  },
-  title: {
-    fontSize: 34,
-    lineHeight: 38,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    letterSpacing: -0.5,
-  },
-  titleNarrow: {
-    fontSize: 30,
-    lineHeight: 34,
-  },
-  subtitle: {
-    marginTop: 4,
-    fontSize: 15,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  loadingContainer: {
-    flex: 1,
+  headerAction: {
+    minHeight: 36,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F6F7FB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#64748B',
-  },
-  errorContainer: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 10,
-    padding: 12,
+    paddingHorizontal: waselnehSpacing.md,
+    borderRadius: waselnehRadius.pill,
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: getModeColors('light').border,
+    backgroundColor: getModeColors('light').surface,
   },
-  errorText: {
-    color: '#B91C1C',
-    fontSize: 14,
+  headerActionText: {
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  errorState: {
+    marginTop: -waselnehSpacing.sm,
   },
   list: {
-    padding: 16,
-    paddingBottom: 26,
-    gap: 12,
+    padding: waselnehSpacing.lg,
+    paddingBottom: waselnehSpacing.xl,
   },
   emptyList: {
     flexGrow: 1,
-    justifyContent: 'center',
-    padding: 28,
+    paddingHorizontal: waselnehSpacing.lg,
+    paddingBottom: waselnehSpacing.lg,
   },
-  emptyContainer: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#DDE3F0',
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    alignItems: 'center',
-    gap: 8,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    color: '#64748B',
-    lineHeight: 20,
+  emptyState: {
+    marginTop: -waselnehSpacing.xl,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#DDE3F0',
-    padding: 14,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    marginBottom: waselnehSpacing.md,
+    borderRadius: waselnehRadius.lg,
+    ...waselnehShadows.sm,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: waselnehSpacing.sm,
   },
   priceText: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: '#16A34A',
   },
   distanceText: {
-    fontSize: 14,
-    color: '#64748B',
     fontWeight: '700',
+    fontSize: 13,
   },
   cardBody: {
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    borderColor: getModeColors('light').border,
+    borderRadius: waselnehRadius.md,
+    backgroundColor: getModeColors('light').background,
+    paddingVertical: waselnehSpacing.sm,
+    paddingHorizontal: waselnehSpacing.md,
   },
   coordLabel: {
-    fontSize: 12,
-    color: '#64748B',
+    fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   coordLabelSpacer: {
-    marginTop: 10,
+    marginTop: waselnehSpacing.md,
   },
   coordValue: {
     marginTop: 2,
     fontSize: 14,
-    color: '#0F172A',
     fontWeight: '600',
   },
   cardFooter: {
-    marginTop: 12,
+    marginTop: waselnehSpacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: waselnehSpacing.md,
   },
   durationText: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: 13,
     fontWeight: '600',
   },
   acceptButton: {

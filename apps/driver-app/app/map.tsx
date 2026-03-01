@@ -1,6 +1,6 @@
 import React from 'react';
 import { Redirect } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { ScreenContainer } from '@waselneh/ui';
 import { useAuthStore } from '../src/store';
 import { useDriverStore } from '../src/store/driver.store';
 import { DriverMapView } from '../src/features/map';
@@ -21,15 +21,9 @@ export default function MapScreen() {
     : null;
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer padded={false} edges={[]}>
       <BackButton fallbackRoute="/home" />
       <DriverMapView driverLocation={driverLocation} followUser={true} />
-    </View>
+    </ScreenContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

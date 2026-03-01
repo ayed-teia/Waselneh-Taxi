@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocalSearchParams, useRouter, Redirect } from 'expo-router';
-import { View, StyleSheet } from 'react-native';
+import { ScreenContainer } from '@waselneh/ui';
 import { useAuthStore } from '../src/store';
 import { SearchingDriverScreen } from '../src/features/trip';
 import { BackButton } from '../src/ui';
@@ -44,7 +44,7 @@ export default function Searching() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer padded={false} edges={[]}>
       <BackButton fallbackRoute="/home" />
       <SearchingDriverScreen
         requestId={params.requestId}
@@ -64,12 +64,6 @@ export default function Searching() {
         onCancel={handleCancel}
         onDriverAssigned={handleDriverAssigned}
       />
-    </View>
+    </ScreenContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

@@ -1,9 +1,8 @@
 import React from 'react';
 import { Redirect } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { ScreenContainer } from '@waselneh/ui';
 import { useAuthStore } from '../src/store';
 import { InboxScreen } from '../src/features/inbox';
-import { BackButton } from '../src/ui';
 
 export default function Inbox() {
   const { isAuthenticated } = useAuthStore();
@@ -14,15 +13,8 @@ export default function Inbox() {
   }
 
   return (
-    <View style={styles.container}>
-      <BackButton fallbackRoute="/home" />
+    <ScreenContainer padded={false} edges={[]}>
       <InboxScreen />
-    </View>
+    </ScreenContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

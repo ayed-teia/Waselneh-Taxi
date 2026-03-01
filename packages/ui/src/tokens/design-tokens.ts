@@ -1,3 +1,5 @@
+import { StyleSheet } from 'react-native';
+
 export type ColorMode = 'light' | 'dark';
 
 export const waselnehColors = {
@@ -47,7 +49,32 @@ export const waselnehRadius = {
   sm: 8,
   md: 12,
   lg: 16,
+  xl: 24,
   pill: 999,
+} as const;
+
+export const waselnehShadows = {
+  sm: {
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  md: {
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  lg: {
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
 } as const;
 
 export const waselnehTypography = {
@@ -75,4 +102,23 @@ export const waselnehTypography = {
 
 export function getModeColors(mode: ColorMode = 'light') {
   return mode === 'dark' ? waselnehColors.dark : waselnehColors.light;
+}
+
+export function getThemeTokens(mode: ColorMode = 'light') {
+  return {
+    colors: getModeColors(mode),
+    spacing: waselnehSpacing,
+    radius: waselnehRadius,
+    typography: waselnehTypography,
+    shadows: waselnehShadows,
+  };
+}
+
+export type WaselnehThemeTokens = ReturnType<typeof getThemeTokens>;
+
+export function createStyles<T extends StyleSheet.NamedStyles<T>>(
+  factory: (theme: WaselnehThemeTokens) => T,
+  mode: ColorMode = 'light'
+): T {
+  return StyleSheet.create(factory(getThemeTokens(mode)));
 }

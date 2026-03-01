@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ErrorState, LoadingState, ScreenContainer } from '@waselneh/ui';
 import { TripStatus } from '@taxi-line/shared';
 import { ActiveTripScreen } from '../src/features/trip';
 import { TripData, subscribeToTrip } from '../src/services/realtime';
@@ -50,30 +50,29 @@ export default function Trip() {
 
   if (loading) {
     return (
-      <View style={styles.routeContainer}>
+      <ScreenContainer padded={false} edges={[]}>
         <BackButton fallbackRoute="/home" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading trip...</Text>
-        </View>
-      </View>
+        <LoadingState title="Loading trip..." />
+      </ScreenContainer>
     );
   }
 
   if (error || !trip) {
     return (
-      <View style={styles.routeContainer}>
+      <ScreenContainer padded={false} edges={[]}>
         <BackButton fallbackRoute="/home" />
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorIcon}>!</Text>
-          <Text style={styles.errorText}>{error || 'Trip not found'}</Text>
-        </View>
-      </View>
+        <ErrorState
+          title="Trip error"
+          message={error || 'Trip not found'}
+          onRetry={() => router.replace('/home')}
+          retryLabel="Back to Home"
+        />
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={styles.routeContainer}>
+    <ScreenContainer padded={false} edges={[]}>
       <BackButton fallbackRoute="/home" />
       <ActiveTripScreen
         tripId={tripId}
@@ -83,39 +82,6 @@ export default function Trip() {
         dropoff={trip.dropoff}
         onTripCompleted={handleTripCompleted}
       />
-    </View>
+    </ScreenContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  routeContainer: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F2F2F7',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#8E8E93',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F2F2F7',
-    padding: 20,
-  },
-  errorIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#FF3B30',
-    textAlign: 'center',
-  },
-});

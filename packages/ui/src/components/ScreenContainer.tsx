@@ -1,17 +1,19 @@
 import React from 'react';
 import { StyleProp, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Edge, SafeAreaView } from 'react-native-safe-area-context';
 import { getModeColors, waselnehSpacing } from '../tokens/design-tokens';
 
 export interface ScreenContainerProps extends Omit<ViewProps, 'style'> {
   mode?: 'light' | 'dark';
   padded?: boolean;
+  edges?: Edge[];
   style?: StyleProp<ViewStyle>;
 }
 
 export function ScreenContainer({
   mode = 'light',
   padded = true,
+  edges = ['top', 'right', 'bottom', 'left'],
   style,
   children,
   ...props
@@ -19,7 +21,7 @@ export function ScreenContainer({
   const colors = getModeColors(mode);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+    <SafeAreaView edges={edges} style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View
         style={[
           styles.content,
@@ -43,6 +45,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   padded: {
-    padding: waselnehSpacing.xl,
+    paddingHorizontal: waselnehSpacing.lg,
+    paddingVertical: waselnehSpacing.md,
   },
 });
