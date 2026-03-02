@@ -1,11 +1,19 @@
 import React, { useCallback } from 'react';
-import { Alert, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TripStatus } from '@taxi-line/shared';
 import { Button } from '../../../ui';
 import { completeTrip, driverArrived, startTrip } from '../../../services/api';
 import { DriverMapView } from '../../map';
 import { useDriverStore } from '../../../store';
+import { TripChatMessage } from '../../../services/realtime';
+import {
+  LiveEtaCard,
+  PassengerRatingCard,
+  SafetyToolsCard,
+  TripChatPanel,
+  TripTimeline,
+} from '../components';
 
 interface ActiveTripScreenProps {
   tripId: string;
@@ -15,6 +23,26 @@ interface ActiveTripScreenProps {
   paymentStatus?: 'pending' | 'paid';
   pickup?: { lat: number; lng: number };
   dropoff?: { lat: number; lng: number };
+  etaToPickupMin?: number | null;
+  etaToDropoffMin?: number | null;
+  etaUpdatedAt?: Date | null;
+  chatMessages?: TripChatMessage[];
+  onSendChat?: (message: string, quickReply?: boolean) => void;
+  chatSending?: boolean;
+  retryQueueCount?: number;
+  onRetryQueue?: () => void;
+  onShareTrip?: () => void;
+  onEmergencyCall?: () => void;
+  onCallDispatch?: () => void;
+  passengerRatingValue?: number;
+  passengerRatingComment?: string;
+  passengerLowRatingReason?: string | null;
+  passengerRatingSubmitted?: boolean;
+  isSubmittingPassengerRating?: boolean;
+  onPassengerRatingChange?: (rating: number) => void;
+  onPassengerRatingCommentChange?: (comment: string) => void;
+  onPassengerLowRatingReasonSelect?: (reason: string) => void;
+  onSubmitPassengerRating?: () => void;
   onTripCompleted: () => void;
 }
 
@@ -69,6 +97,26 @@ export function ActiveTripScreen({
   paymentStatus = 'pending',
   pickup,
   dropoff,
+  etaToPickupMin = null,
+  etaToDropoffMin = null,
+  etaUpdatedAt = null,
+  chatMessages = [],
+  onSendChat,
+  chatSending = false,
+  retryQueueCount = 0,
+  onRetryQueue,
+  onShareTrip,
+  onEmergencyCall,
+  onCallDispatch,
+  passengerRatingValue = 0,
+  passengerRatingComment = '',
+  passengerLowRatingReason = null,
+  passengerRatingSubmitted = false,
+  isSubmittingPassengerRating = false,
+  onPassengerRatingChange,
+  onPassengerRatingCommentChange,
+  onPassengerLowRatingReasonSelect,
+  onSubmitPassengerRating,
   onTripCompleted,
 }: ActiveTripScreenProps) {
   const insets = useSafeAreaInsets();
@@ -117,6 +165,11 @@ export function ActiveTripScreen({
     ? { latitude: currentLocation.lat, longitude: currentLocation.lng }
     : null;
 
+  const showPassengerRating =
+    status === 'completed' &&
+    !passengerRatingSubmitted &&
+    Boolean(onPassengerRatingChange && onPassengerRatingCommentChange && onPassengerLowRatingReasonSelect && onSubmitPassengerRating);
+
   return (
     <View style={styles.container}>
       <DriverMapView
@@ -137,50 +190,96 @@ export function ActiveTripScreen({
           <Text style={styles.statusPillText}>{statusMeta.title}</Text>
         </View>
 
-        <View
-          style={[styles.bottomCard, { width: cardWidth, paddingBottom: Math.max(14, insets.bottom + 8) }]}
-        >
-          <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{statusMeta.title}</Text>
-          <Text style={styles.description}>{statusMeta.description}</Text>
+        <View style={[styles.bottomCard, { width: cardWidth, paddingBottom: Math.max(14, insets.bottom + 8) }]}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{statusMeta.title}</Text>
+            <Text style={styles.description}>{statusMeta.description}</Text>
 
-          <View style={styles.divider} />
+            <View style={styles.divider} />
 
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Trip ID</Text>
-            <Text style={styles.metaValue}>{tripId.slice(0, 8)}...</Text>
-          </View>
-
-          {estimatedPriceIls != null ? (
             <View style={styles.metaRow}>
-              <Text style={styles.fareLabel}>Fare</Text>
-              <Text style={styles.fareValue}>NIS {safeEstimatedFare}</Text>
+              <Text style={styles.metaLabel}>Trip ID</Text>
+              <Text style={styles.metaValue}>{tripId.slice(0, 8)}...</Text>
             </View>
-          ) : null}
 
-          {pickup ? (
-            <Text style={styles.metaHint}>Pickup: {pickup.lat.toFixed(4)}, {pickup.lng.toFixed(4)}</Text>
-          ) : null}
-          {dropoff ? (
-            <Text style={styles.metaHint}>Dropoff: {dropoff.lat.toFixed(4)}, {dropoff.lng.toFixed(4)}</Text>
-          ) : null}
+            <LiveEtaCard
+              etaToPickupMin={etaToPickupMin}
+              etaToDestinationMin={etaToDropoffMin}
+              updatedAt={etaUpdatedAt}
+            />
+            <TripTimeline status={status} />
 
-          {hasAction && statusMeta.action ? (
-            <View style={styles.actions}>
-              <Button
-                title={isUpdating ? 'Updating...' : statusMeta.action}
-                onPress={handleAction}
-                disabled={isUpdating}
-                loading={isUpdating}
+            {estimatedPriceIls != null ? (
+              <View style={styles.metaRow}>
+                <Text style={styles.fareLabel}>Fare</Text>
+                <Text style={styles.fareValue}>NIS {safeEstimatedFare}</Text>
+              </View>
+            ) : null}
+
+            {pickup ? (
+              <Text style={styles.metaHint}>Pickup: {pickup.lat.toFixed(4)}, {pickup.lng.toFixed(4)}</Text>
+            ) : null}
+            {dropoff ? (
+              <Text style={styles.metaHint}>Dropoff: {dropoff.lat.toFixed(4)}, {dropoff.lng.toFixed(4)}</Text>
+            ) : null}
+
+            {retryQueueCount > 0 ? (
+              <View style={styles.retryBanner}>
+                <Text style={styles.retryBannerText}>
+                  Network issue detected. {retryQueueCount} action(s) waiting to retry.
+                </Text>
+                {onRetryQueue ? <Button title="Retry now" onPress={onRetryQueue} /> : null}
+              </View>
+            ) : null}
+
+            {onSendChat ? (
+              <TripChatPanel
+                messages={chatMessages}
+                myRole="driver"
+                onSend={onSendChat}
+                sending={chatSending}
               />
-            </View>
-          ) : null}
+            ) : null}
 
-          {status === 'completed' && paymentStatus === 'pending' ? (
-            <View style={styles.paymentBox}>
-              <Text style={styles.paymentTitle}>Collect cash from passenger</Text>
-              <Text style={styles.paymentAmount}>NIS {safeFareAmount}</Text>
-            </View>
-          ) : null}
+            {onShareTrip && onEmergencyCall && onCallDispatch ? (
+              <SafetyToolsCard
+                onShareTrip={onShareTrip}
+                onEmergencyCall={onEmergencyCall}
+                onCallDispatch={onCallDispatch}
+              />
+            ) : null}
+
+            {showPassengerRating ? (
+              <PassengerRatingCard
+                rating={passengerRatingValue}
+                comment={passengerRatingComment}
+                lowRatingReason={passengerLowRatingReason}
+                submitting={isSubmittingPassengerRating}
+                onChangeRating={onPassengerRatingChange!}
+                onChangeComment={onPassengerRatingCommentChange!}
+                onSelectReason={onPassengerLowRatingReasonSelect!}
+                onSubmit={onSubmitPassengerRating!}
+              />
+            ) : null}
+
+            {hasAction && statusMeta.action ? (
+              <View style={styles.actions}>
+                <Button
+                  title={isUpdating ? 'Updating...' : statusMeta.action}
+                  onPress={handleAction}
+                  disabled={isUpdating}
+                  loading={isUpdating}
+                />
+              </View>
+            ) : null}
+
+            {status === 'completed' && paymentStatus === 'pending' ? (
+              <View style={styles.paymentBox}>
+                <Text style={styles.paymentTitle}>Collect cash from passenger</Text>
+                <Text style={styles.paymentAmount}>NIS {safeFareAmount}</Text>
+              </View>
+            ) : null}
+          </ScrollView>
         </View>
       </View>
     </View>
@@ -232,6 +331,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 14,
     elevation: 10,
+    maxHeight: '66%',
+  },
+  scroll: {
+    width: '100%',
+  },
+  scrollContent: {
+    gap: 10,
+    paddingBottom: 6,
   },
   title: {
     fontSize: 30,
@@ -245,7 +352,7 @@ const styles = StyleSheet.create({
     lineHeight: 30,
   },
   description: {
-    marginTop: 4,
+    marginTop: 2,
     fontSize: 14,
     color: '#64748B',
     lineHeight: 20,
@@ -253,7 +360,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#E2E8F0',
-    marginVertical: 12,
+    marginVertical: 2,
   },
   metaRow: {
     minHeight: 34,
@@ -282,16 +389,30 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   metaHint: {
-    marginTop: 4,
+    marginTop: 2,
     fontSize: 12,
     color: '#64748B',
   },
+  retryBanner: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  retryBannerText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '600',
+  },
   actions: {
-    marginTop: 12,
+    marginTop: 4,
     gap: 10,
   },
   paymentBox: {
-    marginTop: 12,
+    marginTop: 4,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#BBF7D0',

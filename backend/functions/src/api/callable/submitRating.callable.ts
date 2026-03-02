@@ -42,6 +42,7 @@ const SubmitRatingSchema = z.object({
   tripId: z.string().min(1),
   rating: z.number().int().min(1).max(5),
   comment: z.string().max(500).optional(),
+  lowRatingReason: z.string().max(120).optional(),
 });
 
 /**
@@ -87,7 +88,7 @@ export const submitRating = onCall<unknown, Promise<SubmitRatingResponse>>(
         );
       }
 
-      const { tripId, rating, comment } = parsed.data;
+      const { tripId, rating, comment, lowRatingReason } = parsed.data;
 
       logger.info('⭐ [SubmitRating] START', { passengerId, tripId, rating });
 
@@ -140,6 +141,7 @@ export const submitRating = onCall<unknown, Promise<SubmitRatingResponse>>(
           driverId: tripData.driverId,
           rating,
           comment: comment || null,
+          lowRatingReason: lowRatingReason || null,
           createdAt: FieldValue.serverTimestamp(),
         };
 

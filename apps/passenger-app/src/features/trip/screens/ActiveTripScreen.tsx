@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TripStatus } from '@taxi-line/shared';
 import { PassengerMapView } from '../../map';
 import { Button } from '../../../ui';
-import { DriverLocation, DriverProfile } from '../../../services/realtime';
+import { DriverLocation, DriverProfile, TripChatMessage } from '../../../services/realtime';
+import { LiveEtaCard, SafetyToolsCard, TripChatPanel, TripTimeline } from '../components';
 
 interface LocationCoords {
   lat: number;
@@ -20,6 +21,18 @@ interface ActiveTripScreenProps {
   driverId?: string;
   pickup?: LocationCoords;
   dropoff?: LocationCoords;
+  etaToPickupMin?: number | null;
+  etaToDropoffMin?: number | null;
+  etaUpdatedAt?: Date | null;
+  chatMessages?: TripChatMessage[];
+  onSendChat?: (message: string, quickReply?: boolean) => void;
+  chatSending?: boolean;
+  retryQueueCount?: number;
+  onRetryQueue?: () => void;
+  onShareTrip?: () => void;
+  onEmergencyCall?: () => void;
+  onCallTrustedContact?: () => void;
+  trustedContactLabel?: string;
   onCancel: () => void;
   onGoHome?: () => void;
   isCancelling?: boolean;
@@ -106,6 +119,18 @@ export function ActiveTripScreen({
   driverId,
   pickup,
   dropoff,
+  etaToPickupMin = null,
+  etaToDropoffMin = null,
+  etaUpdatedAt = null,
+  chatMessages = [],
+  onSendChat,
+  chatSending = false,
+  retryQueueCount = 0,
+  onRetryQueue,
+  onShareTrip,
+  onEmergencyCall,
+  onCallTrustedContact,
+  trustedContactLabel = 'Trusted contact',
   onCancel,
   onGoHome,
   isCancelling = false,
@@ -114,7 +139,7 @@ export function ActiveTripScreen({
   const { width } = useWindowDimensions();
   const isNarrow = width < 390;
   const cardWidth = width >= 768 ? 560 : width;
-  const [cardHeight, setCardHeight] = useState(254);
+  const [cardHeight, setCardHeight] = useState(300);
 
   const meta = getStatusMeta(status);
   const canCancel = status === 'pending' || status === 'accepted';
@@ -147,7 +172,8 @@ export function ActiveTripScreen({
   const tripsText =
     typeof driverProfile?.completedTrips === 'number' ? `${driverProfile.completedTrips}` : '--';
   const vehicleText =
-    [driverProfile?.vehicleModel, driverProfile?.plateNumber].filter(Boolean).join(' • ') || 'Vehicle info pending';
+    [driverProfile?.vehicleModel, driverProfile?.plateNumber].filter(Boolean).join(' | ') ||
+    'Vehicle info pending';
 
   return (
     <View style={styles.container}>
@@ -177,65 +203,101 @@ export function ActiveTripScreen({
           }}
           style={[styles.bottomCard, { width: cardWidth, paddingBottom: Math.max(14, insets.bottom + 8) }]}
         >
-          <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{meta.title}</Text>
-          <Text style={styles.description}>{meta.description}</Text>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{meta.title}</Text>
+            <Text style={styles.description}>{meta.description}</Text>
 
-          <View style={styles.divider} />
+            <View style={styles.divider} />
 
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Trip ID</Text>
-            <Text style={styles.metaValue}>{tripId.slice(0, 8)}...</Text>
-          </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Trip ID</Text>
+              <Text style={styles.metaValue}>{tripId.slice(0, 8)}...</Text>
+            </View>
 
-          {(driverId || driverProfile) ? (
-            <View style={styles.driverCard}>
-              <View style={styles.driverHeader}>
-                {driverProfile?.photoUrl ? (
-                  <Image source={{ uri: driverProfile.photoUrl }} style={styles.driverAvatar} />
-                ) : (
-                  <View style={styles.driverAvatarFallback}>
-                    <Text style={styles.driverAvatarInitial}>{driverInitial}</Text>
+            <LiveEtaCard
+              etaToDriverMin={etaToPickupMin}
+              etaToDestinationMin={etaToDropoffMin}
+              updatedAt={etaUpdatedAt}
+            />
+            <TripTimeline status={status} />
+
+            {(driverId || driverProfile) ? (
+              <View style={styles.driverCard}>
+                <View style={styles.driverHeader}>
+                  {driverProfile?.photoUrl ? (
+                    <Image source={{ uri: driverProfile.photoUrl }} style={styles.driverAvatar} />
+                  ) : (
+                    <View style={styles.driverAvatarFallback}>
+                      <Text style={styles.driverAvatarInitial}>{driverInitial}</Text>
+                    </View>
+                  )}
+                  <View style={styles.driverIdentity}>
+                    <Text style={styles.driverName}>{driverName}</Text>
+                    <Text style={styles.driverVehicle}>{vehicleText}</Text>
                   </View>
-                )}
-                <View style={styles.driverIdentity}>
-                  <Text style={styles.driverName}>{driverName}</Text>
-                  <Text style={styles.driverVehicle}>{vehicleText}</Text>
+                </View>
+                <View style={styles.driverMetaRow}>
+                  <Text style={styles.driverMetaItem}>Rating {ratingText}</Text>
+                  <Text style={styles.driverMetaDivider}>|</Text>
+                  <Text style={styles.driverMetaItem}>{tripsText} trips</Text>
                 </View>
               </View>
-              <View style={styles.driverMetaRow}>
-                <Text style={styles.driverMetaItem}>★ {ratingText}</Text>
-                <Text style={styles.driverMetaDivider}>•</Text>
-                <Text style={styles.driverMetaItem}>{tripsText} trips</Text>
+            ) : null}
+
+            {estimatedPriceIls != null ? (
+              <View style={styles.metaRow}>
+                <Text style={styles.fareLabel}>Fare</Text>
+                <Text style={styles.fareValue}>NIS {safeEstimatedFare}</Text>
               </View>
-            </View>
-          ) : null}
+            ) : null}
 
-          {estimatedPriceIls != null ? (
-            <View style={styles.metaRow}>
-              <Text style={styles.fareLabel}>Fare</Text>
-              <Text style={styles.fareValue}>NIS {safeEstimatedFare}</Text>
-            </View>
-          ) : null}
+            {hasDriverCoordinates ? (
+              <Text style={styles.driverLive}>
+                Driver live: {driverLocation?.lat.toFixed(4)}, {driverLocation?.lng.toFixed(4)}
+              </Text>
+            ) : null}
 
-          {hasDriverCoordinates ? (
-            <Text style={styles.driverLive}>
-              Driver live: {driverLocation?.lat.toFixed(4)}, {driverLocation?.lng.toFixed(4)}
-            </Text>
-          ) : null}
+            {retryQueueCount > 0 ? (
+              <View style={styles.retryBanner}>
+                <Text style={styles.retryBannerText}>
+                  Network issue detected. {retryQueueCount} action(s) waiting to retry.
+                </Text>
+                {onRetryQueue ? <Button title="Retry now" onPress={onRetryQueue} /> : null}
+              </View>
+            ) : null}
 
-          <View style={styles.actions}>
-            {canCancel ? (
-              <Button
-                title={isCancelling ? 'Cancelling...' : 'Cancel Trip'}
-                variant="outline"
-                onPress={onCancel}
-                loading={isCancelling}
-                disabled={isCancelling}
+            {onSendChat ? (
+              <TripChatPanel
+                messages={chatMessages}
+                myRole="passenger"
+                onSend={onSendChat}
+                sending={chatSending}
               />
             ) : null}
 
-            {isEnded && onGoHome ? <Button title="Back to Home" onPress={onGoHome} /> : null}
-          </View>
+            {onShareTrip && onEmergencyCall && onCallTrustedContact ? (
+              <SafetyToolsCard
+                onShareTrip={onShareTrip}
+                onEmergencyCall={onEmergencyCall}
+                onCallTrustedContact={onCallTrustedContact}
+                trustedContactLabel={trustedContactLabel}
+              />
+            ) : null}
+
+            <View style={styles.actions}>
+              {canCancel ? (
+                <Button
+                  title={isCancelling ? 'Cancelling...' : 'Cancel Trip'}
+                  variant="secondary"
+                  onPress={onCancel}
+                  loading={isCancelling}
+                  disabled={isCancelling}
+                />
+              ) : null}
+
+              {isEnded && onGoHome ? <Button title="Back to Home" onPress={onGoHome} /> : null}
+            </View>
+          </ScrollView>
         </View>
       </View>
     </View>
@@ -287,6 +349,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 14,
     elevation: 10,
+    maxHeight: '66%',
+  },
+  scroll: {
+    width: '100%',
+  },
+  scrollContent: {
+    gap: 10,
+    paddingBottom: 6,
   },
   title: {
     fontSize: 30,
@@ -300,7 +370,7 @@ const styles = StyleSheet.create({
     lineHeight: 30,
   },
   description: {
-    marginTop: 4,
+    marginTop: 2,
     fontSize: 14,
     color: '#64748B',
     lineHeight: 20,
@@ -308,7 +378,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#E2E8F0',
-    marginVertical: 12,
+    marginVertical: 2,
   },
   metaRow: {
     minHeight: 34,
@@ -337,12 +407,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   driverLive: {
-    marginTop: 6,
+    marginTop: 2,
     fontSize: 12,
     color: '#64748B',
   },
   driverCard: {
-    marginTop: 10,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#DDE3F0',
@@ -402,8 +471,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94A3B8',
   },
+  retryBanner: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  retryBannerText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '600',
+  },
   actions: {
-    marginTop: 12,
+    marginTop: 4,
     gap: 10,
   },
 });

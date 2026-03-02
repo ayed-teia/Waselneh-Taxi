@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,15 +14,10 @@ import { useRouter } from 'expo-router';
 import { PassengerMapView } from '../PassengerMapView';
 import { createTripRequest, estimateTrip } from '../../../services/api';
 import { colors } from '../../../ui/theme';
+import { SavedPlace, loadSavedPlaces, saveSavedPlaces } from '../../../services';
 
 const DEFAULT_PICKUP = { lat: 32.2211, lng: 35.2544 };
 const DEFAULT_DESTINATION = { lat: 31.9038, lng: 35.2034 };
-
-const QUICK_LOCATIONS = [
-  { id: 'home', title: 'Home', subtitle: 'Saved address' },
-  { id: 'work', title: 'Work', subtitle: 'Saved address' },
-  { id: 'recent', title: 'Recent', subtitle: 'Last route' },
-];
 
 /**
  * Passenger map with a polished ride-hailing style bottom sheet.
@@ -33,6 +28,8 @@ export function MapScreen() {
   const { width, height } = useWindowDimensions();
   const [isCreatingTrip, setIsCreatingTrip] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(306);
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<SavedPlace['id']>('favorite');
 
   const isCompact = height < 760;
   const isNarrow = width < 390;
@@ -42,6 +39,35 @@ export function MapScreen() {
   const titleFontSize = isNarrow ? 34 : 40;
   const titleLineHeight = isNarrow ? 36 : 42;
   const subtitleFontSize = isNarrow ? 13 : 14;
+
+  useEffect(() => {
+    let mounted = true;
+    loadSavedPlaces()
+      .then((places) => {
+        if (!mounted) return;
+        setSavedPlaces(places);
+        const hasSelected = places.some((place) => place.id === selectedPlaceId);
+        if (!hasSelected && places[0]) {
+          setSelectedPlaceId(places[0].id);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load saved places:', error);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedPlaceId]);
+
+  const selectedPlace = useMemo(
+    () => savedPlaces.find((place) => place.id === selectedPlaceId) ?? null,
+    [savedPlaces, selectedPlaceId]
+  );
+
+  const destination = selectedPlace
+    ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
+    : DEFAULT_DESTINATION;
 
   const handleSheetLayout = (event: LayoutChangeEvent) => {
     const measuredHeight = event.nativeEvent.layout.height;
@@ -53,8 +79,8 @@ export function MapScreen() {
   const handleRequestTrip = useCallback(async () => {
     setIsCreatingTrip(true);
     try {
-      const estimate = await estimateTrip(DEFAULT_PICKUP, DEFAULT_DESTINATION);
-      const result = await createTripRequest(DEFAULT_PICKUP, DEFAULT_DESTINATION, estimate);
+      const estimate = await estimateTrip(DEFAULT_PICKUP, destination);
+      const result = await createTripRequest(DEFAULT_PICKUP, destination, estimate);
 
       if (result.status === 'matched' && result.tripId) {
         router.push({
@@ -75,8 +101,8 @@ export function MapScreen() {
           priceIls: estimate.priceIls.toString(),
           pickupLat: DEFAULT_PICKUP.lat.toString(),
           pickupLng: DEFAULT_PICKUP.lng.toString(),
-          dropoffLat: DEFAULT_DESTINATION.lat.toString(),
-          dropoffLng: DEFAULT_DESTINATION.lng.toString(),
+          dropoffLat: destination.lat.toString(),
+          dropoffLng: destination.lng.toString(),
         },
       });
     } catch (error) {
@@ -86,24 +112,56 @@ export function MapScreen() {
     } finally {
       setIsCreatingTrip(false);
     }
-  }, [router]);
+  }, [destination, router]);
+
+  const handleSelectPlace = useCallback(
+    async (place: SavedPlace) => {
+      setSelectedPlaceId(place.id);
+      const nextPlaces = savedPlaces.map((item) =>
+        item.id === place.id
+          ? {
+              ...item,
+              subtitle: 'Selected destination',
+            }
+          : {
+              ...item,
+              subtitle: item.id === 'favorite' ? 'Quick destination' : 'Saved address',
+            }
+      );
+      setSavedPlaces(nextPlaces);
+      try {
+        await saveSavedPlaces(nextPlaces);
+      } catch (error) {
+        console.warn('Failed to persist saved places:', error);
+      }
+    },
+    [savedPlaces]
+  );
 
   const quickChips = useMemo(
     () =>
-      QUICK_LOCATIONS.map((item) => (
-        <TouchableOpacity key={item.id} style={styles.quickChip} activeOpacity={0.9}>
-          <Text style={styles.quickChipTitle}>{item.title}</Text>
-          <Text style={styles.quickChipSubtitle}>{item.subtitle}</Text>
-        </TouchableOpacity>
-      )),
-    []
+      savedPlaces.map((item) => {
+        const selected = item.id === selectedPlaceId;
+        return (
+          <TouchableOpacity
+            key={item.id}
+            style={[styles.quickChip, selected && styles.quickChipSelected]}
+            activeOpacity={0.9}
+            onPress={() => handleSelectPlace(item)}
+          >
+            <Text style={styles.quickChipTitle}>{item.title}</Text>
+            <Text style={styles.quickChipSubtitle}>{item.subtitle}</Text>
+          </TouchableOpacity>
+        );
+      }),
+    [savedPlaces, selectedPlaceId, handleSelectPlace]
   );
 
   return (
     <View style={styles.container}>
       <PassengerMapView
         pickup={DEFAULT_PICKUP}
-        dropoff={DEFAULT_DESTINATION}
+        dropoff={destination}
         mapHeightRatio={0.52}
         overlayBottomOffset={mapOverlayBottom}
       />
@@ -124,14 +182,24 @@ export function MapScreen() {
         >
           <View style={styles.handle} />
 
+          <View style={styles.topActionsRow}>
+            <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/history')}>
+              <Text style={styles.topActionText}>History</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/promo')}>
+              <Text style={styles.topActionText}>Promo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/support')}>
+              <Text style={styles.topActionText}>Support</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.sheetHeaderRow}>
             <View>
               <Text style={[styles.sheetTitle, { fontSize: titleFontSize, lineHeight: titleLineHeight }]}>
                 Where to?
               </Text>
-              <Text style={[styles.sheetSubtitle, { fontSize: subtitleFontSize }]}>
-                Book a ride in seconds.
-              </Text>
+              <Text style={[styles.sheetSubtitle, { fontSize: subtitleFontSize }]}>Book a ride in seconds.</Text>
             </View>
             <View style={styles.scheduleBadge}>
               <Text style={styles.scheduleBadgeText}>Now</Text>
@@ -140,7 +208,7 @@ export function MapScreen() {
 
           <TouchableOpacity style={styles.searchBox} activeOpacity={0.92}>
             <View style={styles.searchDot} />
-            <Text style={styles.searchPlaceholder}>Choose destination</Text>
+            <Text style={styles.searchPlaceholder}>Destination: {selectedPlace?.title ?? 'Choose destination'}</Text>
           </TouchableOpacity>
 
           <View style={styles.quickChipsRow}>{quickChips}</View>
@@ -201,6 +269,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#CBD5E1',
     alignSelf: 'center',
   },
+  topActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  topActionChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  topActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
   sheetHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -250,7 +335,7 @@ const styles = StyleSheet.create({
   },
   searchPlaceholder: {
     color: '#475569',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '500',
   },
   quickChipsRow: {
@@ -266,6 +351,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 10,
     gap: 2,
+  },
+  quickChipSelected: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
   },
   quickChipTitle: {
     fontSize: 16,

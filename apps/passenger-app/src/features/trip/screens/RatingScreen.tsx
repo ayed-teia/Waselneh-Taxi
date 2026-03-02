@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -16,7 +16,7 @@ import { Button } from '../../../ui';
 interface RatingScreenProps {
   tripId: string;
   finalPriceIls: number;
-  onSubmit: (rating: number, comment?: string) => Promise<void>;
+  onSubmit: (rating: number, comment?: string, lowRatingReason?: string) => Promise<void>;
   onSkip: () => void;
 }
 
@@ -27,6 +27,8 @@ const RATING_LABELS: Record<number, string> = {
   4: 'Very good',
   5: 'Excellent',
 };
+
+const LOW_RATING_REASONS = ['Late arrival', 'Route issue', 'Vehicle issue', 'Driver behavior'];
 
 /**
  * Trip rating screen shown after completion.
@@ -45,6 +47,7 @@ export function RatingScreen({
 
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [lowRatingReason, setLowRatingReason] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const ratingText = useMemo(() => (rating ? RATING_LABELS[rating] : 'Tap a score'), [rating]);
@@ -56,7 +59,7 @@ export function RatingScreen({
 
     setSubmitting(true);
     try {
-      await onSubmit(rating, comment.trim() || undefined);
+      await onSubmit(rating, comment.trim() || undefined, lowRatingReason ?? undefined);
     } catch (error) {
       console.error('Error submitting rating:', error);
     } finally {
@@ -110,6 +113,24 @@ export function RatingScreen({
             })}
           </View>
           <Text style={styles.ratingHint}>{ratingText}</Text>
+
+          {rating > 0 && rating <= 3 ? (
+            <View style={styles.lowReasonWrap}>
+              {LOW_RATING_REASONS.map((reason) => {
+                const selected = lowRatingReason === reason;
+                return (
+                  <TouchableOpacity
+                    key={reason}
+                    activeOpacity={0.9}
+                    style={[styles.reasonChip, selected && styles.reasonChipSelected]}
+                    onPress={() => setLowRatingReason(reason)}
+                  >
+                    <Text style={[styles.reasonChipText, selected && styles.reasonChipTextSelected]}>{reason}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : null}
         </View>
 
         <View style={[styles.card, { width: cardWidth }]}> 
@@ -251,6 +272,31 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     fontWeight: '500',
+  },
+  lowReasonWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  reasonChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  reasonChipSelected: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEE2E2',
+  },
+  reasonChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#991B1B',
+  },
+  reasonChipTextSelected: {
+    color: '#B91C1C',
   },
   commentInput: {
     minHeight: 96,

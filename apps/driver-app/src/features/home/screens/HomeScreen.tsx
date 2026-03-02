@@ -57,6 +57,18 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
 
           <StatusToggle status={status} isLoading={isUpdatingStatus} onToggle={onToggleStatus} />
 
+          <View style={styles.quickRow}>
+            <TouchableOpacity style={styles.quickChip} onPress={() => router.push('/history')} activeOpacity={0.9}>
+              <Text style={styles.quickChipText}>History</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickChip} onPress={() => router.push('/earnings')} activeOpacity={0.9}>
+              <Text style={styles.quickChipText}>Earnings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickChip} onPress={() => router.push('/support')} activeOpacity={0.9}>
+              <Text style={styles.quickChipText}>Support</Text>
+            </TouchableOpacity>
+          </View>
+
           {status === 'online' ? (
             <View style={styles.requestsSection}>
               <Text style={styles.sectionTitle}>Incoming trips</Text>
@@ -114,6 +126,25 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: '#CBD5E1',
     alignSelf: 'center',
+  },
+  quickRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  quickChip: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
   },
   requestsSection: {
     marginTop: 4,

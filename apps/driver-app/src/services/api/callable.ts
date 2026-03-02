@@ -1,4 +1,5 @@
 import { firebaseFunctions } from '../firebase';
+import { LatLng } from '../../types/shared';
 
 // Dev mode configuration - matches app/index.tsx
 const DEV_MODE = true;
@@ -31,6 +32,27 @@ export async function ping(message?: string) {
     'ping',
     { message }
   );
+}
+
+export interface EstimateTripRequest {
+  pickup: LatLng;
+  dropoff: LatLng;
+}
+
+export interface EstimateTripResponse {
+  distanceKm: number;
+  durationMin: number;
+  priceIls: number;
+}
+
+export async function estimateTrip(
+  pickup: LatLng,
+  dropoff: LatLng
+): Promise<EstimateTripResponse> {
+  return callFunction<EstimateTripRequest, EstimateTripResponse>('estimateTrip', {
+    pickup,
+    dropoff,
+  });
 }
 
 /**
@@ -131,5 +153,67 @@ export async function rejectTripRequest(tripId: string): Promise<RejectTripReque
   return callFunction<{ tripId: string }, RejectTripRequestResponse>(
     'rejectTripRequest',
     { tripId }
+  );
+}
+
+export interface SubmitPassengerRatingResponse {
+  success: boolean;
+  ratingId: string;
+}
+
+export async function submitPassengerRating(
+  tripId: string,
+  rating: number,
+  comment?: string,
+  lowRatingReason?: string
+): Promise<SubmitPassengerRatingResponse> {
+  return callFunction<
+    { tripId: string; rating: number; comment?: string | undefined; lowRatingReason?: string | undefined },
+    SubmitPassengerRatingResponse
+  >('submitPassengerRating', { tripId, rating, comment, lowRatingReason });
+}
+
+export interface CreateSupportTicketRequest {
+  tripId?: string | undefined;
+  category: 'trip' | 'payment' | 'safety' | 'technical' | 'other';
+  subject: string;
+  message: string;
+}
+
+export interface CreateSupportTicketResponse {
+  success: boolean;
+  ticketId: string;
+  status: 'open';
+}
+
+export async function createSupportTicket(
+  payload: CreateSupportTicketRequest
+): Promise<CreateSupportTicketResponse> {
+  return callFunction<CreateSupportTicketRequest, CreateSupportTicketResponse>(
+    'createSupportTicket',
+    payload
+  );
+}
+
+export interface DriverEarningsBlock {
+  totalEarningsIls: number;
+  tripsCount: number;
+  workingMinutes: number;
+  averageFareIls: number;
+}
+
+export interface DriverEarningsSummaryResponse {
+  success: boolean;
+  day: DriverEarningsBlock;
+  week: DriverEarningsBlock;
+  currency: 'ILS';
+}
+
+export async function getDriverEarningsSummary(
+  lookbackDays = 7
+): Promise<DriverEarningsSummaryResponse> {
+  return callFunction<{ lookbackDays: number }, DriverEarningsSummaryResponse>(
+    'getDriverEarningsSummary',
+    { lookbackDays }
   );
 }

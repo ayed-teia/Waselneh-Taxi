@@ -72,6 +72,9 @@ export {
   startTrip,
   completeTrip,
   submitRating,
+  submitPassengerRating,
+  createSupportTicket,
+  getDriverEarningsSummary,
   // Step 32: Cancel flows and kill switch
   passengerCancelTrip,
   driverCancelTrip,

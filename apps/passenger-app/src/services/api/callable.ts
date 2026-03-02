@@ -111,6 +111,7 @@ export interface SubmitRatingRequest {
   tripId: string;
   rating: number;
   comment?: string | undefined;
+  lowRatingReason?: string | undefined;
 }
 
 /**
@@ -128,11 +129,34 @@ export interface SubmitRatingResponse {
 export async function submitRating(
   tripId: string,
   rating: number,
-  comment?: string
+  comment?: string,
+  lowRatingReason?: string
 ): Promise<SubmitRatingResponse> {
   return callFunction<SubmitRatingRequest, SubmitRatingResponse>(
     'submitRating',
-    { tripId, rating, comment }
+    { tripId, rating, comment, lowRatingReason }
+  );
+}
+
+export interface CreateSupportTicketRequest {
+  tripId?: string | undefined;
+  category: 'trip' | 'payment' | 'safety' | 'technical' | 'other';
+  subject: string;
+  message: string;
+}
+
+export interface CreateSupportTicketResponse {
+  success: boolean;
+  ticketId: string;
+  status: 'open';
+}
+
+export async function createSupportTicket(
+  payload: CreateSupportTicketRequest
+): Promise<CreateSupportTicketResponse> {
+  return callFunction<CreateSupportTicketRequest, CreateSupportTicketResponse>(
+    'createSupportTicket',
+    payload
   );
 }
 

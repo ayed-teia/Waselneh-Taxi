@@ -9,6 +9,9 @@ export * from './startTrip.callable';
 export * from './completeTrip.callable';
 export * from './confirmCashPayment.callable';
 export * from './submitRating.callable';
+export * from './submitPassengerRating.callable';
+export * from './createSupportTicket.callable';
+export * from './getDriverEarningsSummary.callable';
 
 // Step 32: Cancel flows
 export * from './passengerCancelTrip.callable';
