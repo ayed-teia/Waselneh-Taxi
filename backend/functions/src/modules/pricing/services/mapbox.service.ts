@@ -65,6 +65,16 @@ export async function calculateRoute(
     clearTimeout(timeoutId);
 
     if (!response.ok) {
+      // Directions can return 422 for unroutable pairs (e.g. emulator location far away).
+      // In that case keep ETA flow alive with a deterministic fallback estimate.
+      if (response.status === 422) {
+        logger.warn('Mapbox returned 422 (unroutable). Falling back to mock route.', {
+          pickup,
+          dropoff,
+        });
+        return calculateMockRoute(pickup, dropoff);
+      }
+
       throw new ExternalServiceError(
         `Mapbox API error: ${response.status} ${response.statusText}`,
         'mapbox'
