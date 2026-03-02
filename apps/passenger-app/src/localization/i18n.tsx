@@ -31,7 +31,6 @@ function detectDefaultLocale(): AppLocale {
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<AppLocale>('en');
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     I18nManager.allowRTL(true);
@@ -55,9 +54,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
           setLocaleState(detectDefaultLocale());
         }
       } finally {
-        if (active) {
-          setReady(true);
-        }
+        // no-op: keep provider mounted at all times to avoid context gaps
       }
     })();
 
@@ -101,10 +98,6 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     [locale, setLocale, toggleLocale, t]
   );
 
-  if (!ready) {
-    return <>{children}</>;
-  }
-
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
@@ -115,4 +108,3 @@ export function useI18n(): I18nContextValue {
   }
   return context;
 }
-
