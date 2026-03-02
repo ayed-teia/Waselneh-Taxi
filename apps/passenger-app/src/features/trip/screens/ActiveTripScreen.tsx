@@ -6,6 +6,7 @@ import { PassengerMapView } from '../../map';
 import { Button } from '../../../ui';
 import { DriverLocation, DriverProfile, TripChatMessage } from '../../../services/realtime';
 import { LiveEtaCard, SafetyToolsCard, TripChatPanel, TripTimeline } from '../components';
+import { useI18n } from '../../../localization';
 
 interface LocationCoords {
   lat: number;
@@ -40,7 +41,7 @@ interface ActiveTripScreenProps {
 
 const DEFAULT_PICKUP = { lat: 32.2211, lng: 35.2544 };
 
-function getStatusMeta(status: TripStatus): {
+function getStatusMeta(status: TripStatus, isRTL: boolean): {
   title: string;
   description: string;
   tone: 'neutral' | 'info' | 'success' | 'warning';
@@ -48,32 +49,32 @@ function getStatusMeta(status: TripStatus): {
   switch (status) {
     case 'pending':
       return {
-        title: 'Searching for driver',
-        description: 'Please wait while we match you with a nearby driver.',
+        title: isRTL ? 'جاري البحث عن سائق' : 'Searching for driver',
+        description: isRTL ? 'الرجاء الانتظار بينما نطابقك مع سائق قريب.' : 'Please wait while we match you with a nearby driver.',
         tone: 'neutral',
       };
     case 'accepted':
       return {
-        title: 'Driver assigned',
-        description: 'Your driver is heading to the pickup point.',
+        title: isRTL ? 'تم تعيين السائق' : 'Driver assigned',
+        description: isRTL ? 'السائق في طريقه إلى نقطة الالتقاط.' : 'Your driver is heading to the pickup point.',
         tone: 'info',
       };
     case 'driver_arrived':
       return {
-        title: 'Driver arrived',
-        description: 'Your driver is waiting at pickup.',
+        title: isRTL ? 'وصل السائق' : 'Driver arrived',
+        description: isRTL ? 'السائق بانتظارك عند نقطة الالتقاط.' : 'Your driver is waiting at pickup.',
         tone: 'success',
       };
     case 'in_progress':
       return {
-        title: 'On the way',
-        description: 'Trip is in progress.',
+        title: isRTL ? 'في الطريق' : 'On the way',
+        description: isRTL ? 'الرحلة قيد التنفيذ.' : 'Trip is in progress.',
         tone: 'info',
       };
     case 'completed':
       return {
-        title: 'Trip completed',
-        description: 'Thanks for riding with us.',
+        title: isRTL ? 'اكتملت الرحلة' : 'Trip completed',
+        description: isRTL ? 'شكراً لاستخدامك وصلني.' : 'Thanks for riding with us.',
         tone: 'success',
       };
     case 'cancelled_by_passenger':
@@ -81,14 +82,14 @@ function getStatusMeta(status: TripStatus): {
     case 'cancelled_by_system':
     case 'no_driver_available':
       return {
-        title: 'Trip ended',
-        description: 'This trip is no longer active.',
+        title: isRTL ? 'انتهت الرحلة' : 'Trip ended',
+        description: isRTL ? 'هذه الرحلة لم تعد نشطة.' : 'This trip is no longer active.',
         tone: 'warning',
       };
     default:
       return {
-        title: 'Trip update',
-        description: 'Status changed.',
+        title: isRTL ? 'تحديث الرحلة' : 'Trip update',
+        description: isRTL ? 'تم تغيير الحالة.' : 'Status changed.',
         tone: 'neutral',
       };
   }
@@ -135,13 +136,14 @@ export function ActiveTripScreen({
   onGoHome,
   isCancelling = false,
 }: ActiveTripScreenProps) {
+  const { isRTL } = useI18n();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isNarrow = width < 390;
   const cardWidth = width >= 768 ? 560 : width;
   const [cardHeight, setCardHeight] = useState(300);
 
-  const meta = getStatusMeta(status);
+  const meta = getStatusMeta(status, isRTL);
   const canCancel = status === 'pending' || status === 'accepted';
   const isEnded =
     status === 'completed' ||
@@ -165,15 +167,15 @@ export function ActiveTripScreen({
       : status === 'accepted' || status === 'driver_arrived'
         ? 'toPickup'
         : 'auto';
-  const driverName = driverProfile?.name || 'Assigned driver';
+  const driverName = driverProfile?.name || (isRTL ? 'السائق المعين' : 'Assigned driver');
   const driverInitial = driverName.slice(0, 1).toUpperCase();
   const ratingText =
-    typeof driverProfile?.rating === 'number' ? driverProfile.rating.toFixed(1) : 'New';
+    typeof driverProfile?.rating === 'number' ? driverProfile.rating.toFixed(1) : isRTL ? 'جديد' : 'New';
   const tripsText =
     typeof driverProfile?.completedTrips === 'number' ? `${driverProfile.completedTrips}` : '--';
   const vehicleText =
     [driverProfile?.vehicleModel, driverProfile?.plateNumber].filter(Boolean).join(' | ') ||
-    'Vehicle info pending';
+    (isRTL ? 'معلومات المركبة قيد التحديث' : 'Vehicle info pending');
 
   return (
     <View style={styles.container}>
@@ -210,7 +212,7 @@ export function ActiveTripScreen({
             <View style={styles.divider} />
 
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Trip ID</Text>
+              <Text style={styles.metaLabel}>{isRTL ? 'رقم الرحلة' : 'Trip ID'}</Text>
               <Text style={styles.metaValue}>{tripId.slice(0, 8)}...</Text>
             </View>
 
@@ -237,32 +239,34 @@ export function ActiveTripScreen({
                   </View>
                 </View>
                 <View style={styles.driverMetaRow}>
-                  <Text style={styles.driverMetaItem}>Rating {ratingText}</Text>
+                  <Text style={styles.driverMetaItem}>{isRTL ? `التقييم ${ratingText}` : `Rating ${ratingText}`}</Text>
                   <Text style={styles.driverMetaDivider}>|</Text>
-                  <Text style={styles.driverMetaItem}>{tripsText} trips</Text>
+                  <Text style={styles.driverMetaItem}>{isRTL ? `${tripsText} رحلة` : `${tripsText} trips`}</Text>
                 </View>
               </View>
             ) : null}
 
             {estimatedPriceIls != null ? (
               <View style={styles.metaRow}>
-                <Text style={styles.fareLabel}>Fare</Text>
-                <Text style={styles.fareValue}>NIS {safeEstimatedFare}</Text>
+                <Text style={styles.fareLabel}>{isRTL ? 'الأجرة' : 'Fare'}</Text>
+                <Text style={styles.fareValue}>{isRTL ? '₪' : 'NIS '} {safeEstimatedFare}</Text>
               </View>
             ) : null}
 
             {hasDriverCoordinates ? (
               <Text style={styles.driverLive}>
-                Driver live: {driverLocation?.lat.toFixed(4)}, {driverLocation?.lng.toFixed(4)}
+                {isRTL ? 'موقع السائق المباشر' : 'Driver live'}: {driverLocation?.lat.toFixed(4)}, {driverLocation?.lng.toFixed(4)}
               </Text>
             ) : null}
 
             {retryQueueCount > 0 ? (
               <View style={styles.retryBanner}>
                 <Text style={styles.retryBannerText}>
-                  Network issue detected. {retryQueueCount} action(s) waiting to retry.
+                  {isRTL
+                    ? `تم اكتشاف مشكلة شبكة. هناك ${retryQueueCount} إجراء بانتظار إعادة المحاولة.`
+                    : `Network issue detected. ${retryQueueCount} action(s) waiting to retry.`}
                 </Text>
-                {onRetryQueue ? <Button title="Retry now" onPress={onRetryQueue} /> : null}
+                {onRetryQueue ? <Button title={isRTL ? 'إعادة الآن' : 'Retry now'} onPress={onRetryQueue} /> : null}
               </View>
             ) : null}
 
@@ -287,7 +291,7 @@ export function ActiveTripScreen({
             <View style={styles.actions}>
               {canCancel ? (
                 <Button
-                  title={isCancelling ? 'Cancelling...' : 'Cancel Trip'}
+                  title={isCancelling ? (isRTL ? 'جاري الإلغاء...' : 'Cancelling...') : isRTL ? 'إلغاء الرحلة' : 'Cancel Trip'}
                   variant="secondary"
                   onPress={onCancel}
                   loading={isCancelling}
@@ -295,7 +299,7 @@ export function ActiveTripScreen({
                 />
               ) : null}
 
-              {isEnded && onGoHome ? <Button title="Back to Home" onPress={onGoHome} /> : null}
+              {isEnded && onGoHome ? <Button title={isRTL ? 'العودة للرئيسية' : 'Back to Home'} onPress={onGoHome} /> : null}
             </View>
           </ScrollView>
         </View>

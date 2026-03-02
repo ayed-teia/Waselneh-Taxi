@@ -8,6 +8,7 @@ import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { calculatePrice } from '../../modules/pricing/utils';
+import { publishTripStatusNotifications } from '../../modules/notifications';
 
 /**
  * ============================================================================
@@ -449,6 +450,20 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       logger.info(`📝 [CreateTrip] Trip created: ${tripId}`);
       logger.info(`🚗 [CreateTrip] Driver isAvailable → false`, { driverId: nearestDriver.driverId });
       logger.info(`📨 [CreateTrip] Request sent to driver: ${nearestDriver.driverId}`);
+
+      await publishTripStatusNotifications({
+        tripId,
+        status: TripStatus.PENDING,
+        recipients: [
+          {
+            userId: nearestDriver.driverId,
+            role: 'driver',
+          },
+        ],
+        metadata: {
+          passengerId,
+        },
+      });
       
       // Log trip lifecycle event
       logger.tripEvent('TRIP_CREATED', tripId, {

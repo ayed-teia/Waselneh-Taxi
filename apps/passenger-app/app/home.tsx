@@ -7,8 +7,10 @@ import { ActiveTripScreen } from '../src/features/trip';
 import { subscribeToActiveTrip } from '../src/services/realtime';
 import { passengerCancelTrip } from '../src/services/api';
 import { TripStatus } from '@taxi-line/shared';
+import { useI18n } from '../src/localization';
 
 export default function Home() {
+  const { t } = useI18n();
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
   const { activeTripId, tripStatus, setActiveTrip, clearTrip } = useTripStore();
@@ -52,13 +54,13 @@ export default function Home() {
       await passengerCancelTrip(activeTripId);
       clearTrip();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to cancel trip';
+      const message = error instanceof Error ? error.message : t('trip.cancel_error_message');
       console.error('Failed to cancel trip:', message);
-      Alert.alert('Cancel failed', message);
+      Alert.alert(t('common.cancel_failed'), message);
     } finally {
       setIsCancelling(false);
     }
-  }, [activeTripId, isCancelling, clearTrip]);
+  }, [activeTripId, isCancelling, clearTrip, t]);
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {

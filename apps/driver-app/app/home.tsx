@@ -17,6 +17,7 @@ import {
   startDriverRequestsListener,
   stopDriverRequestsListener,
 } from '../src/services/realtime';
+import { useI18n } from '../src/localization';
 
 // DEV MODE - set to false to use real GPS from phone
 const DEV_MODE = false;
@@ -42,6 +43,7 @@ const DEV_MODE = false;
  */
 
 export default function Home() {
+  const { isRTL } = useI18n();
   const { isAuthenticated, user } = useAuthStore();
   const { status, setStatus } = useDriverStore();
 
@@ -102,9 +104,11 @@ export default function Home() {
           const hasPermission = await requestLocationPermissions();
           if (!hasPermission) {
             Alert.alert(
-              'Location Required',
-              'Location permission is required to go online. Please enable location access in settings.',
-              [{ text: 'OK' }]
+              isRTL ? 'الموقع مطلوب' : 'Location Required',
+              isRTL
+                ? 'صلاحية الموقع مطلوبة للاتصال. الرجاء تفعيل الموقع من الإعدادات.'
+                : 'Location permission is required to go online. Please enable location access in settings.',
+              [{ text: isRTL ? 'حسناً' : 'OK' }]
             );
             return;
           }
@@ -121,7 +125,10 @@ export default function Home() {
           setStatus('online');
         } catch (error) {
           console.error('Failed to go online:', error);
-          Alert.alert('Error', 'Failed to go online. Please try again.');
+          Alert.alert(
+            isRTL ? 'خطأ' : 'Error',
+            isRTL ? 'تعذر الاتصال الآن. يرجى المحاولة مرة أخرى.' : 'Failed to go online. Please try again.'
+          );
         }
       } else {
         // Go offline
@@ -133,7 +140,7 @@ export default function Home() {
         }
       }
     },
-    [user?.uid, setStatus]
+    [isRTL, user?.uid, setStatus]
   );
 
   // Redirect to login if not authenticated

@@ -1,14 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { TripStatus } from '@taxi-line/shared';
-
-const STEPS: Array<{ key: TripStatus; label: string }> = [
-  { key: 'pending', label: 'Requested' },
-  { key: 'accepted', label: 'Matched' },
-  { key: 'driver_arrived', label: 'Driver arriving' },
-  { key: 'in_progress', label: 'On trip' },
-  { key: 'completed', label: 'Completed' },
-];
+import { useI18n } from '../../../localization';
 
 const STATUS_ORDER: TripStatus[] = [
   'pending',
@@ -28,16 +21,33 @@ interface TripTimelineProps {
 }
 
 export function TripTimeline({ status }: TripTimelineProps) {
+  const { isRTL } = useI18n();
+  const steps: Array<{ key: TripStatus; label: string }> = isRTL
+    ? [
+        { key: 'pending', label: 'تم الطلب' },
+        { key: 'accepted', label: 'تمت المطابقة' },
+        { key: 'driver_arrived', label: 'السائق قادم' },
+        { key: 'in_progress', label: 'أثناء الرحلة' },
+        { key: 'completed', label: 'مكتملة' },
+      ]
+    : [
+        { key: 'pending', label: 'Requested' },
+        { key: 'accepted', label: 'Matched' },
+        { key: 'driver_arrived', label: 'Driver arriving' },
+        { key: 'in_progress', label: 'On trip' },
+        { key: 'completed', label: 'Completed' },
+      ];
+
   const currentIndex = Math.max(
     0,
-    STEPS.findIndex((step) => step.key === status)
+    steps.findIndex((step) => step.key === status)
   );
   const normalizedIndex =
     currentIndex >= 0 ? currentIndex : Math.max(0, STATUS_ORDER.indexOf(status) - 1);
 
   return (
     <View style={styles.container}>
-      {STEPS.map((step, index) => {
+      {steps.map((step, index) => {
         const done = index <= normalizedIndex;
         const upcoming = index > normalizedIndex;
         return (

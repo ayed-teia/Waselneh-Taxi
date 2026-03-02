@@ -3,3 +3,4 @@ export * from './BackButton';
 export * from './LoadingScreen';
 export * from './StatusToggle';
 export * from './TripRequestModal';
+export * from './LanguageToggle';

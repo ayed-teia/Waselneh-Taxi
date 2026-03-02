@@ -4,6 +4,7 @@ import { Redirect, useRouter } from 'expo-router';
 import { Card, EmptyState, Header, LoadingState, ScreenContainer, Text } from '@waselneh/ui';
 import { useAuthStore } from '../src/store';
 import { DriverTripHistoryItem, subscribeToDriverTripHistory } from '../src/services/realtime';
+import { useI18n } from '../src/localization';
 
 function formatDate(value: Date | null | undefined): string {
   if (!value) return '--';
@@ -11,6 +12,7 @@ function formatDate(value: Date | null | undefined): string {
 }
 
 export default function History() {
+  const { isRTL } = useI18n();
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
   const [loading, setLoading] = useState(true);
@@ -51,38 +53,43 @@ export default function History() {
   return (
     <ScreenContainer padded={false} edges={['right', 'left']}>
       <Header
-        title="Trip History"
-        subtitle={`Total earnings: NIS ${Math.round(totalEarnings)}`}
+        title={isRTL ? 'سجل الرحلات' : 'Trip History'}
+        subtitle={isRTL ? `إجمالي الدخل: ₪${Math.round(totalEarnings)}` : `Total earnings: NIS ${Math.round(totalEarnings)}`}
         leftAction={
           <Pressable onPress={() => router.replace('/home')} style={styles.backButton}>
-            <Text style={styles.backButtonText}>{'< Back'}</Text>
+            <Text style={styles.backButtonText}>{isRTL ? 'رجوع >' : '< Back'}</Text>
           </Pressable>
         }
       />
 
       {loading ? (
-        <LoadingState title="Loading history..." />
+        <LoadingState title={isRTL ? 'جاري تحميل السجل...' : 'Loading history...'} />
       ) : (
         <FlatList
           data={trips}
           keyExtractor={(item) => item.id}
           contentContainerStyle={trips.length === 0 ? styles.emptyList : styles.list}
-          ListEmptyComponent={<EmptyState title="No trips yet" subtitle="Your trip archive will appear here." />}
+          ListEmptyComponent={
+            <EmptyState
+              title={isRTL ? 'لا توجد رحلات بعد' : 'No trips yet'}
+              subtitle={isRTL ? 'سيظهر أرشيف الرحلات هنا.' : 'Your trip archive will appear here.'}
+            />
+          }
           renderItem={({ item }) => (
             <Card style={styles.card}>
               <View style={styles.cardRow}>
-                <Text style={styles.tripId}>Trip {item.id.slice(0, 8)}</Text>
+                <Text style={styles.tripId}>{isRTL ? `رحلة ${item.id.slice(0, 8)}` : `Trip ${item.id.slice(0, 8)}`}</Text>
                 <Text>{item.status}</Text>
               </View>
               <Text muted style={styles.detailText}>
-                Pickup: {item.pickup.lat.toFixed(4)}, {item.pickup.lng.toFixed(4)}
+                {isRTL ? 'الالتقاط' : 'Pickup'}: {item.pickup.lat.toFixed(4)}, {item.pickup.lng.toFixed(4)}
               </Text>
               <Text muted style={styles.detailText}>
-                Dropoff: {item.dropoff.lat.toFixed(4)}, {item.dropoff.lng.toFixed(4)}
+                {isRTL ? 'الوصول' : 'Dropoff'}: {item.dropoff.lat.toFixed(4)}, {item.dropoff.lng.toFixed(4)}
               </Text>
               <View style={styles.cardRow}>
-                <Text>Fare</Text>
-                <Text style={styles.fare}>NIS {Math.round(item.finalPriceIls ?? item.estimatedPriceIls)}</Text>
+                <Text>{isRTL ? 'الأجرة' : 'Fare'}</Text>
+                <Text style={styles.fare}>{isRTL ? '₪' : 'NIS '} {Math.round(item.finalPriceIls ?? item.estimatedPriceIls)}</Text>
               </View>
               <Text muted style={styles.detailText}>{formatDate(item.completedAt ?? item.createdAt)}</Text>
             </Card>

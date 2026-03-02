@@ -4,6 +4,7 @@ import { Redirect, useRouter } from 'expo-router';
 import { Card, Header, LoadingState, ScreenContainer, Text } from '@waselneh/ui';
 import { getDriverEarningsSummary, DriverEarningsSummaryResponse } from '../src/services/api';
 import { useAuthStore } from '../src/store';
+import { useI18n } from '../src/localization';
 
 function formatHours(minutes: number): string {
   const hours = minutes / 60;
@@ -11,6 +12,7 @@ function formatHours(minutes: number): string {
 }
 
 export default function Earnings() {
+  const { isRTL } = useI18n();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [loading, setLoading] = useState(true);
@@ -42,39 +44,41 @@ export default function Earnings() {
   return (
     <ScreenContainer padded={false} edges={['right', 'left']}>
       <Header
-        title="Earnings"
-        subtitle="Daily and weekly driver performance"
+        title={isRTL ? 'الأرباح' : 'Earnings'}
+        subtitle={isRTL ? 'أداء السائق اليومي والأسبوعي' : 'Daily and weekly driver performance'}
         leftAction={
           <Pressable onPress={() => router.replace('/home')} style={styles.backButton}>
-            <Text style={styles.backButtonText}>{'< Back'}</Text>
+            <Text style={styles.backButtonText}>{isRTL ? 'رجوع >' : '< Back'}</Text>
           </Pressable>
         }
       />
 
       {loading || !summary ? (
-        <LoadingState title="Loading earnings..." />
+        <LoadingState title={isRTL ? 'جاري تحميل الأرباح...' : 'Loading earnings...'} />
       ) : (
         <View style={styles.content}>
           <Card style={styles.card}>
-            <Text style={styles.sectionTitle}>Today</Text>
-            <Text style={styles.value}>NIS {summary.day.totalEarningsIls.toFixed(2)}</Text>
-            <Text muted>Trips: {summary.day.tripsCount}</Text>
-            <Text muted>Avg fare: NIS {summary.day.averageFareIls.toFixed(2)}</Text>
-            <Text muted>Working time: {formatHours(summary.day.workingMinutes)}</Text>
+            <Text style={styles.sectionTitle}>{isRTL ? 'اليوم' : 'Today'}</Text>
+            <Text style={styles.value}>{isRTL ? '₪' : 'NIS '} {summary.day.totalEarningsIls.toFixed(2)}</Text>
+            <Text muted>{isRTL ? 'الرحلات' : 'Trips'}: {summary.day.tripsCount}</Text>
+            <Text muted>{isRTL ? 'متوسط الأجرة' : 'Avg fare'}: {isRTL ? '₪' : 'NIS '} {summary.day.averageFareIls.toFixed(2)}</Text>
+            <Text muted>{isRTL ? 'وقت العمل' : 'Working time'}: {formatHours(summary.day.workingMinutes)}</Text>
           </Card>
 
           <Card style={styles.card}>
-            <Text style={styles.sectionTitle}>Last 7 days</Text>
-            <Text style={styles.value}>NIS {summary.week.totalEarningsIls.toFixed(2)}</Text>
-            <Text muted>Trips: {summary.week.tripsCount}</Text>
-            <Text muted>Avg fare: NIS {summary.week.averageFareIls.toFixed(2)}</Text>
-            <Text muted>Working time: {formatHours(summary.week.workingMinutes)}</Text>
+            <Text style={styles.sectionTitle}>{isRTL ? 'آخر 7 أيام' : 'Last 7 days'}</Text>
+            <Text style={styles.value}>{isRTL ? '₪' : 'NIS '} {summary.week.totalEarningsIls.toFixed(2)}</Text>
+            <Text muted>{isRTL ? 'الرحلات' : 'Trips'}: {summary.week.tripsCount}</Text>
+            <Text muted>{isRTL ? 'متوسط الأجرة' : 'Avg fare'}: {isRTL ? '₪' : 'NIS '} {summary.week.averageFareIls.toFixed(2)}</Text>
+            <Text muted>{isRTL ? 'وقت العمل' : 'Working time'}: {formatHours(summary.week.workingMinutes)}</Text>
           </Card>
 
           <Card style={styles.card}>
-            <Text style={styles.sectionTitle}>Incentive tracker</Text>
+            <Text style={styles.sectionTitle}>{isRTL ? 'متتبع الحوافز' : 'Incentive tracker'}</Text>
             <Text muted>
-              Complete {Math.max(0, 30 - summary.week.tripsCount)} more rides this week to unlock performance bonus.
+              {isRTL
+                ? `أكمل ${Math.max(0, 30 - summary.week.tripsCount)} رحلة إضافية هذا الأسبوع لفتح مكافأة الأداء.`
+                : `Complete ${Math.max(0, 30 - summary.week.tripsCount)} more rides this week to unlock performance bonus.`}
             </Text>
           </Card>
         </View>

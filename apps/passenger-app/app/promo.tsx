@@ -3,8 +3,10 @@ import { Alert, Pressable, Share, StyleSheet, TextInput, View } from 'react-nati
 import { Redirect, useRouter } from 'expo-router';
 import { Button, Header, ScreenContainer, Text } from '@waselneh/ui';
 import { useAuthStore } from '../src/store';
+import { useI18n } from '../src/localization';
 
 export default function Promo() {
+  const { isRTL } = useI18n();
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
   const [promoCode, setPromoCode] = useState('');
@@ -12,16 +14,23 @@ export default function Promo() {
 
   const applyPromo = () => {
     if (!promoCode.trim()) {
-      Alert.alert('Promo code', 'Enter a promo code first.');
+      Alert.alert(isRTL ? 'رمز الخصم' : 'Promo code', isRTL ? 'أدخل رمز الخصم أولاً.' : 'Enter a promo code first.');
       return;
     }
-    Alert.alert('Promo added', `Code ${promoCode.trim().toUpperCase()} will apply on your next fare.`);
+    Alert.alert(
+      isRTL ? 'تمت إضافة الرمز' : 'Promo added',
+      isRTL
+        ? `سيتم تطبيق الرمز ${promoCode.trim().toUpperCase()} على أجرتك القادمة.`
+        : `Code ${promoCode.trim().toUpperCase()} will apply on your next fare.`
+    );
     setPromoCode('');
   };
 
   const shareReferral = async () => {
     await Share.share({
-      message: `Join Waselneh with my referral code ${referralCode} and get a welcome promo.`,
+      message: isRTL
+        ? `انضم إلى وصلني باستخدام رمز الإحالة ${referralCode} واحصل على عرض ترحيبي.`
+        : `Join Waselneh with my referral code ${referralCode} and get a welcome promo.`,
     });
   };
 
@@ -32,35 +41,35 @@ export default function Promo() {
   return (
     <ScreenContainer padded={false} edges={['right', 'left']}>
       <Header
-        title="Promo & Referral"
-        subtitle="Discounts for riders and growth incentives"
+        title={isRTL ? 'العروض والإحالة' : 'Promo & Referral'}
+        subtitle={isRTL ? 'خصومات للركاب وحوافز نمو' : 'Discounts for riders and growth incentives'}
         leftAction={
           <Pressable onPress={() => router.replace('/home')} style={styles.backButton}>
-            <Text style={styles.backButtonText}>{'< Back'}</Text>
+            <Text style={styles.backButtonText}>{isRTL ? 'رجوع >' : '< Back'}</Text>
           </Pressable>
         }
       />
 
       <View style={styles.content}>
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Apply promo</Text>
+          <Text style={styles.sectionTitle}>{isRTL ? 'تفعيل خصم' : 'Apply promo'}</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter promo code"
+            placeholder={isRTL ? 'أدخل رمز الخصم' : 'Enter promo code'}
             value={promoCode}
             onChangeText={setPromoCode}
             autoCapitalize="characters"
           />
-          <Button title="Apply code" onPress={applyPromo} />
+          <Button title={isRTL ? 'تفعيل الرمز' : 'Apply code'} onPress={applyPromo} />
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Referral</Text>
+          <Text style={styles.sectionTitle}>{isRTL ? 'الإحالة' : 'Referral'}</Text>
           <Text muted style={styles.hint}>
-            Share your rider referral code:
+            {isRTL ? 'شارك رمز إحالة الراكب الخاص بك:' : 'Share your rider referral code:'}
           </Text>
           <Text style={styles.refCode}>{referralCode}</Text>
-          <Button title="Share referral" variant="secondary" onPress={shareReferral} />
+          <Button title={isRTL ? 'مشاركة الإحالة' : 'Share referral'} variant="secondary" onPress={shareReferral} />
         </View>
       </View>
     </ScreenContainer>

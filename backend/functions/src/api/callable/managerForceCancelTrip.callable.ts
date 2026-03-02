@@ -7,6 +7,7 @@ import { getFirestore } from '../../core/config';
 import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError, handleError } from '../../core/errors';
 import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
+import { publishTripStatusNotifications } from '../../modules/notifications';
 
 const ForceCancelTripSchema = z.object({
   tripId: z.string().min(1),
@@ -54,6 +55,9 @@ export const managerForceCancelTrip = onCall<unknown, Promise<ForceCancelTripRes
         reason: reason || 'manager_override',
       });
 
+      let driverIdForNotify = '';
+      let passengerIdForNotify = '';
+
       await db.runTransaction(async (transaction) => {
         const tripRef = db.collection('trips').doc(tripId);
         const tripDoc = await transaction.get(tripRef);
@@ -62,6 +66,8 @@ export const managerForceCancelTrip = onCall<unknown, Promise<ForceCancelTripRes
         }
 
         const tripData = tripDoc.data()!;
+        driverIdForNotify = String(tripData.driverId || '');
+        passengerIdForNotify = String(tripData.passengerId || '');
         if (!ACTIVE_TRIP_STATUSES.includes(tripData.status)) {
           throw new ForbiddenError(`Trip is already ${tripData.status}`);
         }
@@ -118,6 +124,33 @@ export const managerForceCancelTrip = onCall<unknown, Promise<ForceCancelTripRes
         reason: reason || 'manager_override',
         cancelledBy: managerId,
         cancellerRole: 'manager',
+      });
+
+      await publishTripStatusNotifications({
+        tripId,
+        status: TripStatus.CANCELLED_BY_SYSTEM,
+        recipients: [
+          ...(driverIdForNotify
+            ? [
+                {
+                  userId: driverIdForNotify,
+                  role: 'driver' as const,
+                },
+              ]
+            : []),
+          ...(passengerIdForNotify
+            ? [
+                {
+                  userId: passengerIdForNotify,
+                  role: 'passenger' as const,
+                },
+              ]
+            : []),
+        ],
+        metadata: {
+          cancelledBy: managerId,
+          reason: reason || 'manager_override',
+        },
       });
 
       logger.info('[ManagerCancel] COMPLETE', { tripId, managerId });

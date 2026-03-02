@@ -29,6 +29,7 @@ module.exports = {
       permissions: [
         'ACCESS_COARSE_LOCATION',
         'ACCESS_FINE_LOCATION',
+        'POST_NOTIFICATIONS',
       ],
     },
     web: {
@@ -38,6 +39,7 @@ module.exports = {
     },
     plugins: [
       'expo-router',
+      'expo-notifications',
       [
         'expo-location',
         {

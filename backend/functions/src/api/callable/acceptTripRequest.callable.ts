@@ -7,6 +7,7 @@ import { handleError, ValidationError, NotFoundError, ForbiddenError, Unauthoriz
 import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { publishTripStatusNotifications } from '../../modules/notifications';
 
 /**
  * ============================================================================
@@ -100,6 +101,7 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
       logger.info('✅ [AcceptTrip] START', { driverId, tripId });
 
       const db = getFirestore();
+      let passengerIdForNotify = '';
 
       // ========================================
       // 3. Run transaction for atomicity
@@ -182,6 +184,7 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
         }
 
         logger.info('🔒 [AcceptTrip] Driver assignment verified ✓');
+        passengerIdForNotify = String(tripData.passengerId || '');
 
         // ========================================
         // 8. Update trip status to ACCEPTED
@@ -224,6 +227,22 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
           driverId,
           passengerId: tripData.passengerId,
         });
+      });
+
+      await publishTripStatusNotifications({
+        tripId,
+        status: TripStatus.ACCEPTED,
+        recipients: passengerIdForNotify
+          ? [
+              {
+                userId: passengerIdForNotify,
+                role: 'passenger',
+              },
+            ]
+          : [],
+        metadata: {
+          driverId,
+        },
       });
 
       return { tripId };

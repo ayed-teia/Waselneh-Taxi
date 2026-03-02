@@ -9,8 +9,7 @@ import {
   View,
 } from 'react-native';
 import { TripChatMessage } from '../../../services/realtime';
-
-const QUICK_REPLIES = ['I arrived', 'I am nearby', 'Traffic delay'];
+import { useI18n } from '../../../localization';
 
 interface TripChatPanelProps {
   messages: TripChatMessage[];
@@ -20,6 +19,8 @@ interface TripChatPanelProps {
 }
 
 export function TripChatPanel({ messages, myRole, onSend, sending = false }: TripChatPanelProps) {
+  const { isRTL } = useI18n();
+  const quickReplies = isRTL ? ['وصلت', 'أنا قريب', 'تأخير بسبب الازدحام'] : ['I arrived', 'I am nearby', 'Traffic delay'];
   const [draft, setDraft] = useState('');
   const recent = useMemo(() => messages.slice(-8), [messages]);
 
@@ -32,10 +33,10 @@ export function TripChatPanel({ messages, myRole, onSend, sending = false }: Tri
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>In-app chat</Text>
+      <Text style={styles.title}>{isRTL ? 'دردشة داخل التطبيق' : 'In-app chat'}</Text>
       <ScrollView style={styles.messages} contentContainerStyle={styles.messagesContent}>
         {recent.length === 0 ? (
-          <Text style={styles.empty}>No messages yet.</Text>
+          <Text style={styles.empty}>{isRTL ? 'لا توجد رسائل بعد.' : 'No messages yet.'}</Text>
         ) : (
           recent.map((message) => {
             const isMine = message.senderRole === myRole;
@@ -48,19 +49,19 @@ export function TripChatPanel({ messages, myRole, onSend, sending = false }: Tri
         )}
       </ScrollView>
 
-      <View style={styles.quickReplies}>
-        {QUICK_REPLIES.map((reply) => (
+      <View style={[styles.quickReplies, isRTL && styles.rowReverse]}>
+        {quickReplies.map((reply) => (
           <Pressable key={reply} onPress={() => submit(reply, true)} style={styles.quickChip}>
             <Text style={styles.quickChipText}>{reply}</Text>
           </Pressable>
         ))}
       </View>
 
-      <View style={styles.compose}>
+      <View style={[styles.compose, isRTL && styles.rowReverse]}>
         <TextInput
           value={draft}
           onChangeText={setDraft}
-          placeholder="Type a message"
+          placeholder={isRTL ? 'اكتب رسالة' : 'Type a message'}
           style={styles.input}
           editable={!sending}
         />
@@ -69,7 +70,7 @@ export function TripChatPanel({ messages, myRole, onSend, sending = false }: Tri
           onPress={() => submit(draft)}
           disabled={sending}
         >
-          <Text style={styles.sendText}>{sending ? '...' : 'Send'}</Text>
+          <Text style={styles.sendText}>{sending ? '...' : isRTL ? 'إرسال' : 'Send'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -128,6 +129,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
+  },
+  rowReverse: {
+    flexDirection: 'row-reverse',
   },
   quickChip: {
     borderRadius: 999,

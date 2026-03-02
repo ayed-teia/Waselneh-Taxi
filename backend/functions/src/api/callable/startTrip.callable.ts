@@ -7,6 +7,7 @@ import { handleError, ValidationError, NotFoundError, ForbiddenError, Unauthoriz
 import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
+import { publishTripStatusNotifications } from '../../modules/notifications';
 
 /**
  * ============================================================================
@@ -88,6 +89,7 @@ export const startTrip = onCall<unknown, Promise<StartTripResponse>>(
 
       const db = getFirestore();
       const tripRef = db.collection('trips').doc(tripId);
+      let passengerIdForNotify = '';
 
       // Use transaction to prevent race conditions
       const newStatus = await db.runTransaction(async (transaction) => {
@@ -115,6 +117,7 @@ export const startTrip = onCall<unknown, Promise<StartTripResponse>>(
         }
 
         logger.info('🔒 [StartTrip] Current status: driver_arrived ✓', { tripId });
+        passengerIdForNotify = String(tripData.passengerId || '');
 
         // Update trip status within transaction
         transaction.update(tripRef, {
@@ -127,6 +130,22 @@ export const startTrip = onCall<unknown, Promise<StartTripResponse>>(
       });
 
       logger.info('📝 [StartTrip] Trip status → in_progress', { tripId });
+
+      await publishTripStatusNotifications({
+        tripId,
+        status: TripStatus.IN_PROGRESS,
+        recipients: passengerIdForNotify
+          ? [
+              {
+                userId: passengerIdForNotify,
+                role: 'passenger',
+              },
+            ]
+          : [],
+        metadata: {
+          driverId,
+        },
+      });
       
       // Log trip lifecycle event
       logger.tripEvent('TRIP_STARTED', tripId, { driverId });

@@ -7,6 +7,7 @@ import { getFirestore } from '../../core/config';
 import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError, handleError } from '../../core/errors';
 import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
+import { publishTripStatusNotifications } from '../../modules/notifications';
 
 const CancelTripSchema = z.object({
   tripId: z.string().min(1),
@@ -41,6 +42,7 @@ export const passengerCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
       logger.info('[PassengerCancel] START', { passengerId, tripId });
 
       const db = getFirestore();
+      let driverIdForNotify = '';
 
       await db.runTransaction(async (transaction) => {
         const tripRef = db.collection('trips').doc(tripId);
@@ -61,6 +63,7 @@ export const passengerCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
         }
 
         const driverId = tripData.driverId as string | undefined;
+        driverIdForNotify = driverId || '';
         let shouldUpdateDriverRequest = false;
 
         // Read optional docs before writes (required by Firestore transactions).
@@ -111,6 +114,28 @@ export const passengerCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
       logger.tripEvent('TRIP_CANCELLED', tripId, {
         reason: 'passenger_cancelled',
         cancelledBy: passengerId,
+      });
+
+      await publishTripStatusNotifications({
+        tripId,
+        status: TripStatus.CANCELLED_BY_PASSENGER,
+        recipients: [
+          {
+            userId: passengerId,
+            role: 'passenger',
+          },
+          ...(driverIdForNotify
+            ? [
+                {
+                  userId: driverIdForNotify,
+                  role: 'driver' as const,
+                },
+              ]
+            : []),
+        ],
+        metadata: {
+          cancelledBy: passengerId,
+        },
       });
 
       logger.info('[PassengerCancel] COMPLETE', { tripId });

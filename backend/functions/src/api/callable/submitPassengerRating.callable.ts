@@ -12,6 +12,7 @@ import {
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 import { TripStatus } from '@taxi-line/shared';
+import { publishTripStatusNotifications } from '../../modules/notifications';
 
 const SubmitPassengerRatingSchema = z.object({
   tripId: z.string().min(1),
@@ -47,6 +48,7 @@ export const submitPassengerRating = onCall<unknown, Promise<SubmitPassengerRati
       const db = getFirestore();
       const tripRef = db.collection('trips').doc(tripId);
       const ratingRef = db.collection('passengerRatings').doc(tripId);
+      let passengerIdForNotify = '';
 
       await db.runTransaction(async (transaction) => {
         const [tripDoc, existingRating] = await Promise.all([
@@ -63,6 +65,7 @@ export const submitPassengerRating = onCall<unknown, Promise<SubmitPassengerRati
         }
 
         const trip = tripDoc.data()!;
+        passengerIdForNotify = String(trip.passengerId || '');
         if (trip.driverId !== driverId) {
           throw new ForbiddenError('You are not assigned to this trip');
         }
@@ -97,6 +100,24 @@ export const submitPassengerRating = onCall<unknown, Promise<SubmitPassengerRati
           { merge: true }
         );
       });
+
+      if (passengerIdForNotify) {
+        await publishTripStatusNotifications({
+          tripId,
+          status: TripStatus.RATED,
+          recipients: [
+            {
+              userId: passengerIdForNotify,
+              role: 'passenger',
+            },
+          ],
+          metadata: {
+            ratedBy: driverId,
+            rating,
+            scope: 'passenger_feedback',
+          },
+        });
+      }
 
       return {
         success: true,

@@ -1,0 +1,79 @@
+export type AppLocale = 'en' | 'ar';
+
+export const PASSENGER_TRANSLATIONS: Record<AppLocale, Record<string, string>> = {
+  en: {
+    'language.label': 'Language',
+    'language.english': 'English',
+    'language.arabic': 'العربية',
+
+    'common.ok': 'OK',
+    'common.retry': 'Retry',
+    'common.back_home': 'Back to Home',
+    'common.loading_trip': 'Loading trip...',
+    'common.trip_error': 'Trip error',
+    'common.trip_not_found': 'Trip not found',
+    'common.network_issue': 'Network issue',
+    'common.cancel_failed': 'Cancel failed',
+    'common.chat_failed': 'Chat failed',
+    'common.action_failed': 'Action failed',
+    'common.trip_update': 'Trip update',
+
+    'status.accepted': 'A driver has accepted your trip.',
+    'status.driver_arrived': 'Your driver has arrived at pickup.',
+    'status.in_progress': 'Trip started. You are on the way.',
+    'status.completed': 'Trip completed successfully.',
+    'status.cancelled_by_driver': 'Driver cancelled this trip.',
+    'status.cancelled_by_system': 'Trip was cancelled by system.',
+    'status.no_driver_available': 'No driver available right now.',
+    'status.default': 'Trip status updated.',
+
+    'trip.cancel_error_message': 'Failed to cancel trip',
+    'trip.chat_queued': 'Message queued and will be retried.',
+    'trip.chat_failed': 'Unable to send message',
+    'trip.emergency_call_failed': 'Could not open emergency dialer.',
+    'trip.trusted_contact_failed': 'Could not call trusted contact.',
+    'trip.trusted_contact_label': 'Trusted contact',
+
+    'auth.login_failed': 'Login failed',
+    'auth.login_generic': 'Unable to sign in right now.',
+    'auth.starting': 'Starting Waselneh...',
+  },
+  ar: {
+    'language.label': 'اللغة',
+    'language.english': 'English',
+    'language.arabic': 'العربية',
+
+    'common.ok': 'حسناً',
+    'common.retry': 'إعادة المحاولة',
+    'common.back_home': 'العودة للرئيسية',
+    'common.loading_trip': 'جاري تحميل الرحلة...',
+    'common.trip_error': 'خطأ في الرحلة',
+    'common.trip_not_found': 'الرحلة غير موجودة',
+    'common.network_issue': 'مشكلة في الشبكة',
+    'common.cancel_failed': 'فشل الإلغاء',
+    'common.chat_failed': 'فشل الدردشة',
+    'common.action_failed': 'فشل التنفيذ',
+    'common.trip_update': 'تحديث الرحلة',
+
+    'status.accepted': 'تم قبول رحلتك من السائق.',
+    'status.driver_arrived': 'السائق وصل إلى نقطة الالتقاط.',
+    'status.in_progress': 'بدأت الرحلة. أنت في الطريق.',
+    'status.completed': 'اكتملت الرحلة بنجاح.',
+    'status.cancelled_by_driver': 'السائق ألغى الرحلة.',
+    'status.cancelled_by_system': 'تم إلغاء الرحلة من النظام.',
+    'status.no_driver_available': 'لا يوجد سائق متاح حالياً.',
+    'status.default': 'تم تحديث حالة الرحلة.',
+
+    'trip.cancel_error_message': 'تعذر إلغاء الرحلة',
+    'trip.chat_queued': 'تمت إضافة الرسالة للطابور وسيعاد إرسالها.',
+    'trip.chat_failed': 'تعذر إرسال الرسالة',
+    'trip.emergency_call_failed': 'تعذر فتح اتصال الطوارئ.',
+    'trip.trusted_contact_failed': 'تعذر الاتصال بجهة الاتصال الموثوقة.',
+    'trip.trusted_contact_label': 'جهة اتصال موثوقة',
+
+    'auth.login_failed': 'فشل تسجيل الدخول',
+    'auth.login_generic': 'تعذر تسجيل الدخول حالياً.',
+    'auth.starting': 'جاري تشغيل وصلني...',
+  },
+};
+

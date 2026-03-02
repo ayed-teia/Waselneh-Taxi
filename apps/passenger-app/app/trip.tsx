@@ -19,6 +19,7 @@ import {
 import { useAuthStore } from '../src/store';
 import { RetryQueue } from '../src/services';
 import { BackButton } from '../src/ui';
+import { useI18n } from '../src/localization';
 
 function isNetworkError(error: unknown): boolean {
   const text = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
@@ -30,28 +31,29 @@ function isNetworkError(error: unknown): boolean {
   );
 }
 
-function statusMessage(status: TripStatus): string {
+function statusMessage(status: TripStatus, t: (key: string) => string): string {
   switch (status) {
     case 'accepted':
-      return 'A driver has accepted your trip.';
+      return t('status.accepted');
     case 'driver_arrived':
-      return 'Your driver has arrived at pickup.';
+      return t('status.driver_arrived');
     case 'in_progress':
-      return 'Trip started. You are on the way.';
+      return t('status.in_progress');
     case 'completed':
-      return 'Trip completed successfully.';
+      return t('status.completed');
     case 'cancelled_by_driver':
-      return 'Driver cancelled this trip.';
+      return t('status.cancelled_by_driver');
     case 'cancelled_by_system':
-      return 'Trip was cancelled by system.';
+      return t('status.cancelled_by_system');
     case 'no_driver_available':
-      return 'No driver available right now.';
+      return t('status.no_driver_available');
     default:
-      return 'Trip status updated.';
+      return t('status.default');
   }
 }
 
 export default function Trip() {
+  const { t } = useI18n();
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
   const params = useLocalSearchParams<{ tripId: string }>();
@@ -91,7 +93,7 @@ export default function Trip() {
 
         const nextStatus = (tripData?.status as TripStatus | undefined) ?? null;
         if (nextStatus && previousStatusRef.current && previousStatusRef.current !== nextStatus) {
-          Alert.alert('Trip update', statusMessage(nextStatus));
+          Alert.alert(t('common.trip_update'), statusMessage(nextStatus, t));
         }
         if (nextStatus) {
           previousStatusRef.current = nextStatus;
@@ -120,7 +122,7 @@ export default function Trip() {
     );
 
     return () => unsubscribe();
-  }, [tripId, router, hasRated]);
+  }, [tripId, router, hasRated, t]);
 
   useEffect(() => {
     if (!trip?.driverId) {
@@ -237,9 +239,9 @@ export default function Trip() {
       await passengerCancelTrip(tripId);
       router.replace('/home');
     } catch (cancelError) {
-      const message = cancelError instanceof Error ? cancelError.message : 'Failed to cancel trip';
+      const message = cancelError instanceof Error ? cancelError.message : t('trip.cancel_error_message');
       console.error('Failed to cancel trip:', message);
-      Alert.alert('Cancel failed', message);
+      Alert.alert(t('common.cancel_failed'), message);
     } finally {
       setIsCancelling(false);
     }
@@ -291,9 +293,12 @@ export default function Trip() {
             label: 'trip-chat-message',
             run: sendAction,
           });
-          Alert.alert('Network issue', 'Message queued and will be retried.');
+          Alert.alert(t('common.network_issue'), t('trip.chat_queued'));
         } else {
-          Alert.alert('Chat failed', sendError instanceof Error ? sendError.message : 'Unable to send message');
+          Alert.alert(
+            t('common.chat_failed'),
+            sendError instanceof Error ? sendError.message : t('trip.chat_failed')
+          );
         }
       } finally {
         setIsSendingChat(false);
@@ -317,23 +322,23 @@ export default function Trip() {
     try {
       await Linking.openURL('tel:101');
     } catch {
-      Alert.alert('Action failed', 'Could not open emergency dialer.');
+      Alert.alert(t('common.action_failed'), t('trip.emergency_call_failed'));
     }
-  }, []);
+  }, [t]);
 
   const handleTrustedContactCall = useCallback(async () => {
     try {
       await Linking.openURL('tel:+970599000000');
     } catch {
-      Alert.alert('Action failed', 'Could not call trusted contact.');
+      Alert.alert(t('common.action_failed'), t('trip.trusted_contact_failed'));
     }
-  }, []);
+  }, [t]);
 
   if (loading) {
     return (
       <ScreenContainer padded={false} edges={[]}>
         <BackButton fallbackRoute="/home" />
-        <LoadingState title="Loading trip..." />
+        <LoadingState title={t('common.loading_trip')} />
       </ScreenContainer>
     );
   }
@@ -343,10 +348,10 @@ export default function Trip() {
       <ScreenContainer padded={false} edges={[]}>
         <BackButton fallbackRoute="/home" />
         <ErrorState
-          title="Trip error"
-          message={error || 'Trip not found'}
+          title={t('common.trip_error')}
+          message={error || t('common.trip_not_found')}
           onRetry={() => router.replace('/home')}
-          retryLabel="Back to Home"
+          retryLabel={t('common.back_home')}
         />
       </ScreenContainer>
     );
@@ -389,7 +394,7 @@ export default function Trip() {
         onShareTrip={handleShareTrip}
         onEmergencyCall={handleEmergencyCall}
         onCallTrustedContact={handleTrustedContactCall}
-        trustedContactLabel="Trusted contact"
+        trustedContactLabel={t('trip.trusted_contact_label')}
         onCancel={handleCancel}
         onGoHome={handleGoHome}
         isCancelling={isCancelling}

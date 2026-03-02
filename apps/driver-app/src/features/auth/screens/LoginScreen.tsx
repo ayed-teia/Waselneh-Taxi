@@ -2,6 +2,8 @@ import React from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Button, Card, ScreenContainer, Text } from '@waselneh/ui';
 import { colors } from '../../../ui/theme';
+import { useI18n } from '../../../localization';
+import { LanguageToggle } from '../../../ui';
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -9,6 +11,7 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
+  const { isRTL } = useI18n();
   const { width, height } = useWindowDimensions();
   const isCompact = height < 760;
   const contentWidth = Math.min(width - 32, 430);
@@ -21,42 +24,54 @@ export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
 
       <View style={[styles.page, { paddingHorizontal: horizontalPadding }]}>
         <View style={[styles.header, { marginTop: isCompact ? 22 : 34 }]}>
+          <LanguageToggle />
           <View style={styles.badge}>
             <Text variant="caption" style={styles.badgeText}>
-              Driver Console
+              {isRTL ? 'لوحة السائق' : 'Driver Console'}
             </Text>
           </View>
           <Text variant="h1" style={styles.title}>
-            Waselneh Driver
+            {isRTL ? 'سائق وصلني' : 'Waselneh Driver'}
           </Text>
           <Text muted style={styles.subtitle}>
-            Go online, accept nearby trips, and track route conditions in real time.
+            {isRTL
+              ? 'اتصل الآن، اقبل الرحلات القريبة، وتابع حالة الطرق لحظياً.'
+              : 'Go online, accept nearby trips, and track route conditions in real time.'}
           </Text>
         </View>
 
         <View style={[styles.content, { marginTop: isCompact ? 28 : 40 }]}>
           <Card elevated style={styles.card}>
             <Text style={styles.description}>
-              Built for route-line drivers with fast trip actions, live requests, and safer dispatch visibility.
+              {isRTL
+                ? 'مصمم لسائقي الخطوط بإجراءات رحلة سريعة وطلبات مباشرة ورؤية أوضح للتوزيع.'
+                : 'Built for route-line drivers with fast trip actions, live requests, and safer dispatch visibility.'}
             </Text>
             <View style={styles.featureRow}>
               <View style={[styles.featureDot, styles.greenDot]} />
-              <Text style={styles.featureText}>Instant trip request inbox</Text>
+              <Text style={styles.featureText}>{isRTL ? 'صندوق طلبات فوري' : 'Instant trip request inbox'}</Text>
             </View>
             <View style={styles.featureRow}>
               <View style={[styles.featureDot, styles.yellowDot]} />
-              <Text style={styles.featureText}>Roadblock-aware driving map</Text>
+              <Text style={styles.featureText}>{isRTL ? 'خريطة قيادة تراعي الإغلاقات' : 'Roadblock-aware driving map'}</Text>
             </View>
           </Card>
         </View>
 
         <View style={[styles.footer, { paddingBottom: isCompact ? 10 : 18 }]}>
-          <Button title="Continue with Phone" onPress={onLogin} loading={loading} style={styles.loginButton} />
+          <Button
+            title={isRTL ? 'المتابعة برقم الهاتف' : 'Continue with Phone'}
+            onPress={onLogin}
+            loading={loading}
+            style={styles.loginButton}
+          />
           <Text variant="caption" muted style={styles.terms}>
-            By continuing, you agree to our Terms of Service and Driver Agreement.
+            {isRTL
+              ? 'بالمتابعة، أنت توافق على شروط الخدمة واتفاقية السائق.'
+              : 'By continuing, you agree to our Terms of Service and Driver Agreement.'}
           </Text>
           <Text variant="caption" muted style={styles.version}>
-            Operations mode
+            {isRTL ? 'وضع التشغيل' : 'Operations mode'}
           </Text>
         </View>
       </View>

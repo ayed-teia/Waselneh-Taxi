@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useI18n } from '../../../localization';
 
 interface SafetyToolsCardProps {
   onShareTrip: () => void;
@@ -14,19 +15,21 @@ export function SafetyToolsCard({
   onCallTrustedContact,
   trustedContactLabel = 'Trusted contact',
 }: SafetyToolsCardProps) {
+  const { isRTL } = useI18n();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Safety tools</Text>
-      <View style={styles.row}>
+      <Text style={styles.title}>{isRTL ? 'أدوات الأمان' : 'Safety tools'}</Text>
+      <View style={[styles.row, isRTL && styles.rowReverse]}>
         <Pressable style={[styles.button, styles.shareButton]} onPress={onShareTrip}>
-          <Text style={styles.buttonText}>Share trip</Text>
+          <Text style={styles.buttonText}>{isRTL ? 'مشاركة الرحلة' : 'Share trip'}</Text>
         </Pressable>
         <Pressable style={[styles.button, styles.contactButton]} onPress={onCallTrustedContact}>
           <Text style={styles.buttonText}>{trustedContactLabel}</Text>
         </Pressable>
       </View>
       <Pressable style={[styles.button, styles.emergencyButton]} onPress={onEmergencyCall}>
-        <Text style={styles.emergencyText}>Emergency call</Text>
+        <Text style={styles.emergencyText}>{isRTL ? 'اتصال طوارئ' : 'Emergency call'}</Text>
       </Pressable>
     </View>
   );
@@ -50,6 +53,9 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: 8,
+  },
+  rowReverse: {
+    flexDirection: 'row-reverse',
   },
   button: {
     minHeight: 38,

@@ -7,6 +7,7 @@ import { getFirestore } from '../../core/config';
 import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError, handleError } from '../../core/errors';
 import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
+import { publishTripStatusNotifications } from '../../modules/notifications';
 
 const CancelTripSchema = z.object({
   tripId: z.string().min(1),
@@ -42,6 +43,7 @@ export const driverCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
       logger.info('[DriverCancel] START', { driverId, tripId, reason });
 
       const db = getFirestore();
+      let passengerIdForNotify = '';
 
       await db.runTransaction(async (transaction) => {
         const tripRef = db.collection('trips').doc(tripId);
@@ -56,6 +58,7 @@ export const driverCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
         if (tripData.driverId !== driverId) {
           throw new ForbiddenError('You are not assigned to this trip');
         }
+        passengerIdForNotify = String(tripData.passengerId || '');
 
         if (!DRIVER_CANCELLABLE_STATUSES.includes(tripData.status)) {
           throw new ForbiddenError(`Cannot cancel trip with status: ${tripData.status}`);
@@ -101,6 +104,28 @@ export const driverCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
         reason: reason || 'driver_cancelled',
         cancelledBy: driverId,
         cancellerRole: 'driver',
+      });
+
+      await publishTripStatusNotifications({
+        tripId,
+        status: TripStatus.CANCELLED_BY_DRIVER,
+        recipients: [
+          {
+            userId: driverId,
+            role: 'driver',
+          },
+          ...(passengerIdForNotify
+            ? [
+                {
+                  userId: passengerIdForNotify,
+                  role: 'passenger' as const,
+                },
+              ]
+            : []),
+        ],
+        metadata: {
+          cancelledBy: driverId,
+        },
       });
 
       logger.info('[DriverCancel] COMPLETE', { tripId, driverId });

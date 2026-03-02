@@ -7,6 +7,7 @@ import { handleError, ValidationError, NotFoundError, UnauthorizedError } from '
 import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
+import { publishTripStatusNotifications } from '../../modules/notifications';
 
 /**
  * ============================================================================
@@ -99,6 +100,8 @@ export const rejectTripRequest = onCall<unknown, Promise<RejectTripRequestRespon
       });
 
       const db = getFirestore();
+      let passengerIdForNotify = '';
+      let shouldNotifyPassenger = false;
 
       // ========================================
       // 3. Run transaction for consistency
@@ -137,6 +140,7 @@ export const rejectTripRequest = onCall<unknown, Promise<RejectTripRequestRespon
         }
 
         const tripData = tripDoc.data()!;
+        passengerIdForNotify = String(tripData.passengerId || '');
 
         // ========================================
         // 4. Update driver request status
@@ -158,6 +162,7 @@ export const rejectTripRequest = onCall<unknown, Promise<RejectTripRequestRespon
             rejectedAt: FieldValue.serverTimestamp(),
             rejectedBy: driverId,
           });
+          shouldNotifyPassenger = true;
 
           logger.info('📝 [RejectTrip] Trip status → no_driver_available');
         }
@@ -177,6 +182,22 @@ export const rejectTripRequest = onCall<unknown, Promise<RejectTripRequestRespon
 
       // Log trip lifecycle event
       logger.tripEvent('TRIP_REJECTED', tripId, { driverId });
+
+      if (shouldNotifyPassenger && passengerIdForNotify) {
+        await publishTripStatusNotifications({
+          tripId,
+          status: TripStatus.NO_DRIVER_AVAILABLE,
+          recipients: [
+            {
+              userId: passengerIdForNotify,
+              role: 'passenger',
+            },
+          ],
+          metadata: {
+            driverId,
+          },
+        });
+      }
 
       logger.info('✅ [RejectTrip] COMPLETE', {
         tripId,

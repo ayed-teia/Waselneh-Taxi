@@ -18,6 +18,7 @@ import {
 import { RetryQueue } from '../src/services';
 import { useAuthStore, useDriverStore } from '../src/store';
 import { BackButton } from '../src/ui';
+import { useI18n } from '../src/localization';
 
 function isNetworkError(error: unknown): boolean {
   const text = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
@@ -29,24 +30,25 @@ function isNetworkError(error: unknown): boolean {
   );
 }
 
-function statusMessage(status: TripStatus): string {
+function statusMessage(status: TripStatus, t: (key: string) => string): string {
   switch (status) {
     case 'driver_arrived':
-      return 'You are marked as arrived at pickup.';
+      return t('status.driver_arrived');
     case 'in_progress':
-      return 'Trip started. Continue to destination.';
+      return t('status.in_progress');
     case 'completed':
-      return 'Trip completed. Collect payment and rate passenger.';
+      return t('status.completed');
     case 'cancelled_by_passenger':
-      return 'Passenger cancelled the trip.';
+      return t('status.cancelled_by_passenger');
     case 'cancelled_by_system':
-      return 'Trip cancelled by system.';
+      return t('status.cancelled_by_system');
     default:
-      return 'Trip status updated.';
+      return t('status.default');
   }
 }
 
 export default function Trip() {
+  const { t } = useI18n();
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
   const { currentLocation } = useDriverStore();
@@ -87,7 +89,7 @@ export default function Trip() {
 
         const nextStatus = (tripData?.status as TripStatus | undefined) ?? null;
         if (nextStatus && previousStatusRef.current && previousStatusRef.current !== nextStatus) {
-          Alert.alert('Trip update', statusMessage(nextStatus));
+          Alert.alert(t('common.trip_update'), statusMessage(nextStatus, t));
         }
         if (nextStatus) {
           previousStatusRef.current = nextStatus;
@@ -100,7 +102,7 @@ export default function Trip() {
     );
 
     return () => unsubscribe();
-  }, [tripId]);
+  }, [tripId, t]);
 
   useEffect(() => {
     if (!tripId) return;
@@ -194,9 +196,12 @@ export default function Trip() {
             label: 'trip-chat-message',
             run: sendAction,
           });
-          Alert.alert('Network issue', 'Message queued and will retry automatically.');
+          Alert.alert(t('common.network_issue'), t('trip.chat_queued'));
         } else {
-          Alert.alert('Chat failed', sendError instanceof Error ? sendError.message : 'Unable to send message');
+          Alert.alert(
+            t('common.chat_failed'),
+            sendError instanceof Error ? sendError.message : t('trip.chat_failed')
+          );
         }
       } finally {
         setIsSendingChat(false);
@@ -220,17 +225,17 @@ export default function Trip() {
     try {
       await Linking.openURL('tel:101');
     } catch {
-      Alert.alert('Action failed', 'Could not open emergency dialer.');
+      Alert.alert(t('common.action_failed'), t('trip.emergency_call_failed'));
     }
-  }, []);
+  }, [t]);
 
   const handleDispatchCall = useCallback(async () => {
     try {
       await Linking.openURL('tel:+970599111111');
     } catch {
-      Alert.alert('Action failed', 'Could not call dispatch.');
+      Alert.alert(t('common.action_failed'), t('trip.dispatch_call_failed'));
     }
-  }, []);
+  }, [t]);
 
   const handleSubmitPassengerRating = useCallback(async () => {
     if (!tripId || passengerRatingValue === 0 || submittingPassengerRating) return;
@@ -244,9 +249,12 @@ export default function Trip() {
         passengerLowRatingReason ?? undefined
       );
       setPassengerRatingSubmitted(true);
-      Alert.alert('Rating submitted', 'Passenger feedback recorded.');
+      Alert.alert(t('trip.rating_submitted'), t('trip.rating_submitted_message'));
     } catch (submitError) {
-      Alert.alert('Rating failed', submitError instanceof Error ? submitError.message : 'Could not submit rating');
+      Alert.alert(
+        t('trip.rating_failed'),
+        submitError instanceof Error ? submitError.message : t('trip.rating_failed_message')
+      );
     } finally {
       setSubmittingPassengerRating(false);
     }
@@ -262,7 +270,7 @@ export default function Trip() {
     return (
       <ScreenContainer padded={false} edges={[]}>
         <BackButton fallbackRoute="/home" />
-        <LoadingState title="Loading trip..." />
+        <LoadingState title={t('common.loading_trip')} />
       </ScreenContainer>
     );
   }
@@ -272,10 +280,10 @@ export default function Trip() {
       <ScreenContainer padded={false} edges={[]}>
         <BackButton fallbackRoute="/home" />
         <ErrorState
-          title="Trip error"
-          message={error || 'Trip not found'}
+          title={t('common.trip_error')}
+          message={error || t('common.trip_not_found')}
           onRetry={() => router.replace('/home')}
-          retryLabel="Back to Home"
+          retryLabel={t('common.back_home')}
         />
       </ScreenContainer>
     );

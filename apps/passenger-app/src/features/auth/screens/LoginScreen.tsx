@@ -2,6 +2,8 @@ import React from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Button, Card, ScreenContainer, Text } from '@waselneh/ui';
 import { colors } from '../../../ui/theme';
+import { useI18n } from '../../../localization';
+import { LanguageToggle } from '../../../ui';
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -9,6 +11,7 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
+  const { isRTL } = useI18n();
   const { width, height } = useWindowDimensions();
   const isCompact = height < 760;
   const contentWidth = Math.min(width - 32, 430);
@@ -21,42 +24,54 @@ export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
 
       <View style={[styles.page, { paddingHorizontal: horizontalPadding }]}>
         <View style={[styles.header, { marginTop: isCompact ? 22 : 34 }]}>
+          <LanguageToggle />
           <View style={styles.badge}>
             <Text variant="caption" style={styles.badgeText}>
-              Passenger App
+              {isRTL ? 'تطبيق الراكب' : 'Passenger App'}
             </Text>
           </View>
           <Text variant="h1" style={styles.title}>
             Waselneh
           </Text>
           <Text muted style={styles.subtitle}>
-            Fast and reliable city rides across West Bank
+            {isRTL
+              ? 'تنقلات مدينة سريعة وموثوقة في الضفة الغربية'
+              : 'Fast and reliable city rides across West Bank'}
           </Text>
         </View>
 
         <View style={[styles.content, { marginTop: isCompact ? 28 : 40 }]}>
           <Card elevated style={styles.card}>
             <Text style={styles.description}>
-              Book in seconds, track your driver live, and get route updates for traffic and roadblocks.
+              {isRTL
+                ? 'احجز خلال ثوانٍ، وتتبع السائق مباشرة، واحصل على تحديثات الطريق والازدحام.'
+                : 'Book in seconds, track your driver live, and get route updates for traffic and roadblocks.'}
             </Text>
             <View style={styles.featureRow}>
               <View style={[styles.featureDot, styles.blueDot]} />
-              <Text style={styles.featureText}>Live driver tracking</Text>
+              <Text style={styles.featureText}>{isRTL ? 'تتبع السائق مباشرة' : 'Live driver tracking'}</Text>
             </View>
             <View style={styles.featureRow}>
               <View style={[styles.featureDot, styles.amberDot]} />
-              <Text style={styles.featureText}>Roadblock-aware routes</Text>
+              <Text style={styles.featureText}>{isRTL ? 'مسارات تراعي الإغلاقات' : 'Roadblock-aware routes'}</Text>
             </View>
           </Card>
         </View>
 
         <View style={[styles.footer, { paddingBottom: isCompact ? 10 : 18 }]}>
-          <Button title="Continue with Phone" onPress={onLogin} loading={loading} style={styles.loginButton} />
+          <Button
+            title={isRTL ? 'المتابعة برقم الهاتف' : 'Continue with Phone'}
+            onPress={onLogin}
+            loading={loading}
+            style={styles.loginButton}
+          />
           <Text variant="caption" muted style={styles.terms}>
-            By continuing, you agree to our Terms of Service and Privacy Policy.
+            {isRTL
+              ? 'بالمتابعة، أنت توافق على شروط الخدمة وسياسة الخصوصية.'
+              : 'By continuing, you agree to our Terms of Service and Privacy Policy.'}
           </Text>
           <Text variant="caption" muted style={styles.version}>
-            vNext rider experience
+            {isRTL ? 'تجربة الراكب الجديدة' : 'vNext rider experience'}
           </Text>
         </View>
       </View>

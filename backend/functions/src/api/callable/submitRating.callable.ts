@@ -7,6 +7,7 @@ import { handleError, ValidationError, NotFoundError, ForbiddenError, Unauthoriz
 import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
+import { publishTripStatusNotifications } from '../../modules/notifications';
 
 /**
  * ============================================================================
@@ -95,6 +96,7 @@ export const submitRating = onCall<unknown, Promise<SubmitRatingResponse>>(
       const db = getFirestore();
       const tripRef = db.collection('trips').doc(tripId);
       const ratingRef = db.collection('ratings').doc(tripId);
+      let driverIdForNotify = '';
 
       // Use transaction to ensure atomicity
       const ratingId = await db.runTransaction(async (transaction) => {
@@ -107,6 +109,7 @@ export const submitRating = onCall<unknown, Promise<SubmitRatingResponse>>(
         }
 
         const tripData = tripDoc.data()!;
+        driverIdForNotify = String(tripData.driverId || '');
 
         // Validate caller is the passenger
         if (tripData.passengerId !== passengerId) {
@@ -160,6 +163,23 @@ export const submitRating = onCall<unknown, Promise<SubmitRatingResponse>>(
       });
 
       logger.info('🎉 [SubmitRating] COMPLETE', { tripId, passengerId, rating });
+
+      if (driverIdForNotify) {
+        await publishTripStatusNotifications({
+          tripId,
+          status: TripStatus.RATED,
+          recipients: [
+            {
+              userId: driverIdForNotify,
+              role: 'driver',
+            },
+          ],
+          metadata: {
+            ratedBy: passengerId,
+            rating,
+          },
+        });
+      }
 
       return {
         success: true,

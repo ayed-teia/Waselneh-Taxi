@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Switch } from 'react-native';
 import { DriverStatus } from '../../store/driver.store';
+import { useI18n } from '../../localization';
 
 interface StatusToggleProps {
   status: DriverStatus;
@@ -9,18 +10,19 @@ interface StatusToggleProps {
 }
 
 export function StatusToggle({ status, isLoading, onToggle }: StatusToggleProps) {
+  const { isRTL } = useI18n();
   const isOnline = status === 'online' || status === 'busy';
   const isBusy = status === 'busy';
 
   const getStatusText = () => {
     switch (status) {
       case 'online':
-        return 'Online and ready for requests';
+        return isRTL ? 'متصل وجاهز للطلبات' : 'Online and ready for requests';
       case 'busy':
-        return 'Busy on an active trip';
+        return isRTL ? 'مشغول برحلة نشطة' : 'Busy on an active trip';
       case 'offline':
       default:
-        return 'Offline';
+        return isRTL ? 'غير متصل' : 'Offline';
     }
   };
 
@@ -38,11 +40,23 @@ export function StatusToggle({ status, isLoading, onToggle }: StatusToggleProps)
 
   return (
     <View style={styles.container}>
-      <View style={styles.statusHeader}>
-        <Text style={styles.statusLabel}>Driver status</Text>
+      <View style={[styles.statusHeader, isRTL && styles.rowReverse]}>
+        <Text style={styles.statusLabel}>{isRTL ? 'حالة السائق' : 'Driver status'}</Text>
         <View style={styles.statusPill}>
           <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
-          <Text style={styles.statusPillText}>{status.toUpperCase()}</Text>
+          <Text style={styles.statusPillText}>
+            {status === 'online'
+              ? isRTL
+                ? 'متصل'
+                : 'ONLINE'
+              : status === 'busy'
+                ? isRTL
+                  ? 'مشغول'
+                  : 'BUSY'
+                : isRTL
+                  ? 'غير متصل'
+                  : 'OFFLINE'}
+          </Text>
         </View>
       </View>
 
@@ -50,8 +64,8 @@ export function StatusToggle({ status, isLoading, onToggle }: StatusToggleProps)
         <Text style={styles.statusText}>{getStatusText()}</Text>
       </View>
 
-      <View style={styles.toggleRow}>
-        <Text style={styles.toggleLabel}>{isOnline ? 'Go offline' : 'Go online'}</Text>
+      <View style={[styles.toggleRow, isRTL && styles.rowReverse]}>
+        <Text style={styles.toggleLabel}>{isOnline ? (isRTL ? 'انتقل إلى غير متصل' : 'Go offline') : isRTL ? 'انتقل إلى متصل' : 'Go online'}</Text>
         <Switch
           value={isOnline}
           onValueChange={(value: boolean) => onToggle(value)}
@@ -63,7 +77,7 @@ export function StatusToggle({ status, isLoading, onToggle }: StatusToggleProps)
 
       {isBusy && (
         <Text style={styles.busyNote}>
-          Complete your current trip to go offline
+          {isRTL ? 'أكمل رحلتك الحالية قبل التحويل إلى غير متصل' : 'Complete your current trip to go offline'}
         </Text>
       )}
     </View>
@@ -83,6 +97,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  rowReverse: {
+    flexDirection: 'row-reverse',
   },
   statusLabel: {
     fontSize: 13,

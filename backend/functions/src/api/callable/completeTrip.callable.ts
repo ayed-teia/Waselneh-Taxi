@@ -7,6 +7,7 @@ import { handleError, ValidationError, NotFoundError, ForbiddenError, Unauthoriz
 import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
+import { publishTripStatusNotifications } from '../../modules/notifications';
 
 /**
  * ============================================================================
@@ -93,6 +94,7 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
 
       const db = getFirestore();
       const tripRef = db.collection('trips').doc(tripId);
+      let passengerIdForNotify = '';
 
       // Use transaction to prevent race conditions
       const result = await db.runTransaction(async (transaction) => {
@@ -127,6 +129,7 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
         }
 
         logger.info('🔒 [CompleteTrip] Current status: in_progress ✓', { tripId });
+        passengerIdForNotify = String(tripData.passengerId || '');
 
         // For v1, final price = estimated price
         const finalPriceIls = tripData.estimatedPriceIls;
@@ -175,6 +178,29 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
       });
 
       logger.info('📝 [CompleteTrip] Trip status → completed', { tripId });
+
+      await publishTripStatusNotifications({
+        tripId,
+        status: TripStatus.COMPLETED,
+        recipients: [
+          ...(passengerIdForNotify
+            ? [
+                {
+                  userId: passengerIdForNotify,
+                  role: 'passenger' as const,
+                },
+              ]
+            : []),
+          {
+            userId: driverId,
+            role: 'driver',
+          },
+        ],
+        metadata: {
+          driverId,
+          finalPriceIls: result.finalPriceIls,
+        },
+      });
       
       // Log trip lifecycle event
       logger.tripEvent('TRIP_COMPLETED', tripId, {

@@ -1,27 +1,29 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { TripStatus } from '../../../types/shared';
-
-const STEPS: Array<{ key: TripStatus; label: string }> = [
-  { key: 'accepted', label: 'Matched' },
-  { key: 'driver_arrived', label: 'Arriving pickup' },
-  { key: 'in_progress', label: 'On trip' },
-  { key: 'completed', label: 'Completed' },
-];
+import { useI18n } from '../../../localization';
 
 interface TripTimelineProps {
   status: TripStatus;
 }
 
 export function TripTimeline({ status }: TripTimelineProps) {
+  const { t } = useI18n();
+  const steps: Array<{ key: TripStatus; label: string }> = [
+    { key: 'accepted', label: t('trip.timeline.matched') },
+    { key: 'driver_arrived', label: t('trip.timeline.arriving_pickup') },
+    { key: 'in_progress', label: t('trip.timeline.on_trip') },
+    { key: 'completed', label: t('trip.timeline.completed') },
+  ];
+
   const index = Math.max(
     0,
-    STEPS.findIndex((step) => step.key === status)
+    steps.findIndex((step) => step.key === status)
   );
 
   return (
     <View style={styles.container}>
-      {STEPS.map((step, stepIndex) => {
+      {steps.map((step, stepIndex) => {
         const done = stepIndex <= index;
         return (
           <View key={step.key} style={styles.stepRow}>

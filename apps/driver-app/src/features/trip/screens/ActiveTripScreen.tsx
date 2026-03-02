@@ -14,6 +14,7 @@ import {
   TripChatPanel,
   TripTimeline,
 } from '../components';
+import { useI18n } from '../../../localization';
 
 interface ActiveTripScreenProps {
   tripId: string;
@@ -46,40 +47,43 @@ interface ActiveTripScreenProps {
   onTripCompleted: () => void;
 }
 
-function getStatusMeta(status: TripStatus): { title: string; description: string; tone: string; action: string | null } {
+function getStatusMeta(
+  status: TripStatus,
+  isRTL: boolean
+): { title: string; description: string; tone: string; action: string | null } {
   switch (status) {
     case 'accepted':
       return {
-        title: 'Heading to pickup',
-        description: 'Drive to passenger pickup location.',
+        title: isRTL ? 'متجه إلى الالتقاط' : 'Heading to pickup',
+        description: isRTL ? 'اتجه إلى موقع التقاط الراكب.' : 'Drive to passenger pickup location.',
         tone: '#2563EB',
-        action: 'Arrived at Pickup',
+        action: isRTL ? 'وصلت إلى الالتقاط' : 'Arrived at Pickup',
       };
     case 'driver_arrived':
       return {
-        title: 'Waiting for passenger',
-        description: 'Passenger is expected at pickup.',
+        title: isRTL ? 'بانتظار الراكب' : 'Waiting for passenger',
+        description: isRTL ? 'الراكب متوقع عند نقطة الالتقاط.' : 'Passenger is expected at pickup.',
         tone: '#16A34A',
-        action: 'Start Trip',
+        action: isRTL ? 'ابدأ الرحلة' : 'Start Trip',
       };
     case 'in_progress':
       return {
-        title: 'Trip in progress',
-        description: 'Follow route to destination.',
+        title: isRTL ? 'الرحلة قيد التنفيذ' : 'Trip in progress',
+        description: isRTL ? 'اتبع المسار نحو الوجهة.' : 'Follow route to destination.',
         tone: '#2563EB',
-        action: 'Complete Trip',
+        action: isRTL ? 'إنهاء الرحلة' : 'Complete Trip',
       };
     case 'completed':
       return {
-        title: 'Trip completed',
-        description: 'Collect payment and close trip.',
+        title: isRTL ? 'اكتملت الرحلة' : 'Trip completed',
+        description: isRTL ? 'استلم الدفعة وأغلق الرحلة.' : 'Collect payment and close trip.',
         tone: '#16A34A',
         action: null,
       };
     default:
       return {
-        title: 'Trip update',
-        description: 'Status changed.',
+        title: isRTL ? 'تحديث الرحلة' : 'Trip update',
+        description: isRTL ? 'تم تغيير الحالة.' : 'Status changed.',
         tone: '#334155',
         action: null,
       };
@@ -119,6 +123,7 @@ export function ActiveTripScreen({
   onSubmitPassengerRating,
   onTripCompleted,
 }: ActiveTripScreenProps) {
+  const { isRTL } = useI18n();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isNarrow = width < 390;
@@ -126,7 +131,7 @@ export function ActiveTripScreen({
   const [isUpdating, setIsUpdating] = React.useState(false);
 
   const cardWidth = width >= 768 ? 560 : width;
-  const statusMeta = getStatusMeta(status);
+  const statusMeta = getStatusMeta(status, isRTL);
   const hasAction = statusMeta.action != null && (status === 'accepted' || status === 'driver_arrived' || status === 'in_progress');
   const topPadding = Math.max(74, insets.top + 52);
   const mapHeightRatio = isNarrow ? 0.5 : 0.52;
@@ -148,18 +153,18 @@ export function ActiveTripScreen({
         await startTrip(tripId);
       } else if (status === 'in_progress') {
         const result = await completeTrip(tripId);
-        Alert.alert('Trip completed', `Final fare: NIS ${result.finalPriceIls}`, [
-          { text: 'OK', onPress: onTripCompleted },
+        Alert.alert(isRTL ? 'اكتملت الرحلة' : 'Trip completed', `${isRTL ? 'الأجرة النهائية' : 'Final fare'}: ${isRTL ? '₪' : 'NIS '} ${result.finalPriceIls}`, [
+          { text: isRTL ? 'حسناً' : 'OK', onPress: onTripCompleted },
         ]);
         return;
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update trip';
-      Alert.alert('Error', message);
+      const message = error instanceof Error ? error.message : isRTL ? 'تعذر تحديث الرحلة' : 'Failed to update trip';
+      Alert.alert(isRTL ? 'خطأ' : 'Error', message);
     } finally {
       setIsUpdating(false);
     }
-  }, [status, tripId, onTripCompleted]);
+  }, [isRTL, status, tripId, onTripCompleted]);
 
   const driverLocation = currentLocation
     ? { latitude: currentLocation.lat, longitude: currentLocation.lng }
@@ -198,7 +203,7 @@ export function ActiveTripScreen({
             <View style={styles.divider} />
 
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Trip ID</Text>
+              <Text style={styles.metaLabel}>{isRTL ? 'رقم الرحلة' : 'Trip ID'}</Text>
               <Text style={styles.metaValue}>{tripId.slice(0, 8)}...</Text>
             </View>
 
@@ -211,24 +216,26 @@ export function ActiveTripScreen({
 
             {estimatedPriceIls != null ? (
               <View style={styles.metaRow}>
-                <Text style={styles.fareLabel}>Fare</Text>
-                <Text style={styles.fareValue}>NIS {safeEstimatedFare}</Text>
+                <Text style={styles.fareLabel}>{isRTL ? 'الأجرة' : 'Fare'}</Text>
+                <Text style={styles.fareValue}>{isRTL ? '₪' : 'NIS '} {safeEstimatedFare}</Text>
               </View>
             ) : null}
 
             {pickup ? (
-              <Text style={styles.metaHint}>Pickup: {pickup.lat.toFixed(4)}, {pickup.lng.toFixed(4)}</Text>
+              <Text style={styles.metaHint}>{isRTL ? 'الالتقاط' : 'Pickup'}: {pickup.lat.toFixed(4)}, {pickup.lng.toFixed(4)}</Text>
             ) : null}
             {dropoff ? (
-              <Text style={styles.metaHint}>Dropoff: {dropoff.lat.toFixed(4)}, {dropoff.lng.toFixed(4)}</Text>
+              <Text style={styles.metaHint}>{isRTL ? 'الوصول' : 'Dropoff'}: {dropoff.lat.toFixed(4)}, {dropoff.lng.toFixed(4)}</Text>
             ) : null}
 
             {retryQueueCount > 0 ? (
               <View style={styles.retryBanner}>
                 <Text style={styles.retryBannerText}>
-                  Network issue detected. {retryQueueCount} action(s) waiting to retry.
+                  {isRTL
+                    ? `تم اكتشاف مشكلة شبكة. هناك ${retryQueueCount} إجراء بانتظار إعادة المحاولة.`
+                    : `Network issue detected. ${retryQueueCount} action(s) waiting to retry.`}
                 </Text>
-                {onRetryQueue ? <Button title="Retry now" onPress={onRetryQueue} /> : null}
+                {onRetryQueue ? <Button title={isRTL ? 'إعادة الآن' : 'Retry now'} onPress={onRetryQueue} /> : null}
               </View>
             ) : null}
 
@@ -265,7 +272,7 @@ export function ActiveTripScreen({
             {hasAction && statusMeta.action ? (
               <View style={styles.actions}>
                 <Button
-                  title={isUpdating ? 'Updating...' : statusMeta.action}
+                  title={isUpdating ? (isRTL ? 'جاري التحديث...' : 'Updating...') : statusMeta.action}
                   onPress={handleAction}
                   disabled={isUpdating}
                   loading={isUpdating}
@@ -275,8 +282,8 @@ export function ActiveTripScreen({
 
             {status === 'completed' && paymentStatus === 'pending' ? (
               <View style={styles.paymentBox}>
-                <Text style={styles.paymentTitle}>Collect cash from passenger</Text>
-                <Text style={styles.paymentAmount}>NIS {safeFareAmount}</Text>
+                <Text style={styles.paymentTitle}>{isRTL ? 'استلم النقد من الراكب' : 'Collect cash from passenger'}</Text>
+                <Text style={styles.paymentAmount}>{isRTL ? '₪' : 'NIS '} {safeFareAmount}</Text>
               </View>
             ) : null}
           </ScrollView>

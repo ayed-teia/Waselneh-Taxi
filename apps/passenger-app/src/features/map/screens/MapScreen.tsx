@@ -15,6 +15,8 @@ import { PassengerMapView } from '../PassengerMapView';
 import { createTripRequest, estimateTrip } from '../../../services/api';
 import { colors } from '../../../ui/theme';
 import { SavedPlace, loadSavedPlaces, saveSavedPlaces } from '../../../services';
+import { useI18n } from '../../../localization';
+import { LanguageToggle } from '../../../ui';
 
 const DEFAULT_PICKUP = { lat: 32.2211, lng: 35.2544 };
 const DEFAULT_DESTINATION = { lat: 31.9038, lng: 35.2034 };
@@ -23,6 +25,7 @@ const DEFAULT_DESTINATION = { lat: 31.9038, lng: 35.2034 };
  * Passenger map with a polished ride-hailing style bottom sheet.
  */
 export function MapScreen() {
+  const { isRTL } = useI18n();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -108,11 +111,11 @@ export function MapScreen() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to request trip.';
       console.error('[MapScreen] Trip request failed:', message);
-      Alert.alert('Unable to request trip', message);
+      Alert.alert(isRTL ? 'تعذر طلب الرحلة' : 'Unable to request trip', message);
     } finally {
       setIsCreatingTrip(false);
     }
-  }, [destination, router]);
+  }, [destination, isRTL, router]);
 
   const handleSelectPlace = useCallback(
     async (place: SavedPlace) => {
@@ -121,11 +124,11 @@ export function MapScreen() {
         item.id === place.id
           ? {
               ...item,
-              subtitle: 'Selected destination',
+              subtitle: isRTL ? 'الوجهة المختارة' : 'Selected destination',
             }
           : {
               ...item,
-              subtitle: item.id === 'favorite' ? 'Quick destination' : 'Saved address',
+              subtitle: item.id === 'favorite' ? (isRTL ? 'وجهة سريعة' : 'Quick destination') : isRTL ? 'عنوان محفوظ' : 'Saved address',
             }
       );
       setSavedPlaces(nextPlaces);
@@ -135,7 +138,7 @@ export function MapScreen() {
         console.warn('Failed to persist saved places:', error);
       }
     },
-    [savedPlaces]
+    [isRTL, savedPlaces]
   );
 
   const quickChips = useMemo(
@@ -182,36 +185,41 @@ export function MapScreen() {
         >
           <View style={styles.handle} />
 
-          <View style={styles.topActionsRow}>
+          <View style={[styles.topActionsRow, isRTL && styles.rowReverse]}>
+            <LanguageToggle />
             <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/history')}>
-              <Text style={styles.topActionText}>History</Text>
+              <Text style={styles.topActionText}>{isRTL ? 'السجل' : 'History'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/promo')}>
-              <Text style={styles.topActionText}>Promo</Text>
+              <Text style={styles.topActionText}>{isRTL ? 'العروض' : 'Promo'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/support')}>
-              <Text style={styles.topActionText}>Support</Text>
+              <Text style={styles.topActionText}>{isRTL ? 'الدعم' : 'Support'}</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.sheetHeaderRow}>
+          <View style={[styles.sheetHeaderRow, isRTL && styles.rowReverse]}>
             <View>
               <Text style={[styles.sheetTitle, { fontSize: titleFontSize, lineHeight: titleLineHeight }]}>
-                Where to?
+                {isRTL ? 'إلى أين؟' : 'Where to?'}
               </Text>
-              <Text style={[styles.sheetSubtitle, { fontSize: subtitleFontSize }]}>Book a ride in seconds.</Text>
+              <Text style={[styles.sheetSubtitle, { fontSize: subtitleFontSize }]}>
+                {isRTL ? 'احجز رحلتك خلال ثوانٍ.' : 'Book a ride in seconds.'}
+              </Text>
             </View>
             <View style={styles.scheduleBadge}>
-              <Text style={styles.scheduleBadgeText}>Now</Text>
+              <Text style={styles.scheduleBadgeText}>{isRTL ? 'الآن' : 'Now'}</Text>
             </View>
           </View>
 
-          <TouchableOpacity style={styles.searchBox} activeOpacity={0.92}>
+          <TouchableOpacity style={[styles.searchBox, isRTL && styles.rowReverse]} activeOpacity={0.92}>
             <View style={styles.searchDot} />
-            <Text style={styles.searchPlaceholder}>Destination: {selectedPlace?.title ?? 'Choose destination'}</Text>
+            <Text style={styles.searchPlaceholder}>
+              {isRTL ? 'الوجهة' : 'Destination'}: {selectedPlace?.title ?? (isRTL ? 'اختر وجهة' : 'Choose destination')}
+            </Text>
           </TouchableOpacity>
 
-          <View style={styles.quickChipsRow}>{quickChips}</View>
+          <View style={[styles.quickChipsRow, isRTL && styles.rowReverse]}>{quickChips}</View>
 
           <TouchableOpacity
             style={[styles.requestButton, isCreatingTrip && styles.requestButtonDisabled]}
@@ -222,12 +230,12 @@ export function MapScreen() {
             {isCreatingTrip ? (
               <>
                 <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.requestButtonText}>Matching driver...</Text>
+                <Text style={styles.requestButtonText}>{isRTL ? 'جاري مطابقة سائق...' : 'Matching driver...'}</Text>
               </>
             ) : (
               <>
                 <View style={styles.requestButtonIndicator} />
-                <Text style={styles.requestButtonText}>Request Ride</Text>
+                <Text style={styles.requestButtonText}>{isRTL ? 'اطلب رحلة' : 'Request Ride'}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -387,5 +395,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 18,
+  },
+  rowReverse: {
+    flexDirection: 'row-reverse',
   },
 });

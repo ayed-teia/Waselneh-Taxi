@@ -1,7 +1,13 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useI18n } from '../../../localization';
 
-const LOW_RATING_REASONS = ['No show', 'Late pickup', 'Unsafe behavior', 'Payment issue'];
+const LOW_RATING_REASONS = [
+  { value: 'No show', key: 'trip.rating.reason.no_show' },
+  { value: 'Late pickup', key: 'trip.rating.reason.late_pickup' },
+  { value: 'Unsafe behavior', key: 'trip.rating.reason.unsafe_behavior' },
+  { value: 'Payment issue', key: 'trip.rating.reason.payment_issue' },
+];
 
 interface PassengerRatingCardProps {
   rating: number;
@@ -24,11 +30,13 @@ export function PassengerRatingCard({
   onSelectReason,
   onSubmit,
 }: PassengerRatingCardProps) {
+  const { isRTL, t } = useI18n();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Rate passenger</Text>
+      <Text style={styles.title}>{t('trip.rating.title')}</Text>
 
-      <View style={styles.ratingRow}>
+      <View style={[styles.ratingRow, isRTL && styles.rowReverse]}>
         {[1, 2, 3, 4, 5].map((value) => {
           const selected = value <= rating;
           return (
@@ -44,16 +52,18 @@ export function PassengerRatingCard({
       </View>
 
       {rating > 0 && rating <= 3 ? (
-        <View style={styles.reasonRow}>
+        <View style={[styles.reasonRow, isRTL && styles.rowReverse]}>
           {LOW_RATING_REASONS.map((reason) => {
-            const selected = lowRatingReason === reason;
+            const selected = lowRatingReason === reason.value;
             return (
               <Pressable
-                key={reason}
+                key={reason.value}
                 style={[styles.reasonChip, selected && styles.reasonChipSelected]}
-                onPress={() => onSelectReason(reason)}
+                onPress={() => onSelectReason(reason.value)}
               >
-                <Text style={[styles.reasonChipText, selected && styles.reasonChipTextSelected]}>{reason}</Text>
+                <Text style={[styles.reasonChipText, selected && styles.reasonChipTextSelected]}>
+                  {t(reason.key)}
+                </Text>
               </Pressable>
             );
           })}
@@ -62,7 +72,7 @@ export function PassengerRatingCard({
 
       <TextInput
         style={styles.input}
-        placeholder="Optional feedback"
+        placeholder={t('trip.rating.placeholder')}
         value={comment}
         onChangeText={onChangeComment}
         multiline
@@ -74,7 +84,9 @@ export function PassengerRatingCard({
         onPress={onSubmit}
         disabled={rating === 0 || submitting}
       >
-        <Text style={styles.submitText}>{submitting ? 'Submitting...' : 'Submit rating'}</Text>
+        <Text style={styles.submitText}>
+          {submitting ? t('trip.rating.submitting') : t('trip.rating.submit')}
+        </Text>
       </Pressable>
     </View>
   );
@@ -98,6 +110,9 @@ const styles = StyleSheet.create({
   ratingRow: {
     flexDirection: 'row',
     gap: 6,
+  },
+  rowReverse: {
+    flexDirection: 'row-reverse',
   },
   ratingChip: {
     width: 28,
