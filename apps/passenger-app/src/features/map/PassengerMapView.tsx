@@ -28,6 +28,7 @@ import {
 import {
   CAMERA_DEFAULTS,
   DEFAULT_REGION,
+  MAP_FALLBACK_STYLE_URL,
   MAP_LOG_PREFIX,
   MAP_STYLE_URL,
   MAP_UPDATE_THROTTLE_MS,
@@ -84,6 +85,8 @@ export function PassengerMapView({
   const [routeCoordinates, setRouteCoordinates] = useState<[number, number][] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeStyleURL, setActiveStyleURL] = useState<string>(STREET_STYLE_URL);
+  const [styleLoaded, setStyleLoaded] = useState(false);
 
   useEffect(() => {
     const unsubscribe = subscribeToAllRoadblocks(
@@ -279,6 +282,20 @@ export function PassengerMapView({
     };
   }, [driverLocation, pickup, dropoff, routeMode, straightLineFallback]);
 
+  useEffect(() => {
+    if (styleLoaded || activeStyleURL === MAP_FALLBACK_STYLE_URL) return;
+
+    const timeout = setTimeout(() => {
+      if (!styleLoaded) {
+        console.warn(`${MAP_LOG_PREFIX} Mapbox style timeout. Switching to fallback style.`);
+        setActiveStyleURL(MAP_FALLBACK_STYLE_URL);
+        setError((current) => current ?? 'Mapbox style timed out. Using fallback style.');
+      }
+    }, 6000);
+
+    return () => clearTimeout(timeout);
+  }, [activeStyleURL, styleLoaded]);
+
   const routeLineGeoJSON =
     routeCoordinates && routeCoordinates.length > 1
       ? {
@@ -309,8 +326,21 @@ export function PassengerMapView({
   };
 
   const handleMapLoadError = (event?: unknown) => {
+    if (activeStyleURL !== MAP_FALLBACK_STYLE_URL) {
+      console.warn(`${MAP_LOG_PREFIX} Mapbox style failed. Switching to fallback style.`, event);
+      setActiveStyleURL(MAP_FALLBACK_STYLE_URL);
+      setError((current) => current ?? 'Mapbox style failed. Using fallback style.');
+      return;
+    }
+
     setError((current) => current ?? 'Map failed to load. Please check network or map token.');
     console.error(`${MAP_LOG_PREFIX} Map style failed to load`, event);
+  };
+
+  const handleStyleLoaded = () => {
+    setStyleLoaded(true);
+    setError((current) => (current?.includes('fallback') ? null : current));
+    console.log(`${MAP_LOG_PREFIX} Style loaded:`, activeStyleURL);
   };
 
   const topOverlayOffset = Math.max(insets.top + 8, 16);
@@ -331,8 +361,10 @@ export function PassengerMapView({
     <View style={[styles.container, mapHeight ? { height: mapHeight, flexGrow: 0 } : null]}>
       <MapView
         style={styles.map}
-        styleURL={STREET_STYLE_URL}
+        styleURL={activeStyleURL}
+        onDidFinishLoadingStyle={handleStyleLoaded}
         onDidFailLoadingMap={handleMapLoadError}
+        surfaceView
         logoEnabled={false}
         attributionEnabled={false}
         compassEnabled
