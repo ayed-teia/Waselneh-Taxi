@@ -1,5 +1,4 @@
 import { LatLng } from '@taxi-line/shared';
-import { env } from '../../../core/env';
 import { logger } from '../../../core/logger';
 import { ExternalServiceError } from '../../../core/errors';
 
@@ -28,6 +27,8 @@ export interface RouteResult {
   durationMin: number;
 }
 
+let hasLoggedMissingMapboxToken = false;
+
 /**
  * Calculate route between two points using Mapbox Directions API
  *
@@ -39,11 +40,16 @@ export async function calculateRoute(
   pickup: LatLng,
   dropoff: LatLng
 ): Promise<RouteResult> {
-  const accessToken = env.mapboxAccessToken;
+  const accessToken = (process.env.MAPBOX_ACCESS_TOKEN ?? '').trim();
 
-  // In development without token, return mock data
+  // Keep existing mock fallback behavior, but make missing token explicit.
   if (!accessToken || accessToken === 'your-mapbox-token-here') {
-    logger.warn('Mapbox token not configured, using mock route calculation');
+    if (!hasLoggedMissingMapboxToken) {
+      logger.error(
+        'MAPBOX_ACCESS_TOKEN is missing or placeholder. Falling back to mock route calculation.'
+      );
+      hasLoggedMissingMapboxToken = true;
+    }
     return calculateMockRoute(pickup, dropoff);
   }
 

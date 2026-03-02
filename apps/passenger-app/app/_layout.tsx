@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { LoadingState, ScreenContainer } from '@waselneh/ui';
 import { onAuthStateChanged, type User } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
+import '../src/config/mapbox.init';
 
 export default function RootLayout() {
   const { setUser } = useAuthStore();

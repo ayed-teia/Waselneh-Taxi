@@ -10,6 +10,13 @@ import { initializeFirebase } from './core/config';
 // Initialize Firebase Admin SDK
 initializeFirebase();
 
+console.log('MAPBOX TOKEN BACKEND:', !!(process.env.MAPBOX_ACCESS_TOKEN || '').trim());
+if (!(process.env.MAPBOX_ACCESS_TOKEN || '').trim()) {
+  console.error(
+    '[Mapbox] MAPBOX_ACCESS_TOKEN is missing in backend/functions/.env (or runtime env). Route estimation will use mock fallback.'
+  );
+}
+
 // ============================================================================
 // HTTP Endpoints
 // ============================================================================

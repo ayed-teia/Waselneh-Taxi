@@ -46,7 +46,7 @@ export const env = {
     return TRIP_REQUEST_TIMEOUT_SECONDS.value();
   },
   get mapboxAccessToken() {
-    return MAPBOX_ACCESS_TOKEN.value();
+    return (process.env.MAPBOX_ACCESS_TOKEN ?? MAPBOX_ACCESS_TOKEN.value() ?? '').trim();
   },
   get isDevelopment() {
     return this.environment === 'dev';

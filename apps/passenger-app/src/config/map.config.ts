@@ -1,19 +1,10 @@
-import Constants from 'expo-constants';
-
 /**
  * Map configuration for mobile apps
- * 
- * Uses environment variable for Mapbox token.
- * Falls back to default OpenStreetMap if no token provided.
+ *
+ * Uses Expo public environment variable for Mapbox token.
  */
 
-// Get Mapbox token from environment
-const MAPBOX_TOKEN = Constants.expoConfig?.extra?.mapboxAccessToken
-  || Constants.expoConfig?.extra?.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN
-  || process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN
-  || Constants.expoConfig?.extra?.EXPO_PUBLIC_MAPBOX_TOKEN
-  || process.env.EXPO_PUBLIC_MAPBOX_TOKEN
-  || '';
+const MAPBOX_TOKEN = (process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? '').trim();
 
 /**
  * Check if Mapbox is configured
@@ -43,7 +34,7 @@ export const DEFAULT_REGION = {
 /**
  * Navigation-focused style gives cleaner roads and less clutter.
  */
-export const MAP_STYLE_URL = 'mapbox://styles/mapbox/navigation-day-v1';
+export const MAP_STYLE_URL = 'mapbox://styles/mapbox/streets-v11';
 export const MAP_FALLBACK_STYLE_URL = 'https://demotiles.maplibre.org/style.json';
 
 /**

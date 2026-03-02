@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   Pressable,
   StyleSheet,
   Text,
@@ -21,7 +22,6 @@ import { RoadblockData, getRoadblockStatusDisplay, subscribeToAllRoadblocks } fr
 import {
   CAMERA_DEFAULTS,
   DEFAULT_REGION,
-  MAP_FALLBACK_STYLE_URL,
   MAP_LOG_PREFIX,
   MAP_STYLE_URL,
   MAP_UPDATE_THROTTLE_MS,
@@ -30,11 +30,11 @@ import {
 } from '../../config/map.config';
 
 const MAPBOX_TOKEN = getMapboxToken();
-if (MAPBOX_TOKEN) {
-  Mapbox.setAccessToken(MAPBOX_TOKEN);
-}
+const STREET_STYLE_URL = Mapbox.StyleURL?.Street ?? MAP_STYLE_URL;
 
-const SATELLITE_STYLE_URL = Mapbox.StyleURL.SatelliteStreet;
+if (__DEV__ && !Mapbox.StyleURL?.Street) {
+  console.warn('[Mapbox] Mapbox.StyleURL.Street unavailable in driver app; using MAP_STYLE_URL fallback.');
+}
 
 interface DriverMapViewProps {
   driverLocation?: {
@@ -80,8 +80,6 @@ export function DriverMapView({
   const [routeCoordinates, setRouteCoordinates] = useState<[number, number][] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mapStyle, setMapStyle] = useState<string>(MAPBOX_TOKEN ? MAP_STYLE_URL : MAP_FALLBACK_STYLE_URL);
-  const [isFallbackStyle, setIsFallbackStyle] = useState<boolean>(!MAPBOX_TOKEN);
 
   useEffect(() => {
     const unsubscribe = subscribeToAllRoadblocks(
@@ -264,21 +262,9 @@ export function DriverMapView({
         }
       : null;
 
-  const toggleStyle = () => {
-    if (isFallbackStyle) return;
-    setMapStyle((previous) => (previous === MAP_STYLE_URL ? SATELLITE_STYLE_URL : MAP_STYLE_URL));
-  };
-
-  const handleMapLoadError = () => {
-    if (!isFallbackStyle) {
-      console.warn(`${MAP_LOG_PREFIX} Failed loading Mapbox style. Switching to fallback style.`);
-      setMapStyle(MAP_FALLBACK_STYLE_URL);
-      setIsFallbackStyle(true);
-      setError((current) => current ?? 'Mapbox style unavailable. Using fallback map style.');
-      return;
-    }
-
+  const handleMapLoadError = (event?: unknown) => {
     setError((current) => current ?? 'Map failed to load. Please check network or map token.');
+    console.error(`${MAP_LOG_PREFIX} Map style failed to load`, event);
   };
 
   const recenter = () => {
@@ -297,7 +283,8 @@ export function DriverMapView({
 
   const topOverlayOffset = Math.max(insets.top + 8, 16);
   const minBottomWithInset = (isNarrow ? 232 : 218) + insets.bottom;
-  const mapHeight = mapHeightRatio ? Math.round(height * mapHeightRatio) : null;
+  const resolvedWindowHeight = height > 0 ? height : Dimensions.get('window').height;
+  const mapHeight = mapHeightRatio ? Math.round(resolvedWindowHeight * mapHeightRatio) : null;
 
   if (loading) {
     return (
@@ -312,7 +299,7 @@ export function DriverMapView({
     <View style={[styles.container, mapHeight ? { height: mapHeight, flexGrow: 0 } : null]}>
       <MapView
         style={styles.map}
-        styleURL={mapStyle}
+        styleURL={STREET_STYLE_URL}
         onDidFailLoadingMap={handleMapLoadError}
         logoEnabled={false}
         attributionEnabled={false}
@@ -436,9 +423,6 @@ export function DriverMapView({
 
       {showControls ? (
         <View style={[styles.controls, { bottom: Math.max(overlayBottomOffset + 4, 220 + insets.bottom) }]}>
-          <Pressable style={styles.controlButton} onPress={toggleStyle}>
-            <Text style={styles.controlButtonText}>Layer</Text>
-          </Pressable>
           <Pressable style={styles.controlButton} onPress={recenter}>
             <Text style={styles.controlButtonText}>Center</Text>
           </Pressable>
