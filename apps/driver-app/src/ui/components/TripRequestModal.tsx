@@ -98,26 +98,9 @@ export function TripRequestModal() {
     return () => clearInterval(timer);
   }, [isModalVisible, pendingRequest]);
 
-  useEffect(() => {
-    if (!isModalVisible || !pendingRequest) {
-      return;
-    }
-
-    if (pendingRequest.expiresAt) {
-      const remaining = getRemainingSeconds(pendingRequest.expiresAt);
-      if (remaining > 0) {
-        if (countdown <= 0) {
-          setCountdown(remaining);
-        }
-        return;
-      }
-    } else if (countdown > 0) {
-      return;
-    }
-
-    console.log('[TripRequestModal] Request expired');
-    hideRequest();
-  }, [countdown, hideRequest, isModalVisible, pendingRequest]);
+  // NOTE: Do not auto-hide request by local timer.
+  // Device clock skew can mark valid requests as expired.
+  // Request visibility is controlled by realtime listener status from Firestore.
 
   const handleAccept = useCallback(async () => {
     if (!pendingRequest) {

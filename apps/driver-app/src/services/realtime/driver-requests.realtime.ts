@@ -95,11 +95,9 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
           return bCreatedAt - aCreatedAt;
         });
 
-        const now = Date.now();
-        const activeDocs = sortedDocs.filter((doc) => {
-          const expiresAt = toDateOrNull((doc.data() as { expiresAt?: unknown }).expiresAt);
-          return !expiresAt || expiresAt.getTime() > now;
-        });
+        // Do not enforce expiration on-device (clock skew may hide valid requests).
+        // Backend callable (accept/reject) is the source of truth for expiry.
+        const activeDocs = sortedDocs;
 
         if (activeDocs.length === 0) {
           _lastShownTripId = null;
