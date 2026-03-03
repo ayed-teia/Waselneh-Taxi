@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -13,6 +14,7 @@ import { useTripRequestStore } from '../../store/trip-request.store';
 import { acceptTripRequest, rejectTripRequest } from '../../services/api';
 
 const DEFAULT_TIMEOUT_SECONDS = 30;
+const ACCEPT_GUARD_MS = 1200;
 
 function getRemainingSeconds(expiresAt: Date | null | undefined): number {
   if (!expiresAt) {
@@ -52,14 +54,21 @@ export function TripRequestModal() {
 
   const [slideAnim] = useState(new Animated.Value(300));
   const [countdown, setCountdown] = useState(DEFAULT_TIMEOUT_SECONDS);
+  const [isAcceptReady, setIsAcceptReady] = useState(false);
 
   useEffect(() => {
     if (!isModalVisible || !pendingRequest) {
+      setIsAcceptReady(false);
       return;
     }
 
     Vibration.vibrate([0, 500, 200, 500]);
     setCountdown(getRemainingSeconds(pendingRequest.expiresAt));
+    setIsAcceptReady(false);
+
+    const guardTimer = setTimeout(() => {
+      setIsAcceptReady(true);
+    }, ACCEPT_GUARD_MS);
 
     Animated.spring(slideAnim, {
       toValue: 0,
@@ -67,6 +76,8 @@ export function TripRequestModal() {
       friction: 8,
       useNativeDriver: true,
     }).start();
+
+    return () => clearTimeout(guardTimer);
   }, [isModalVisible, pendingRequest, slideAnim]);
 
   useEffect(() => {
@@ -102,6 +113,28 @@ export function TripRequestModal() {
     if (!pendingRequest) {
       return;
     }
+    if (!isAcceptReady) {
+      return;
+    }
+    if (isProcessing) {
+      return;
+    }
+
+    const hasConfirmed = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        'Accept trip?',
+        'Do you want to accept this trip request now?',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Accept', onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) }
+      );
+    });
+
+    if (!hasConfirmed) {
+      return;
+    }
 
     setProcessing(true, 'accept');
     console.log('[TripRequestModal] Accepting trip:', pendingRequest.tripId);
@@ -127,7 +160,7 @@ export function TripRequestModal() {
 
       setError(message);
     }
-  }, [pendingRequest, router, hideRequest, setProcessing, setError]);
+  }, [isAcceptReady, isProcessing, pendingRequest, router, hideRequest, setProcessing, setError]);
 
   const handleReject = useCallback(async () => {
     if (!pendingRequest) {
@@ -236,7 +269,7 @@ export function TripRequestModal() {
               variant="primary"
               onPress={handleAccept}
               loading={processingAction === 'accept'}
-              disabled={isProcessing}
+              disabled={isProcessing || !isAcceptReady}
               style={styles.acceptButton}
             />
           </View>
