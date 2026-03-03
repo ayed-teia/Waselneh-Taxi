@@ -57,6 +57,49 @@ service cloud.firestore {
     function isPassenger() {
       return hasRole('passenger');
     }
+
+    /**
+     * Driver profile path helper
+     */
+    function driverDocPath(uid) {
+      return /databases/$(database)/documents/drivers/$(uid);
+    }
+
+    function driverDoc(uid) {
+      return get(driverDocPath(uid));
+    }
+
+    function driverDocExists(uid) {
+      return exists(driverDocPath(uid));
+    }
+
+    function hasValidLineOrLicenseLink(data) {
+      return (
+        (data.lineId is string && data.lineId.size() > 0) ||
+        (data.licenseId is string && data.licenseId.size() > 0)
+      );
+    }
+
+    function isLicensedLineOwnerData(data) {
+      return (
+        data.driverType == 'licensed_line_owner' &&
+        data.verificationStatus == 'approved' &&
+        hasValidLineOrLicenseLink(data)
+      );
+    }
+
+    function isLicensedLineOwner(uid) {
+      return isOwner(uid) && driverDocExists(uid) && isLicensedLineOwnerData(driverDoc(uid).data);
+    }
+
+    function preservesDriverEligibilityFields() {
+      return (
+        request.resource.data.driverType == resource.data.driverType &&
+        request.resource.data.verificationStatus == resource.data.verificationStatus &&
+        request.resource.data.lineId == resource.data.lineId &&
+        request.resource.data.licenseId == resource.data.licenseId
+      );
+    }
     
     /**
      * Check if the user is a participant in a trip (passenger or driver)
@@ -73,16 +116,9 @@ service cloud.firestore {
     // For development/emulator, allow all access
     // =========================================================================
     
-    // DEV MODE: Allow all reads and writes for testing
-    // TODO: Remove this before production!
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
-    
-    // PRODUCTION MODE (uncomment for production):
-    // match /{document=**} {
-    //   allow read, write: if false;
-    // }
     
     // =========================================================================
     // Users Collection
@@ -120,14 +156,17 @@ service cloud.firestore {
     //     3. Use a subcollection under trips for location streaming
     // =========================================================================
     match /driverLive/{driverId} {
-      // Driver can write their own location only
-      allow write: if isOwner(driverId) && isDriver();
+      // Driver can create/update live location only when fully eligible
+      allow create, update: if isLicensedLineOwner(driverId);
+
+      // Allow owner delete for safe cleanup when going offline
+      allow delete: if isOwner(driverId);
       
       // Reading driver location:
       // - Managers can read all (for monitoring dashboard)
       // - Drivers can read their own location
-      // - Passengers: MVP allows any passenger to read (see limitation above)
-      allow read: if isOwner(driverId) || isManager() || isPassenger();
+      // - Authenticated users: MVP allows read for live trip UI (see limitation above)
+      allow read: if isOwner(driverId) || isManager() || isAuthenticated();
     }
     
     // =========================================================================
@@ -148,12 +187,21 @@ service cloud.firestore {
     // - Cloud Functions use Admin SDK which bypasses security rules
     // =========================================================================
     match /drivers/{driverId} {
-      // Driver can read their own profile, managers can read all
-      allow read: if isOwner(driverId) || isManager();
+      // Authenticated users can read driver profile fields needed by mobile apps.
+      // Sensitive write operations remain restricted below.
+      allow read: if isAuthenticated();
       
-      // Driver can update their own document (isOnline, lastLocation)
-      // Note: isAvailable is managed by Cloud Functions via Admin SDK
-      allow write: if isOwner(driverId) && isDriver();
+      // Managers can manage driver profiles (including verification fields).
+      // Driver clients can update status/location fields only if they are eligible,
+      // and cannot mutate eligibility fields directly.
+      // Non-eligible drivers are allowed to write only when forcing themselves offline.
+      allow create: if isManager();
+      allow update: if isManager() || (
+        isOwner(driverId) &&
+        preservesDriverEligibilityFields() &&
+        (isLicensedLineOwner(driverId) || request.resource.data.isOnline == false)
+      );
+      allow delete: if isManager();
       
       // Inbox subcollection
       match /inbox/{requestId} {

@@ -6,6 +6,7 @@ import { getFirestore } from '../../core/config';
 import { handleError, ValidationError, NotFoundError, ForbiddenError } from '../../core/errors';
 import { logger } from '../../core/logger';
 import { FieldValue } from 'firebase-admin/firestore';
+import { evaluateDriverEligibility } from '../../modules/auth';
 
 /**
  * Request schema for dispatching a trip request
@@ -103,10 +104,25 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
 
       const driverIds: string[] = [];
       const batch = db.batch();
+      let skippedIneligibleDrivers = 0;
 
       // Create inbox document for each driver
       for (const driverDoc of driversSnapshot.docs) {
         const driverId = driverDoc.id;
+        const eligibility = evaluateDriverEligibility(driverDoc.data());
+        if (!eligibility.isEligible) {
+          skippedIneligibleDrivers += 1;
+          logger.debug('Skipping ineligible driver in dispatch', {
+            driverId,
+            reasons: eligibility.reasons,
+            driverType: eligibility.driverType,
+            verificationStatus: eligibility.verificationStatus,
+            lineId: eligibility.lineId,
+            licenseId: eligibility.licenseId,
+          });
+          continue;
+        }
+
         driverIds.push(driverId);
 
         const inboxRef = db
@@ -129,6 +145,11 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
         batch.set(inboxRef, inboxDoc);
       }
 
+      if (driverIds.length === 0) {
+        logger.warn('No eligible drivers found for dispatch', { requestId, skippedIneligibleDrivers });
+        return { dispatchedTo: 0, driverIds: [] };
+      }
+
       // Commit all inbox writes
       await batch.commit();
 
@@ -136,6 +157,7 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
         requestId,
         dispatchedTo: driverIds.length,
         driverIds,
+        skippedIneligibleDrivers,
       });
 
       return {

@@ -8,6 +8,7 @@ import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 import { publishTripStatusNotifications } from '../../modules/notifications';
+import { assertDriverIsLicensedLineOwner } from '../../modules/auth';
 
 /**
  * ============================================================================
@@ -72,6 +73,7 @@ export const driverArrived = onCall<unknown, Promise<DriverArrivedResponse>>(
       if (!driverId) {
         throw new UnauthorizedError('Authentication required');
       }
+      await assertDriverIsLicensedLineOwner(driverId);
 
       // Validate input
       const parsed = DriverArrivedSchema.safeParse(request.data);

@@ -8,6 +8,7 @@ import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { publishTripStatusNotifications } from '../../modules/notifications';
+import { assertDriverIsLicensedLineOwner } from '../../modules/auth';
 
 /**
  * ============================================================================
@@ -83,6 +84,7 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
       if (!driverId) {
         throw new UnauthorizedError('Authentication required to accept a trip request');
       }
+      await assertDriverIsLicensedLineOwner(driverId);
 
       // ========================================
       // 2. Validate input

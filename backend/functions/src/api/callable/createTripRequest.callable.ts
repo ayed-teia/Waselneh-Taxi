@@ -9,6 +9,7 @@ import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { calculatePrice } from '../../modules/pricing/utils';
 import { publishTripStatusNotifications } from '../../modules/notifications';
+import { evaluateDriverEligibility } from '../../modules/auth';
 
 /**
  * ============================================================================
@@ -91,6 +92,10 @@ interface DriverDoc {
   driverId: string;
   isOnline: boolean;
   isAvailable: boolean;
+  driverType?: string;
+  verificationStatus?: string;
+  lineId?: string;
+  licenseId?: string;
   lastLocation: FirebaseFirestore.GeoPoint | null;
   currentTripId: string | null;
   updatedAt: FirebaseFirestore.Timestamp;
@@ -313,6 +318,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       // ========================================
       // 4. Compute distance using Haversine formula
       // ========================================
+      let skippedIneligibleDrivers = 0;
       const driversWithDistance: Array<{
         driverId: string;
         distance: number;
@@ -321,6 +327,18 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
 
       driversSnapshot.forEach((doc) => {
         const driverData = doc.data() as DriverDoc;
+        const eligibility = evaluateDriverEligibility(driverData);
+        if (!eligibility.isEligible) {
+          skippedIneligibleDrivers += 1;
+          logger.debug(`Driver ${doc.id}: Ineligible - skipping`, {
+            reasons: eligibility.reasons,
+            driverType: eligibility.driverType,
+            verificationStatus: eligibility.verificationStatus,
+            lineId: eligibility.lineId,
+            licenseId: eligibility.licenseId,
+          });
+          return;
+        }
         
         // Skip drivers without location data
         if (!driverData.lastLocation) {
@@ -343,12 +361,22 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
 
         logger.debug(`Driver ${doc.id}: ${distance.toFixed(2)} km away`);
       });
+      
+      if (skippedIneligibleDrivers > 0) {
+        logger.info('🚫 [CreateTrip] Skipped ineligible drivers', {
+          skippedIneligibleDrivers,
+        });
+      }
 
       // ========================================
       // 6. Select nearest driver
       // ========================================
       if (driversWithDistance.length === 0) {
-        logger.dispatchFailed(requestId, 'No drivers with location data', { passengerId, driversQueried: driversSnapshot.size });
+        logger.dispatchFailed(requestId, 'No eligible drivers with location data', {
+          passengerId,
+          driversQueried: driversSnapshot.size,
+          skippedIneligibleDrivers,
+        });
         
         // Return with searching status - passenger can wait for drivers
         return {
@@ -392,6 +420,19 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
             isAvailable: driverData.isAvailable,
           });
           throw new NotFoundError('Driver no longer available');
+        }
+
+        const eligibility = evaluateDriverEligibility(driverData);
+        if (!eligibility.isEligible) {
+          logger.warn('🚫 [CreateTrip] Driver no longer eligible in transaction', {
+            driverId: nearestDriver.driverId,
+            reasons: eligibility.reasons,
+            driverType: eligibility.driverType,
+            verificationStatus: eligibility.verificationStatus,
+            lineId: eligibility.lineId,
+            licenseId: eligibility.licenseId,
+          });
+          throw new NotFoundError('Driver no longer eligible');
         }
 
         // Create trip document
