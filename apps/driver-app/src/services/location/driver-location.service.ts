@@ -73,6 +73,7 @@ export async function updateDriverLocation(
     // Also update drivers collection (for drivers list page)
     await firebaseDB.collection('drivers').doc(driverId).set({
       status: 'online',
+      lastLocation: geoPoint(location.lat, location.lng),
       location: {
         lat: location.lat,
         lng: location.lng,
@@ -138,18 +139,24 @@ export async function setDriverAvailability(
     const driverRef = firebaseDB.collection('drivers').doc(driverId);
 
     if (isOnline) {
-      await driverRef.set({
+      const onlinePayload: Record<string, unknown> = {
         driverId,
         status: 'online',
         isOnline: true,
         isAvailable: true, // When going online, driver is available for trips
         availability: 'available', // Trip lifecycle controls this field
-        lastLocation: currentLocation ? geoPoint(currentLocation.lat, currentLocation.lng) : null,
         lastSeen: serverTimestamp(),
         onlineSince: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      }, { merge: true });
-      console.log('🟢 [Driver] Online + Available:', driverId);
+      };
+
+      // Keep prior lastLocation if current location is temporarily unavailable.
+      if (currentLocation) {
+        onlinePayload.lastLocation = geoPoint(currentLocation.lat, currentLocation.lng);
+      }
+
+      await driverRef.set(onlinePayload, { merge: true });
+      console.log('[Driver] Online + Available:', driverId);
     } else {
       await driverRef.set({
         driverId,
@@ -168,3 +175,4 @@ export async function setDriverAvailability(
     throw error;
   }
 }
+
