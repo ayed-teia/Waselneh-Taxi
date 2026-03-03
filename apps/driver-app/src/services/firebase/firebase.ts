@@ -135,8 +135,32 @@ export async function signInWithDriverUidForDev(
     const credential = await firebaseAuth.signInWithCustomToken(payload.token);
     return { user: credential.user, error: null };
   } catch (error) {
-    return { user: null, error: error as Error };
+    const normalizedError = normalizeDevDriverLoginError(error);
+    console.error('[DevLogin] signInWithDriverUidForDev failed', normalizedError);
+    return { user: null, error: normalizedError };
   }
+}
+
+function normalizeDevDriverLoginError(error: unknown): Error {
+  if (error instanceof Error) {
+    const code = String((error as { code?: unknown }).code ?? '');
+    const message = String(error.message || '');
+    const normalized = `${code} ${message}`.toLowerCase();
+
+    if (
+      normalized.includes('functions/not-found') ||
+      normalized.includes('not-found') ||
+      normalized.includes('devissuedrivertoken')
+    ) {
+      return new Error(
+        'Driver login function is unavailable. Rebuild and restart emulators: corepack pnpm run build:functions'
+      );
+    }
+
+    return error;
+  }
+
+  return new Error('Unknown login error');
 }
 
 export function getFirestoreAsync(): Promise<Firestore> {
