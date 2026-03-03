@@ -18,3 +18,4 @@ export * from './passengerCancelTrip.callable';
 export * from './driverCancelTrip.callable';
 export * from './managerForceCancelTrip.callable';
 export * from './managerToggleTrips.callable';
+export * from './managerSetDriverEligibility.callable';

@@ -39,6 +39,10 @@ export interface TripData {
   completedAt?: Date;
 }
 
+function snapshotExists(snapshot: { exists: boolean | (() => boolean) }): boolean {
+  return typeof snapshot.exists === 'function' ? snapshot.exists() : snapshot.exists;
+}
+
 /**
  * Subscribe to a trip request document (read-only)
  * Used to track when request is matched to a driver
@@ -53,7 +57,7 @@ export function subscribeToTripRequest(
     .doc(requestId)
     .onSnapshot(
       (snapshot) => {
-        if (snapshot.exists()) {
+        if (snapshotExists(snapshot)) {
           const data = snapshot.data();
           onData({
             id: snapshot.id,
@@ -93,7 +97,7 @@ export function subscribeToTrip(
     .doc(tripId)
     .onSnapshot(
       (snapshot) => {
-        if (snapshot.exists()) {
+        if (snapshotExists(snapshot)) {
           const data = snapshot.data();
           console.log('📡 [TripSubscription] Update received:', { tripId, status: data?.status });
           onData({

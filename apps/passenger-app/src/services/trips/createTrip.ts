@@ -4,8 +4,7 @@
  * Creates a trip document directly in Firestore.
  * Drivers will receive this trip via realtime listener.
  */
-import { firebaseDB, firebaseAuth } from '../firebase';
-import firestore from '@react-native-firebase/firestore';
+import { firebaseDB, firebaseAuth, serverTimestamp } from '../firebase';
 
 /**
  * Location coordinates for trip pickup/destination
@@ -65,7 +64,7 @@ export async function createTrip(input: CreateTripInput): Promise<CreateTripResu
       lat: input.destination.lat,
       lng: input.destination.lng,
     },
-    createdAt: firestore.FieldValue.serverTimestamp(),
+    createdAt: serverTimestamp(),
     assignedDriverId: null,
   };
 

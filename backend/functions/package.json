@@ -6,16 +6,19 @@
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "serve": "npm run build && npx firebase-tools emulators:start --only functions",
-    "emulators": "npm run build && npx firebase-tools emulators:start",
-    "emulators:all": "npm run build && npx firebase-tools emulators:start --import=./emulator-data --export-on-exit",
-    "shell": "npm run build && npx firebase-tools functions:shell",
+    "serve": "npm run build && node ../../scripts/run-firebase-node20.cjs emulators:start --only functions",
+    "emulators": "npm run build && node ../../scripts/run-firebase-node20.cjs emulators:start",
+    "emulators:all": "npm run build && node ../../scripts/run-firebase-node20.cjs emulators:start --import=./emulator-data --export-on-exit",
+    "shell": "npm run build && node ../../scripts/run-firebase-node20.cjs functions:shell",
     "start": "npm run shell",
-    "deploy": "npx firebase-tools deploy --only functions",
-    "logs": "npx firebase-tools functions:log",
+    "deploy": "node ../../scripts/run-firebase-node20.cjs deploy --only functions",
+    "logs": "node ../../scripts/run-firebase-node20.cjs functions:log",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "lint:fix": "eslint src --ext .ts --fix",
+    "backfill:driver-eligibility": "node scripts/backfill-driver-eligibility.js",
+    "backfill:driver-eligibility:apply": "node scripts/backfill-driver-eligibility.js --apply",
+    "qa:driver-eligibility:e2e": "node scripts/qa-driver-eligibility-e2e.mjs"
   },
   "engines": {
     "node": "20"

@@ -2,8 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
-import { firebaseDB } from '../firebase';
+import { arrayUnion, firebaseDB, serverTimestamp } from '../firebase';
 
 const INSTALLATION_ID_KEY = 'waselneh.passenger.installationId';
 
@@ -58,16 +57,16 @@ export async function registerNotificationDevice(
       userId,
       preferredLocale: locale,
       platform: 'passenger',
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+      updatedAt: serverTimestamp(),
       [`installations.${installationId}`]: {
-        updatedAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: serverTimestamp(),
         platform: Device.osName || 'android',
         modelName: Device.modelName || 'unknown',
       },
     };
 
     if (expoPushToken) {
-      updatePayload.expoPushTokens = firestore.FieldValue.arrayUnion(expoPushToken);
+      updatePayload.expoPushTokens = arrayUnion(expoPushToken);
       console.log('[Notifications] Passenger expo token registered');
     } else {
       console.log('[Notifications] Passenger expo token unavailable (device/emulator/permission)');
@@ -76,7 +75,7 @@ export async function registerNotificationDevice(
     await firebaseDB
       .collection('userDevices')
       .doc(userId)
-      .set(updatePayload as FirebaseFirestoreTypes.DocumentData, { merge: true });
+      .set(updatePayload, { merge: true });
   } catch (error) {
     console.warn('[Notifications] Failed to register passenger device', error);
   }
@@ -96,7 +95,7 @@ export function subscribeToUserNotifications(
     .onSnapshot(
       (snapshot) => {
         const items: UserNotification[] = snapshot.docs.map((doc) => {
-          const data = doc.data() as FirebaseFirestoreTypes.DocumentData;
+          const data = doc.data() as Record<string, any>;
           const createdAt = data.createdAt;
           const createdAtMs =
             typeof createdAt?.toMillis === 'function'
@@ -134,7 +133,7 @@ export async function markUserNotificationRead(
     .set(
       {
         read: true,
-        readAt: firestore.FieldValue.serverTimestamp(),
+        readAt: serverTimestamp(),
       },
       { merge: true }
     );

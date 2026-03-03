@@ -80,6 +80,7 @@ export {
   driverCancelTrip,
   managerForceCancelTrip,
   managerToggleTrips,
+  managerSetDriverEligibility,
   getSystemConfigCallable,
   // Step 33: Feature flag toggle
   managerToggleFeatureFlag,
@@ -88,7 +89,7 @@ export {
 // ============================================================================
 // Auth Module Functions
 // ============================================================================
-// TODO: Export auth functions
+export { enforceDriverEligibility } from './modules/auth';
 
 // ============================================================================
 // Users Module Functions

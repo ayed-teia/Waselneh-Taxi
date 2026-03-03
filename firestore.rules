@@ -52,13 +52,6 @@ service cloud.firestore {
     }
     
     /**
-     * Check if user is a passenger
-     */
-    function isPassenger() {
-      return hasRole('passenger');
-    }
-
-    /**
      * Driver profile path helper
      */
     function driverDocPath(uid) {
@@ -98,16 +91,6 @@ service cloud.firestore {
         request.resource.data.verificationStatus == resource.data.verificationStatus &&
         request.resource.data.lineId == resource.data.lineId &&
         request.resource.data.licenseId == resource.data.licenseId
-      );
-    }
-    
-    /**
-     * Check if the user is a participant in a trip (passenger or driver)
-     */
-    function isTripParticipant() {
-      return isAuthenticated() && (
-        resource.data.passengerId == request.auth.uid ||
-        resource.data.driverId == request.auth.uid
       );
     }
     

@@ -1,37 +1,68 @@
 /**
- * Firebase Native SDK configuration for Passenger App.
- * Uses @react-native-firebase (native config via google-services.json).
+ * Firebase configuration for Passenger App
+ * Uses Firebase JS SDK compat API with emulator-safe defaults.
  */
 import Constants from 'expo-constants';
-import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
-import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
-import '@react-native-firebase/functions';
-import type { FirebaseFunctionsTypes } from '@react-native-firebase/functions';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
+import 'firebase/compat/functions';
 import { getEmulatorHost } from '../../utils/emulator-host';
 
-// ============================================================================
-// TYPES
-// ============================================================================
-export type Auth = FirebaseAuthTypes.Module;
-export type User = FirebaseAuthTypes.User;
-export type UserCredential = FirebaseAuthTypes.UserCredential;
-export type Firestore = FirebaseFirestoreTypes.Module;
-export type DocumentSnapshot = FirebaseFirestoreTypes.DocumentSnapshot;
-export type QuerySnapshot = FirebaseFirestoreTypes.QuerySnapshot;
-export type Functions = FirebaseFunctionsTypes.Module;
+export type Auth = firebase.auth.Auth;
+export type User = firebase.User;
+export type UserCredential = firebase.auth.UserCredential;
+export type Firestore = firebase.firestore.Firestore;
+export type DocumentSnapshot = firebase.firestore.DocumentSnapshot;
+export type QuerySnapshot = firebase.firestore.QuerySnapshot;
+export type Functions = firebase.functions.Functions;
 export type Unsubscribe = () => void;
 
-// ============================================================================
-// FIREBASE INSTANCES
-// ============================================================================
 const expoConfig = Constants.expoConfig?.extra ?? {};
 const useEmulators = expoConfig.useEmulators === true || expoConfig.useEmulators === 'true';
 const emulatorHost = getEmulatorHost();
-const functionsRegion = 'europe-west1';
+const defaultProjectId = 'waselneh-prod-414e2';
+const defaultFirebaseConfig = {
+  apiKey: 'AIzaSyAiyhX7HdwSsEAZASVSO2IEDuudS6czDgg',
+  authDomain: `${defaultProjectId}.firebaseapp.com`,
+  projectId: defaultProjectId,
+  storageBucket: `${defaultProjectId}.firebasestorage.app`,
+  messagingSenderId: '474645728365',
+  appId: '1:474645728365:android:275d36b746d87f9a58c364',
+} as const;
 
-export const firebaseAuth = auth();
-export const firebaseDB = firestore();
-export const firebaseFunctions = firebaseAuth.app.functions(functionsRegion);
+const resolvedProjectId = String(
+  expoConfig.firebaseProjectId || process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || defaultFirebaseConfig.projectId
+);
+
+const firebaseConfig = {
+  apiKey: String(expoConfig.firebaseApiKey || process.env.EXPO_PUBLIC_FIREBASE_API_KEY || defaultFirebaseConfig.apiKey),
+  authDomain: String(
+    expoConfig.firebaseAuthDomain ||
+      process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ||
+      `${resolvedProjectId}.firebaseapp.com`
+  ),
+  projectId: resolvedProjectId,
+  storageBucket: String(
+    expoConfig.firebaseStorageBucket ||
+      process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+      `${resolvedProjectId}.firebasestorage.app`
+  ),
+  messagingSenderId: String(
+    expoConfig.firebaseMessagingSenderId ||
+      process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ||
+      defaultFirebaseConfig.messagingSenderId
+  ),
+  appId: String(expoConfig.firebaseAppId || process.env.EXPO_PUBLIC_FIREBASE_APP_ID || defaultFirebaseConfig.appId),
+};
+
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+
+export const firebaseAuth = firebase.auth();
+export const firebaseDB = firebase.firestore();
+export const firebaseFunctions = firebase.app().functions('europe-west1');
 
 let emulatorsConnected = false;
 
@@ -43,30 +74,27 @@ function ensureEmulatorsConnected() {
   try {
     firebaseAuth.useEmulator(`http://${emulatorHost}:9099`);
   } catch {
-    // already connected
+    // Already connected.
   }
 
   try {
     firebaseDB.useEmulator(emulatorHost, 8080);
   } catch {
-    // already connected
+    // Already connected.
   }
 
   try {
     firebaseFunctions.useEmulator(emulatorHost, 5001);
   } catch {
-    // already connected
+    // Already connected.
   }
 
   emulatorsConnected = true;
 }
 
 ensureEmulatorsConnected();
-console.log('Firebase Native initialized:', firebaseAuth.app.name, `functionsRegion=${functionsRegion}`);
+console.log('Firebase initialized:', firebase.app().name, 'functionsRegion=europe-west1');
 
-// ============================================================================
-// AUTH
-// ============================================================================
 export function getFirebaseAuth(): Auth {
   return firebaseAuth;
 }
@@ -90,17 +118,19 @@ export async function signOut(): Promise<void> {
 export async function signInAnonymouslyForDev(): Promise<{ user: User | null; error: Error | null }> {
   try {
     const result = await firebaseAuth.signInAnonymously();
-    console.log('DEV MODE: signed in anonymously with uid:', result.user.uid);
-    return { user: result.user, error: null };
+    const user = result.user ?? null;
+    if (user) {
+      console.log('DEV MODE: signed in anonymously with uid:', user.uid);
+    } else {
+      console.warn('DEV MODE: signInAnonymously returned no user');
+    }
+    return { user, error: null };
   } catch (error) {
     console.error('Failed to sign in anonymously:', error);
     return { user: null, error: error as Error };
   }
 }
 
-// ============================================================================
-// FIRESTORE
-// ============================================================================
 export function getFirestoreAsync(): Promise<Firestore> {
   return Promise.resolve(firebaseDB);
 }
@@ -123,16 +153,21 @@ export async function setDocument(
   data: unknown,
   options?: { merge?: boolean }
 ) {
-  return firebaseDB.collection(collectionPath).doc(docId).set(data as FirebaseFirestoreTypes.DocumentData, options || {});
+  return firebaseDB.collection(collectionPath).doc(docId).set(data as firebase.firestore.DocumentData, options || {});
 }
 
 export function serverTimestamp() {
-  return firestore.FieldValue.serverTimestamp();
+  return firebase.firestore.FieldValue.serverTimestamp();
 }
 
-// ============================================================================
-// INITIALIZATION
-// ============================================================================
+export function arrayUnion(...values: unknown[]) {
+  return firebase.firestore.FieldValue.arrayUnion(...values);
+}
+
+export function geoPoint(lat: number, lng: number) {
+  return new firebase.firestore.GeoPoint(lat, lng);
+}
+
 export async function initializeFirebase() {
   ensureEmulatorsConnected();
   return {
@@ -146,9 +181,6 @@ export function isUsingEmulators(): boolean {
   return useEmulators;
 }
 
-// ============================================================================
-// FUNCTIONS
-// ============================================================================
 export function getFunctions(): Functions {
   return firebaseFunctions;
 }
@@ -161,7 +193,7 @@ export async function callCloudFunction<TRequest, TResponse>(
   functionName: string,
   data: TRequest
 ): Promise<TResponse> {
-  const callable = firebaseFunctions.httpsCallable<TRequest, TResponse>(functionName);
+  const callable = firebaseFunctions.httpsCallable(functionName);
   const result = await callable(data);
-  return result.data;
+  return result.data as TResponse;
 }

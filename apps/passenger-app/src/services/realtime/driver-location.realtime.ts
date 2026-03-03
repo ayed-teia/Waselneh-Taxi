@@ -36,6 +36,10 @@ function toStringOrNull(value: unknown): string | null {
   return null;
 }
 
+function snapshotExists(snapshot: { exists: boolean | (() => boolean) }): boolean {
+  return typeof snapshot.exists === 'function' ? snapshot.exists() : snapshot.exists;
+}
+
 /**
  * Subscribe to a driver's live location (read-only)
  * Used by passengers to track their driver during active trips
@@ -57,7 +61,7 @@ export function subscribeToDriverLocation(
     .doc(driverId)
     .onSnapshot(
       (snapshot) => {
-        if (snapshot.exists()) {
+        if (snapshotExists(snapshot)) {
           const data = snapshot.data();
           const lat =
             toNumber(data?.lat) ??
@@ -104,7 +108,7 @@ export function subscribeToDriverProfile(
     .doc(driverId)
     .onSnapshot(
       (snapshot) => {
-        if (!snapshot.exists()) {
+        if (!snapshotExists(snapshot)) {
           onData(null);
           return;
         }

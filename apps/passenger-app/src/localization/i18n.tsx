@@ -4,6 +4,7 @@ import { I18nManager } from 'react-native';
 import { AppLocale, PASSENGER_TRANSLATIONS } from './translations';
 
 const STORAGE_KEY = 'waselneh.passenger.locale';
+let warnedMissingProvider = false;
 
 interface I18nContextValue {
   locale: AppLocale;
@@ -14,6 +15,14 @@ interface I18nContextValue {
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
+
+const FALLBACK_CONTEXT: I18nContextValue = {
+  locale: 'en',
+  isRTL: false,
+  setLocale: async () => undefined,
+  toggleLocale: async () => undefined,
+  t: (key: string) => key,
+};
 
 function formatTemplate(template: string, params?: Record<string, string | number>): string {
   if (!params) return template;
@@ -104,7 +113,11 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 export function useI18n(): I18nContextValue {
   const context = useContext(I18nContext);
   if (!context) {
-    throw new Error('useI18n must be used inside I18nProvider');
+    if (!warnedMissingProvider) {
+      warnedMissingProvider = true;
+      console.warn('[I18n] useI18n called outside I18nProvider. Falling back to default locale.');
+    }
+    return FALLBACK_CONTEXT;
   }
   return context;
 }
