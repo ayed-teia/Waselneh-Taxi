@@ -59,6 +59,7 @@ export function TripRequestModal() {
   useEffect(() => {
     if (!isModalVisible || !pendingRequest) {
       setIsAcceptReady(false);
+      setCountdown(DEFAULT_TIMEOUT_SECONDS);
       return;
     }
 
@@ -101,7 +102,16 @@ export function TripRequestModal() {
     if (!isModalVisible || !pendingRequest) {
       return;
     }
-    if (countdown > 0) {
+
+    if (pendingRequest.expiresAt) {
+      const remaining = getRemainingSeconds(pendingRequest.expiresAt);
+      if (remaining > 0) {
+        if (countdown <= 0) {
+          setCountdown(remaining);
+        }
+        return;
+      }
+    } else if (countdown > 0) {
       return;
     }
 
