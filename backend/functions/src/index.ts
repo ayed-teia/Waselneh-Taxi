@@ -81,6 +81,7 @@ export {
   managerForceCancelTrip,
   managerToggleTrips,
   managerSetDriverEligibility,
+  devIssueDriverToken,
   getSystemConfigCallable,
   // Step 33: Feature flag toggle
   managerToggleFeatureFlag,

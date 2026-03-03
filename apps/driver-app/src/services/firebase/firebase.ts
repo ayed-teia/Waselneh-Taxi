@@ -124,17 +124,12 @@ export async function signInWithDriverUidForDev(
   }
 
   try {
-    const projectId = firebaseConfig.projectId;
-    const endpoint = `http://${emulatorHost}:5001/${projectId}/europe-west1/devCustomToken`;
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid }),
-    });
-
-    const payload = (await response.json()) as { token?: string; error?: string };
-    if (!response.ok || !payload.token) {
-      throw new Error(payload.error || 'Failed to request custom token');
+    const payload = await callCloudFunction<{ uid: string }, { uid: string; token: string }>(
+      'devIssueDriverToken',
+      { uid }
+    );
+    if (!payload?.token) {
+      throw new Error('Failed to request custom token');
     }
 
     const credential = await firebaseAuth.signInWithCustomToken(payload.token);
