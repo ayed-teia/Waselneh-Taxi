@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { DriverMapView } from '../../map';
 import { useDriverStore } from '../../../store';
+import { useTripRequestStore } from '../../../store/trip-request.store';
 import { LanguageToggle, StatusToggle } from '../../../ui';
 import { useI18n } from '../../../localization';
 
@@ -26,6 +27,7 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { status, isUpdatingStatus, currentLocation } = useDriverStore();
+  const { pendingRequest } = useTripRequestStore();
 
   const isCompact = height < 760;
   const panelWidth = width >= 768 ? 560 : width;
@@ -80,7 +82,7 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
                 <View style={styles.inboxBody}>
                   <Text style={styles.inboxTitle}>{isRTL ? 'فتح صندوق الطلبات' : 'Open Request Inbox'}</Text>
                   <Text style={styles.inboxSubtitle}>
-                    {isRTL ? 'راجع واقبل الطلبات المعلقة بسرعة.' : 'Review and accept pending trips quickly.'}
+                    {isRTL ? 'راجع واقبل الطلبات المعلقة بسرعة.' : (pendingRequest ? 'You have a pending request now. Open inbox to accept.' : 'Review and accept pending trips quickly.')}
                   </Text>
                 </View>
                 <Text style={styles.inboxArrow}>{isRTL ? '<' : '>'}</Text>
@@ -221,3 +223,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
   },
 });
+
+

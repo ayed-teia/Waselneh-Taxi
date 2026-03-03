@@ -20,6 +20,8 @@ import { useDriverStore } from '../../store';
 let _unsubscribe: Unsubscribe | null = null;
 let _currentDriverId: string | null = null;
 let _lastShownTripId: string | null = null;
+let _emptySnapshotTimer: ReturnType<typeof setTimeout> | null = null;
+const EMPTY_SNAPSHOT_GRACE_MS = 1500;
 
 function toDateOrNull(value: unknown): Date | null {
   if (
@@ -80,13 +82,25 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
     .onSnapshot(
       (snapshot) => {
         if (snapshot.empty) {
-          _lastShownTripId = null;
-          const { isModalVisible, pendingRequest, hideRequest } = useTripRequestStore.getState();
-          if (isModalVisible && pendingRequest) {
-            hideRequest();
+          if (_emptySnapshotTimer) {
+            clearTimeout(_emptySnapshotTimer);
           }
-          console.log('[DriverRequests] No pending requests');
+
+          _emptySnapshotTimer = setTimeout(() => {
+            _lastShownTripId = null;
+            const { isModalVisible, pendingRequest, hideRequest } = useTripRequestStore.getState();
+            if (isModalVisible && pendingRequest) {
+              hideRequest();
+            }
+            console.log('[DriverRequests] No pending requests');
+            _emptySnapshotTimer = null;
+          }, EMPTY_SNAPSHOT_GRACE_MS);
           return;
+        }
+
+        if (_emptySnapshotTimer) {
+          clearTimeout(_emptySnapshotTimer);
+          _emptySnapshotTimer = null;
         }
 
         const sortedDocs = [...snapshot.docs].sort((a, b) => {
@@ -185,6 +199,10 @@ export async function stopDriverRequestsListener(): Promise<void> {
   _unsubscribe = null;
   _currentDriverId = null;
   _lastShownTripId = null;
+  if (_emptySnapshotTimer) {
+    clearTimeout(_emptySnapshotTimer);
+    _emptySnapshotTimer = null;
+  }
 
   useTripRequestStore.getState().clearAll();
 

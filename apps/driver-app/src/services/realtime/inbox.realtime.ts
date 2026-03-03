@@ -12,12 +12,26 @@ export interface InboxItem {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  status: 'pending' | 'accepted' | 'rejected' | 'expired';
+  expiresAt: Date | null;
   createdAt: Date | null;
 }
 
+function toDateOrNull(value: unknown): Date | null {
+  if (
+    value &&
+    typeof value === 'object' &&
+    'toDate' in value &&
+    typeof (value as { toDate: () => Date }).toDate === 'function'
+  ) {
+    return (value as { toDate: () => Date }).toDate();
+  }
+  return null;
+}
+
 /**
- * Subscribe to driver's inbox (read-only)
- * Receives trip requests dispatched to this driver
+ * Subscribe to pending driver requests.
+ * Source of truth: driverRequests/{driverId}/requests/{tripId}
  */
 export function subscribeToInbox(
   driverId: string,
@@ -25,26 +39,44 @@ export function subscribeToInbox(
   onError: (error: Error) => void
 ): Unsubscribe {
   return firebaseDB
-    .collection('drivers')
+    .collection('driverRequests')
     .doc(driverId)
-    .collection('inbox')
-    .orderBy('createdAt', 'desc')
+    .collection('requests')
+    .where('status', '==', 'pending')
+    .limit(50)
     .onSnapshot(
       (snapshot) => {
         const items: InboxItem[] = snapshot.docs.map((docSnap) => {
           const data = docSnap.data();
+          const requestId = String(data?.tripId ?? docSnap.id);
+
           return {
             id: docSnap.id,
-            requestId: data?.requestId,
-            passengerId: data?.passengerId,
-            pickup: data?.pickup,
-            dropoff: data?.dropoff,
-            estimatedDistanceKm: data?.estimatedDistanceKm,
-            estimatedDurationMin: data?.estimatedDurationMin,
-            estimatedPriceIls: data?.estimatedPriceIls,
-            createdAt: data?.createdAt?.toDate() ?? null,
+            requestId,
+            passengerId: String(data?.passengerId ?? ''),
+            pickup: {
+              lat: Number(data?.pickup?.lat ?? 0),
+              lng: Number(data?.pickup?.lng ?? 0),
+            },
+            dropoff: {
+              lat: Number(data?.dropoff?.lat ?? 0),
+              lng: Number(data?.dropoff?.lng ?? 0),
+            },
+            estimatedDistanceKm: Number(data?.estimatedDistanceKm ?? NaN),
+            estimatedDurationMin: Number(data?.estimatedDurationMin ?? NaN),
+            estimatedPriceIls: Number(data?.estimatedPriceIls ?? 0),
+            status: 'pending',
+            expiresAt: toDateOrNull(data?.expiresAt),
+            createdAt: toDateOrNull(data?.createdAt),
           };
         });
+
+        items.sort((a, b) => {
+          const aTime = a.createdAt?.getTime() ?? 0;
+          const bTime = b.createdAt?.getTime() ?? 0;
+          return bTime - aTime;
+        });
+
         onData(items);
       },
       onError
