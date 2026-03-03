@@ -42,8 +42,8 @@ import { publishTripStatusNotifications } from '../../modules/notifications';
 const SubmitRatingSchema = z.object({
   tripId: z.string().min(1),
   rating: z.number().int().min(1).max(5),
-  comment: z.string().max(500).optional(),
-  lowRatingReason: z.string().max(120).optional(),
+  comment: z.string().max(500).nullable().optional(),
+  lowRatingReason: z.string().max(120).nullable().optional(),
 });
 
 /**

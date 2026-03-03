@@ -2,8 +2,17 @@ import { firebaseFunctions } from '../firebase';
 import { LatLng } from '../../types/shared';
 
 // Dev mode configuration - matches app/index.tsx
-const DEV_MODE = true;
-const DEV_DRIVER_ID = 'dev-driver-001';
+const DEV_MODE = process.env.EXPO_PUBLIC_DEV_AUTH_BYPASS === 'true';
+const DEV_DRIVER_ID = process.env.EXPO_PUBLIC_DEV_DRIVER_ID || 'dev-driver-001';
+
+function stripUndefined<T>(input: T): T {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return input;
+  }
+
+  const entries = Object.entries(input as Record<string, unknown>).filter(([, value]) => value !== undefined);
+  return Object.fromEntries(entries) as T;
+}
 
 /**
  * Generic callable function wrapper with type safety
@@ -20,7 +29,7 @@ export async function callFunction<TRequest, TResponse>(
     ? { ...data, devUserId: DEV_DRIVER_ID }
     : data;
   
-  const result = await callable(requestData as TRequest & { devUserId?: string });
+  const result = await callable(stripUndefined(requestData as TRequest & { devUserId?: string }));
   return result.data as TResponse;
 }
 

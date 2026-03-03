@@ -34,7 +34,9 @@ service cloud.firestore {
      * Check if the user has a specific role (stored in custom claims)
      */
     function hasRole(role) {
-      return isAuthenticated() && request.auth.token.role == role;
+      return isAuthenticated() &&
+        ('role' in request.auth.token) &&
+        request.auth.token.role == role;
     }
     
     /**
@@ -64,6 +66,22 @@ service cloud.firestore {
 
     function driverDocExists(uid) {
       return exists(driverDocPath(uid));
+    }
+
+    function tripDocPath(tripId) {
+      return /databases/$(database)/documents/trips/$(tripId);
+    }
+
+    function tripDocExists(tripId) {
+      return exists(tripDocPath(tripId));
+    }
+
+    function isTripParticipantById(tripId) {
+      return isAuthenticated() &&
+        tripDocExists(tripId) && (
+          get(tripDocPath(tripId)).data.passengerId == request.auth.uid ||
+          get(tripDocPath(tripId)).data.driverId == request.auth.uid
+        );
     }
 
     function hasValidLineOrLicenseLink(data) {
@@ -119,6 +137,36 @@ service cloud.firestore {
       // User can update their own document, managers can update any
       // Note: User creation is handled by Cloud Functions on auth trigger
       allow write: if isOwner(uid) || isManager();
+    }
+
+    // =========================================================================
+    // User Devices Collection (Push Tokens / Installations)
+    // Path: /userDevices/{uid}
+    // =========================================================================
+    match /userDevices/{uid} {
+      allow read: if isOwner(uid) || isManager();
+      allow create, update: if isOwner(uid);
+      allow delete: if isOwner(uid) || isManager();
+    }
+
+    // =========================================================================
+    // User Notifications Collection
+    // Path: /userNotifications/{uid}/items/{notificationId}
+    // =========================================================================
+    match /userNotifications/{uid} {
+      allow read: if isOwner(uid) || isManager();
+      allow write: if false;
+
+      match /items/{notificationId} {
+        allow read: if isOwner(uid) || isManager();
+
+        // Users can only mark an existing notification as read.
+        allow update: if isOwner(uid) &&
+          request.resource.data.read == true &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['read', 'readAt']);
+
+        allow create, delete: if false;
+      }
     }
     
     // =========================================================================
@@ -250,6 +298,18 @@ service cloud.firestore {
       // Protected fields: status transitions, fare, timestamps, driver assignment
       // Cloud Functions use Admin SDK which bypasses these rules
       allow write: if false;
+
+      // Chat messages between trip participants
+      match /messages/{messageId} {
+        allow read: if isManager() || isTripParticipantById(tripId);
+        allow create: if isTripParticipantById(tripId) &&
+          request.resource.data.senderId == request.auth.uid &&
+          request.resource.data.senderRole in ['passenger', 'driver'] &&
+          request.resource.data.text is string &&
+          request.resource.data.text.size() > 0 &&
+          request.resource.data.text.size() <= 500;
+        allow update, delete: if false;
+      }
     }
     
     // =========================================================================

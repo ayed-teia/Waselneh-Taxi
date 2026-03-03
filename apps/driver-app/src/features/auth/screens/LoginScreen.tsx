@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { Button, Card, ScreenContainer, Text } from '@waselneh/ui';
 import { colors } from '../../../ui/theme';
 import { useI18n } from '../../../localization';
@@ -7,10 +7,17 @@ import { LanguageToggle } from '../../../ui';
 
 interface LoginScreenProps {
   onLogin: () => void;
+  driverUid: string;
+  onDriverUidChange: (value: string) => void;
   loading?: boolean;
 }
 
-export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
+export function LoginScreen({
+  onLogin,
+  driverUid,
+  onDriverUidChange,
+  loading = false,
+}: LoginScreenProps) {
   const { isRTL } = useI18n();
   const { width, height } = useWindowDimensions();
   const isCompact = height < 760;
@@ -59,6 +66,15 @@ export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
         </View>
 
         <View style={[styles.footer, { paddingBottom: isCompact ? 10 : 18 }]}>
+          <TextInput
+            value={driverUid}
+            onChangeText={onDriverUidChange}
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="Driver UID"
+            placeholderTextColor="#94A3B8"
+            style={styles.uidInput}
+          />
           <Button
             title={isRTL ? 'المتابعة برقم الهاتف' : 'Continue with Phone'}
             onPress={onLogin}
@@ -166,6 +182,16 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 'auto',
     gap: 16,
+  },
+  uidInput: {
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: '#0F172A',
   },
   loginButton: {
     minHeight: 56,

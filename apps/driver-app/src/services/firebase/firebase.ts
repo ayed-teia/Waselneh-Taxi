@@ -115,6 +115,35 @@ export async function signInAnonymouslyForDev(): Promise<{ user: User | null; er
   }
 }
 
+export async function signInWithDriverUidForDev(
+  driverUid: string
+): Promise<{ user: User | null; error: Error | null }> {
+  const uid = driverUid.trim();
+  if (!uid) {
+    return { user: null, error: new Error('Driver UID is required') };
+  }
+
+  try {
+    const projectId = firebaseConfig.projectId;
+    const endpoint = `http://${emulatorHost}:5001/${projectId}/europe-west1/devCustomToken`;
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid }),
+    });
+
+    const payload = (await response.json()) as { token?: string; error?: string };
+    if (!response.ok || !payload.token) {
+      throw new Error(payload.error || 'Failed to request custom token');
+    }
+
+    const credential = await firebaseAuth.signInWithCustomToken(payload.token);
+    return { user: credential.user, error: null };
+  } catch (error) {
+    return { user: null, error: error as Error };
+  }
+}
+
 export function getFirestoreAsync(): Promise<Firestore> {
   return Promise.resolve(firebaseDB);
 }

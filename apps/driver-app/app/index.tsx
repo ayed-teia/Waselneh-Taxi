@@ -4,7 +4,7 @@ import { Alert } from 'react-native';
 import { useAuthStore } from '../src/store';
 import { LoadingScreen } from '../src/ui';
 import { LoginScreen } from '../src/features/auth';
-import { signInAnonymouslyForDev } from '../src/services/firebase';
+import { signInWithDriverUidForDev } from '../src/services/firebase';
 import { useI18n } from '../src/localization';
 
 // Dev mode - use anonymous auth for testing with emulators
@@ -14,17 +14,24 @@ export default function Index() {
   const { t } = useI18n();
   const { isAuthenticated, isLoading, setUser } = useAuthStore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [driverUid, setDriverUid] = useState('');
 
-  // Dev mode: anonymous signin (creates real Firebase Auth user)
+  // Dev mode: sign in with custom token using typed driver UID
   const handleDevLogin = useCallback(async () => {
     if (isLoggingIn) {
+      return;
+    }
+
+    const trimmedUid = driverUid.trim();
+    if (!trimmedUid) {
+      Alert.alert(t('auth.login_failed'), isAuthenticated ? t('auth.login_generic') : 'Driver UID is required');
       return;
     }
 
     setIsLoggingIn(true);
     try {
       if (DEV_MODE) {
-        const { user, error } = await signInAnonymouslyForDev();
+        const { user, error } = await signInWithDriverUidForDev(trimmedUid);
         if (user) {
           setUser(user);
           return;
@@ -38,7 +45,7 @@ export default function Index() {
     } finally {
       setIsLoggingIn(false);
     }
-  }, [isLoggingIn, setUser]);
+  }, [driverUid, isAuthenticated, isLoggingIn, setUser, t]);
 
   if (isLoading) {
     return <LoadingScreen message={t('auth.starting')} />;
@@ -48,6 +55,8 @@ export default function Index() {
     return (
       <LoginScreen
         onLogin={handleDevLogin}
+        driverUid={driverUid}
+        onDriverUidChange={setDriverUid}
         loading={isLoggingIn}
       />
     );
