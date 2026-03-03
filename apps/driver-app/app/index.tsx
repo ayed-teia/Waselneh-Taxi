@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Redirect } from 'expo-router';
 import { Alert } from 'react-native';
 import { useAuthStore } from '../src/store';
@@ -9,22 +9,23 @@ import { useI18n } from '../src/localization';
 
 // Dev mode - use anonymous auth for testing with emulators
 const DEV_MODE = true;
+const DEV_DRIVER_UID = (process.env.EXPO_PUBLIC_DEV_DRIVER_UID || 'dev-driver-001').trim();
 
 export default function Index() {
   const { t } = useI18n();
   const { isAuthenticated, isLoading, setUser } = useAuthStore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [driverUid, setDriverUid] = useState('');
+  const [hasAttemptedAutoLogin, setHasAttemptedAutoLogin] = useState(false);
 
-  // Dev mode: sign in with custom token using typed driver UID
-  const handleDevLogin = useCallback(async () => {
+  // Dev mode: sign in with custom token using predefined driver UID
+  const handleDevLogin = useCallback(async (uidOverride?: string) => {
     if (isLoggingIn) {
       return;
     }
 
-    const trimmedUid = driverUid.trim();
+    const trimmedUid = (uidOverride || DEV_DRIVER_UID).trim();
     if (!trimmedUid) {
-      Alert.alert(t('auth.login_failed'), isAuthenticated ? t('auth.login_generic') : 'Driver UID is required');
+      Alert.alert(t('auth.login_failed'), t('auth.login_generic'));
       return;
     }
 
@@ -45,7 +46,16 @@ export default function Index() {
     } finally {
       setIsLoggingIn(false);
     }
-  }, [driverUid, isAuthenticated, isLoggingIn, setUser, t]);
+  }, [isLoggingIn, setUser, t]);
+
+  useEffect(() => {
+    if (!DEV_MODE || isLoading || isAuthenticated || isLoggingIn || hasAttemptedAutoLogin) {
+      return;
+    }
+
+    setHasAttemptedAutoLogin(true);
+    void handleDevLogin(DEV_DRIVER_UID);
+  }, [handleDevLogin, hasAttemptedAutoLogin, isAuthenticated, isLoading, isLoggingIn]);
 
   if (isLoading) {
     return <LoadingScreen message={t('auth.starting')} />;
@@ -55,8 +65,6 @@ export default function Index() {
     return (
       <LoginScreen
         onLogin={handleDevLogin}
-        driverUid={driverUid}
-        onDriverUidChange={setDriverUid}
         loading={isLoggingIn}
       />
     );

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Button, Card, ScreenContainer, Text } from '@waselneh/ui';
 import { colors } from '../../../ui/theme';
 import { useI18n } from '../../../localization';
@@ -7,17 +7,10 @@ import { LanguageToggle } from '../../../ui';
 
 interface LoginScreenProps {
   onLogin: () => void;
-  driverUid: string;
-  onDriverUidChange: (value: string) => void;
   loading?: boolean;
 }
 
-export function LoginScreen({
-  onLogin,
-  driverUid,
-  onDriverUidChange,
-  loading = false,
-}: LoginScreenProps) {
+export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
   const { isRTL } = useI18n();
   const { width, height } = useWindowDimensions();
   const isCompact = height < 760;
@@ -34,15 +27,15 @@ export function LoginScreen({
           <LanguageToggle />
           <View style={styles.badge}>
             <Text variant="caption" style={styles.badgeText}>
-              {isRTL ? 'لوحة السائق' : 'Driver Console'}
+              {isRTL ? 'Driver Console' : 'Driver Console'}
             </Text>
           </View>
           <Text variant="h1" style={styles.title}>
-            {isRTL ? 'سائق وصلني' : 'Waselneh Driver'}
+            {isRTL ? 'Waselneh Driver' : 'Waselneh Driver'}
           </Text>
           <Text muted style={styles.subtitle}>
             {isRTL
-              ? 'اتصل الآن، اقبل الرحلات القريبة، وتابع حالة الطرق لحظياً.'
+              ? 'Go online, accept nearby trips, and track route conditions in real time.'
               : 'Go online, accept nearby trips, and track route conditions in real time.'}
           </Text>
         </View>
@@ -51,43 +44,34 @@ export function LoginScreen({
           <Card elevated style={styles.card}>
             <Text style={styles.description}>
               {isRTL
-                ? 'مصمم لسائقي الخطوط بإجراءات رحلة سريعة وطلبات مباشرة ورؤية أوضح للتوزيع.'
+                ? 'Built for route-line drivers with fast trip actions, live requests, and safer dispatch visibility.'
                 : 'Built for route-line drivers with fast trip actions, live requests, and safer dispatch visibility.'}
             </Text>
             <View style={styles.featureRow}>
               <View style={[styles.featureDot, styles.greenDot]} />
-              <Text style={styles.featureText}>{isRTL ? 'صندوق طلبات فوري' : 'Instant trip request inbox'}</Text>
+              <Text style={styles.featureText}>Instant trip request inbox</Text>
             </View>
             <View style={styles.featureRow}>
               <View style={[styles.featureDot, styles.yellowDot]} />
-              <Text style={styles.featureText}>{isRTL ? 'خريطة قيادة تراعي الإغلاقات' : 'Roadblock-aware driving map'}</Text>
+              <Text style={styles.featureText}>Roadblock-aware driving map</Text>
             </View>
           </Card>
         </View>
 
         <View style={[styles.footer, { paddingBottom: isCompact ? 10 : 18 }]}>
-          <TextInput
-            value={driverUid}
-            onChangeText={onDriverUidChange}
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder="Driver UID"
-            placeholderTextColor="#94A3B8"
-            style={styles.uidInput}
-          />
           <Button
-            title={isRTL ? 'المتابعة برقم الهاتف' : 'Continue with Phone'}
+            title={isRTL ? 'Continue with Phone' : 'Continue with Phone'}
             onPress={onLogin}
             loading={loading}
             style={styles.loginButton}
           />
           <Text variant="caption" muted style={styles.terms}>
             {isRTL
-              ? 'بالمتابعة، أنت توافق على شروط الخدمة واتفاقية السائق.'
+              ? 'By continuing, you agree to our Terms of Service and Driver Agreement.'
               : 'By continuing, you agree to our Terms of Service and Driver Agreement.'}
           </Text>
           <Text variant="caption" muted style={styles.version}>
-            {isRTL ? 'وضع التشغيل' : 'Operations mode'}
+            {isRTL ? 'Operations mode' : 'Operations mode'}
           </Text>
         </View>
       </View>
@@ -182,16 +166,6 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 'auto',
     gap: 16,
-  },
-  uidInput: {
-    minHeight: 52,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    fontSize: 15,
-    color: '#0F172A',
   },
   loginButton: {
     minHeight: 56,
