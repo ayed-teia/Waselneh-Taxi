@@ -61,7 +61,9 @@ function computeActivityState(driver: DriverDocument): ActivityState {
   }
 
   try {
-    const lastSeenDate = driver.lastSeen.toDate ? driver.lastSeen.toDate() : new Date(driver.lastSeen as any);
+    const lastSeenDate = driver.lastSeen.toDate
+      ? driver.lastSeen.toDate()
+      : new Date(driver.lastSeen as any);
     const ageMs = Date.now() - lastSeenDate.getTime();
     return ageMs <= STALE_THRESHOLD_MS ? 'online' : 'stale';
   } catch {
@@ -86,14 +88,14 @@ function formatRelativeTime(timestamp: any): string {
   }
 }
 
-function getStatusBadge(state: ActivityState): { emoji: string; text: string } {
+function getStatusBadge(state: ActivityState): { text: string } {
   switch (state) {
     case 'online':
-      return { emoji: '🟢', text: 'Online' };
+      return { text: 'Online' };
     case 'stale':
-      return { emoji: '🟡', text: 'Stale' };
+      return { text: 'Stale' };
     case 'offline':
-      return { emoji: '🔴', text: 'Offline' };
+      return { text: 'Offline' };
   }
 }
 
@@ -106,7 +108,10 @@ function hasLink(lineId: string, licenseId: string): boolean {
   return lineId.trim().length > 0 || licenseId.trim().length > 0;
 }
 
-function computeEligibilityFromDraft(draft: DriverDraft): { isEligible: boolean; reasons: string[] } {
+function computeEligibilityFromDraft(draft: DriverDraft): {
+  isEligible: boolean;
+  reasons: string[];
+} {
   const reasons: string[] = [];
   if (draft.driverType.trim() !== 'licensed_line_owner') {
     reasons.push('driverType must be licensed_line_owner');
@@ -189,7 +194,8 @@ export function DriversListPage() {
     setDrafts((current) => ({
       ...current,
       [driverId]: {
-        ...(current[driverId] ?? createInitialDraft({ id: driverId, status: 'offline', lastSeen: null })),
+        ...(current[driverId] ??
+          createInitialDraft({ id: driverId, status: 'offline', lastSeen: null })),
         [field]: value,
       },
     }));
@@ -203,7 +209,11 @@ export function DriversListPage() {
     const normalizedDraft: DriverDraft = {
       ...draft,
       verificationStatus:
-        mode === 'approve' ? 'approved' : mode === 'reject' ? 'rejected' : normalizeStatus(draft.verificationStatus),
+        mode === 'approve'
+          ? 'approved'
+          : mode === 'reject'
+            ? 'rejected'
+            : normalizeStatus(draft.verificationStatus),
       lineId: draft.lineId.trim(),
       licenseId: draft.licenseId.trim(),
       vehicleType: normalizeVehicleType(draft.vehicleType),
@@ -264,11 +274,14 @@ export function DriversListPage() {
   return (
     <div className="drivers-page">
       <h2>Drivers ({drivers.length} total)</h2>
+      <p className="drivers-subtitle">
+        Live status, eligibility controls, and profile edits in one place.
+      </p>
 
       <div className="drivers-summary">
-        <span className="online-count">🟢 {onlineCount} Online</span>
-        <span className="stale-count">🟡 {staleCount} Stale</span>
-        <span className="offline-count">🔴 {offlineCount} Offline</span>
+        <span className="online-count">{onlineCount} Online</span>
+        <span className="stale-count">{staleCount} Stale</span>
+        <span className="offline-count">{offlineCount} Offline</span>
       </div>
 
       {pageError ? <div className="page-error">{pageError}</div> : null}
@@ -276,145 +289,157 @@ export function DriversListPage() {
       {drivers.length === 0 ? (
         <p className="no-drivers">No drivers found. Start the driver app to see updates.</p>
       ) : (
-        <table className="drivers-table">
-          <thead>
-            <tr>
-              <th>Driver ID</th>
-              <th>Status</th>
-              <th>Coordinates</th>
-              <th>Last Seen</th>
-              <th>Eligibility</th>
-              <th>Driver Type</th>
-              <th>Verification</th>
-              <th>lineId</th>
-              <th>licenseId</th>
-              <th>Vehicle</th>
-              <th>Seats</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {driversWithActivity.map((driver) => {
-              const badge = getStatusBadge(driver.activityState);
-              const draft = drafts[driver.id] ?? createInitialDraft(driver);
-              const eligibility = computeEligibilityFromDraft(draft);
-              const isSaving = savingByDriverId[driver.id] === true;
+        <div className="drivers-table-wrap">
+          <table className="drivers-table">
+            <thead>
+              <tr>
+                <th>Driver ID</th>
+                <th>Status</th>
+                <th>Coordinates</th>
+                <th>Last Seen</th>
+                <th>Eligibility</th>
+                <th>Driver Type</th>
+                <th>Verification</th>
+                <th>lineId</th>
+                <th>licenseId</th>
+                <th>Vehicle</th>
+                <th>Seats</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {driversWithActivity.map((driver) => {
+                const badge = getStatusBadge(driver.activityState);
+                const draft = drafts[driver.id] ?? createInitialDraft(driver);
+                const eligibility = computeEligibilityFromDraft(draft);
+                const isSaving = savingByDriverId[driver.id] === true;
 
-              return (
-                <tr key={driver.id} className={driver.activityState}>
-                  <td className="driver-id">{driver.id}</td>
-                  <td className="status">
-                    <span className={`status-badge ${driver.activityState}`}>
-                      {badge.emoji} {badge.text}
-                    </span>
-                  </td>
-                  <td className="coord">
-                    {driver.location ? `${driver.location.lat.toFixed(5)}, ${driver.location.lng.toFixed(5)}` : 'N/A'}
-                  </td>
-                  <td className="timestamp">{driver.lastSeenAgo}</td>
-                  <td>
-                    <span className={`eligibility-badge ${eligibility.isEligible ? 'ok' : 'blocked'}`}>
-                      {eligibility.isEligible ? 'Eligible' : 'Blocked'}
-                    </span>
-                    {!eligibility.isEligible ? (
-                      <div className="eligibility-reasons">{eligibility.reasons.join(', ')}</div>
-                    ) : null}
-                  </td>
-                  <td>
-                    <input
-                      className="table-input"
-                      value={draft.driverType}
-                      onChange={(e) => setDraftField(driver.id, 'driverType', e.target.value)}
-                      disabled={isSaving}
-                    />
-                  </td>
-                  <td>
-                    <select
-                      className="table-select"
-                      value={draft.verificationStatus}
-                      onChange={(e) =>
-                        setDraftField(driver.id, 'verificationStatus', normalizeStatus(e.target.value))
-                      }
-                      disabled={isSaving}
-                    >
-                      <option value="approved">approved</option>
-                      <option value="pending">pending</option>
-                      <option value="rejected">rejected</option>
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      className="table-input"
-                      value={draft.lineId}
-                      onChange={(e) => setDraftField(driver.id, 'lineId', e.target.value)}
-                      disabled={isSaving}
-                      placeholder="line-001"
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="table-input"
-                      value={draft.licenseId}
-                      onChange={(e) => setDraftField(driver.id, 'licenseId', e.target.value)}
-                      disabled={isSaving}
-                      placeholder="LIC-001"
-                    />
-                  </td>
-                  <td>
-                    <select
-                      className="table-select"
-                      value={draft.vehicleType}
-                      onChange={(e) =>
-                        setDraftField(driver.id, 'vehicleType', normalizeVehicleType(e.target.value))
-                      }
-                      disabled={isSaving}
-                    >
-                      {VEHICLE_TYPE_OPTIONS.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      className="table-input table-input-sm"
-                      value={draft.seatCapacity}
-                      onChange={(e) => setDraftField(driver.id, 'seatCapacity', e.target.value)}
-                      disabled={isSaving}
-                      placeholder="4"
-                    />
-                  </td>
-                  <td>
-                    <div className="actions-cell">
-                      <button
-                        className="action-btn approve"
-                        onClick={() => persistDriverEligibility(driver.id, draft, 'approve')}
+                return (
+                  <tr key={driver.id} className={driver.activityState}>
+                    <td className="driver-id">{driver.id}</td>
+                    <td className="status">
+                      <span className={`status-badge ${driver.activityState}`}>{badge.text}</span>
+                    </td>
+                    <td className="coord">
+                      {driver.location
+                        ? `${driver.location.lat.toFixed(5)}, ${driver.location.lng.toFixed(5)}`
+                        : 'N/A'}
+                    </td>
+                    <td className="timestamp">{driver.lastSeenAgo}</td>
+                    <td>
+                      <span
+                        className={`eligibility-badge ${eligibility.isEligible ? 'ok' : 'blocked'}`}
+                      >
+                        {eligibility.isEligible ? 'Eligible' : 'Blocked'}
+                      </span>
+                      {!eligibility.isEligible ? (
+                        <div className="eligibility-reasons">{eligibility.reasons.join(', ')}</div>
+                      ) : null}
+                    </td>
+                    <td>
+                      <input
+                        className="table-input"
+                        value={draft.driverType}
+                        onChange={(e) => setDraftField(driver.id, 'driverType', e.target.value)}
+                        disabled={isSaving}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        className="table-select"
+                        value={draft.verificationStatus}
+                        onChange={(e) =>
+                          setDraftField(
+                            driver.id,
+                            'verificationStatus',
+                            normalizeStatus(e.target.value)
+                          )
+                        }
                         disabled={isSaving}
                       >
-                        Approve
-                      </button>
-                      <button
-                        className="action-btn reject"
-                        onClick={() => persistDriverEligibility(driver.id, draft, 'reject')}
+                        <option value="approved">approved</option>
+                        <option value="pending">pending</option>
+                        <option value="rejected">rejected</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="table-input"
+                        value={draft.lineId}
+                        onChange={(e) => setDraftField(driver.id, 'lineId', e.target.value)}
+                        disabled={isSaving}
+                        placeholder="line-001"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="table-input"
+                        value={draft.licenseId}
+                        onChange={(e) => setDraftField(driver.id, 'licenseId', e.target.value)}
+                        disabled={isSaving}
+                        placeholder="LIC-001"
+                      />
+                    </td>
+                    <td>
+                      <select
+                        className="table-select"
+                        value={draft.vehicleType}
+                        onChange={(e) =>
+                          setDraftField(
+                            driver.id,
+                            'vehicleType',
+                            normalizeVehicleType(e.target.value)
+                          )
+                        }
                         disabled={isSaving}
                       >
-                        Reject
-                      </button>
-                      <button
-                        className="action-btn save"
-                        onClick={() => persistDriverEligibility(driver.id, draft, 'save')}
+                        {VEHICLE_TYPE_OPTIONS.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="table-input table-input-sm"
+                        value={draft.seatCapacity}
+                        onChange={(e) => setDraftField(driver.id, 'seatCapacity', e.target.value)}
                         disabled={isSaving}
-                      >
-                        Save
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                        placeholder="4"
+                      />
+                    </td>
+                    <td>
+                      <div className="actions-cell">
+                        <button
+                          className="action-btn approve"
+                          onClick={() => persistDriverEligibility(driver.id, draft, 'approve')}
+                          disabled={isSaving}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="action-btn reject"
+                          onClick={() => persistDriverEligibility(driver.id, draft, 'reject')}
+                          disabled={isSaving}
+                        >
+                          Reject
+                        </button>
+                        <button
+                          className="action-btn save"
+                          onClick={() => persistDriverEligibility(driver.id, draft, 'save')}
+                          disabled={isSaving}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

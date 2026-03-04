@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, NavLink } from 'react-router-dom';
 import { Button, Card, Text } from './ui';
 import {
   ManagerRole,
@@ -17,6 +17,16 @@ const ROLE_OPTIONS: ManagerRole[] = [
   'operations_manager',
   'dispatcher',
   'support',
+];
+
+const NAV_ITEMS = [
+  { to: '/drivers', label: 'Drivers' },
+  { to: '/operations', label: 'Operations' },
+  { to: '/monitoring', label: 'Monitoring' },
+  { to: '/live-map', label: 'Live Map' },
+  { to: '/payments', label: 'Payments' },
+  { to: '/roadblocks', label: 'Roadblocks' },
+  { to: '/settings', label: 'Settings' },
 ];
 
 export function App() {
@@ -64,13 +74,14 @@ export function App() {
     <div className="app">
       <header className="header">
         <div className="header-title-group">
+          <span className="workspace-badge">Operations Console</span>
           <Text as="h1" variant="h2">
             Waselneh Manager
           </Text>
           {session ? (
             <p className="session-meta">
               role: <strong>{session.role}</strong>
-              {' · '}
+              {' � '}
               scope:{' '}
               <strong>
                 {session.isGlobalScope
@@ -81,29 +92,21 @@ export function App() {
           ) : null}
         </div>
 
-        <nav>
-          <Link className="nav-link" to="/drivers">
-            Drivers
-          </Link>
-          <Link className="nav-link" to="/operations">
-            Operations
-          </Link>
-          <Link className="nav-link" to="/monitoring">
-            Monitoring
-          </Link>
-          <Link className="nav-link" to="/live-map">
-            Live Map
-          </Link>
-          <Link className="nav-link" to="/payments">
-            Payments
-          </Link>
-          <Link className="nav-link" to="/roadblocks">
-            Roadblocks
-          </Link>
-          <Link className="nav-link" to="/settings">
-            Settings
-          </Link>
-          <Button type="button" variant="primary" onClick={() => setRefreshToken((current) => current + 1)}>
+        <nav className="top-nav">
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              className={({ isActive }) => (isActive ? 'nav-link nav-link-active' : 'nav-link')}
+              to={item.to}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => setRefreshToken((current) => current + 1)}
+          >
             Refresh Session
           </Button>
         </nav>
@@ -112,12 +115,15 @@ export function App() {
       <main className="main">
         <Card elevated>
           <div className="session-toolbar">
-            <div>
+            <div className="session-toolbar-meta">
               <strong>Environment:</strong> {emulators ? 'emulator' : 'production'}
             </div>
             <div className="session-actions">
               {emulators ? (
-                <select value={role} onChange={(event) => setRole(event.target.value as ManagerRole)}>
+                <select
+                  value={role}
+                  onChange={(event) => setRole(event.target.value as ManagerRole)}
+                >
                   {ROLE_OPTIONS.map((option) => (
                     <option key={option} value={option}>
                       {option}
@@ -137,7 +143,7 @@ export function App() {
             </div>
           </div>
 
-          {loading ? <p>Loading manager session...</p> : null}
+          {loading ? <p className="session-loading">Loading manager session...</p> : null}
           {error ? <div className="session-error">{error}</div> : null}
           {!loading && !error && session ? (
             <div className="session-info">
