@@ -38,19 +38,62 @@ service cloud.firestore {
         ('role' in request.auth.token) &&
         request.auth.token.role == role;
     }
+
+    function managerRoleDocPath(uid) {
+      return /databases/$(database)/documents/managerRoles/$(uid);
+    }
+
+    function userDocPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function isManagerRoleValue(value) {
+      return value == 'admin' ||
+        value == 'manager' ||
+        value == 'operations_manager' ||
+        value == 'dispatcher' ||
+        value == 'support';
+    }
+
+    function hasManagerClaim() {
+      return isAuthenticated() &&
+        (
+          hasRole('manager') ||
+          hasRole('admin') ||
+          (
+            ('managerRole' in request.auth.token) &&
+            isManagerRoleValue(request.auth.token.managerRole)
+          )
+        );
+    }
     
     /**
      * Check if user is a manager
      */
     function isManager() {
-      return hasRole('manager');
+      return hasManagerClaim() ||
+        (
+          isAuthenticated() &&
+          exists(managerRoleDocPath(request.auth.uid)) &&
+          isManagerRoleValue(get(managerRoleDocPath(request.auth.uid)).data.role) &&
+          get(managerRoleDocPath(request.auth.uid)).data.isActive == true
+        ) ||
+        (
+          isAuthenticated() &&
+          exists(userDocPath(request.auth.uid)) &&
+          isManagerRoleValue(get(userDocPath(request.auth.uid)).data.role)
+        );
     }
     
     /**
      * Check if user is a driver
      */
     function isDriver() {
-      return hasRole('driver');
+      return hasRole('driver') ||
+        (
+          isAuthenticated() &&
+          driverDocExists(request.auth.uid)
+        );
     }
     
     /**
@@ -72,13 +115,9 @@ service cloud.firestore {
       return /databases/$(database)/documents/trips/$(tripId);
     }
 
-    function tripDocExists(tripId) {
-      return exists(tripDocPath(tripId));
-    }
-
     function isTripParticipantById(tripId) {
       return isAuthenticated() &&
-        tripDocExists(tripId) && (
+        exists(tripDocPath(tripId)) && (
           get(tripDocPath(tripId)).data.passengerId == request.auth.uid ||
           get(tripDocPath(tripId)).data.driverId == request.auth.uid
         );
@@ -105,10 +144,18 @@ service cloud.firestore {
 
     function preservesDriverEligibilityFields() {
       return (
-        request.resource.data.driverType == resource.data.driverType &&
-        request.resource.data.verificationStatus == resource.data.verificationStatus &&
-        request.resource.data.lineId == resource.data.lineId &&
-        request.resource.data.licenseId == resource.data.licenseId
+        (!('driverType' in request.resource.data) ||
+          request.resource.data.driverType == resource.data.driverType) &&
+        (!('verificationStatus' in request.resource.data) ||
+          request.resource.data.verificationStatus == resource.data.verificationStatus) &&
+        (!('lineId' in request.resource.data) ||
+          request.resource.data.lineId == resource.data.lineId) &&
+        (!('licenseId' in request.resource.data) ||
+          request.resource.data.licenseId == resource.data.licenseId) &&
+        (!('vehicleType' in request.resource.data) ||
+          request.resource.data.vehicleType == resource.data.vehicleType) &&
+        (!('seatCapacity' in request.resource.data) ||
+          request.resource.data.seatCapacity == resource.data.seatCapacity)
       );
     }
     
@@ -137,6 +184,15 @@ service cloud.firestore {
       // User can update their own document, managers can update any
       // Note: User creation is handled by Cloud Functions on auth trigger
       allow write: if isOwner(uid) || isManager();
+    }
+
+    // =========================================================================
+    // Manager Roles Collection (RBAC source of truth)
+    // Path: /managerRoles/{uid}
+    // =========================================================================
+    match /managerRoles/{uid} {
+      allow read: if isOwner(uid) || isManager();
+      allow write: if isManager();
     }
 
     // =========================================================================
@@ -264,8 +320,14 @@ service cloud.firestore {
         allow read: if isOwner(driverId) || isManager();
         
         // Driver can update status (accept/reject)
-        allow update: if isOwner(driverId) && isDriver() &&
-          request.resource.data.status in ['accepted', 'rejected'];
+        allow update: if isOwner(driverId) &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status in ['accepted', 'rejected'] &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'status',
+            'acceptedAt',
+            'rejectedAt'
+          ]);
         
         // NO direct creates or deletes - managed by Cloud Functions
         allow create, delete: if false;
@@ -358,6 +420,69 @@ service cloud.firestore {
     match /pricingRules/{ruleId} {
       // Only managers can read and write pricing rules
       allow read, write: if isManager();
+    }
+
+    // =========================================================================
+    // Operations Core Collections
+    // =========================================================================
+    match /offices/{officeId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
+    match /lines/{lineId} {
+      allow read: if isManager() || isAuthenticated();
+      allow write: if false;
+    }
+
+    match /licenses/{licenseId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
+    match /vehicles/{vehicleId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
+    match /pricingProfiles/{profileId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
+    match /pricingZones/{zoneId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
+    // =========================================================================
+    // Monitoring Collections
+    // =========================================================================
+    match /opsErrors/{errorId} {
+      allow read: if isManager();
+      allow create: if isAuthenticated() &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() > 0 &&
+        request.resource.data.message.size() <= 800 &&
+        request.resource.data.severity in ['info', 'warning', 'error', 'fatal'];
+      allow update, delete: if false;
+    }
+
+    match /opsMetrics/{metricId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
+    match /opsAlerts/{alertId} {
+      allow read: if isManager();
+      allow update: if isManager() &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'acknowledgedAt',
+          'acknowledgedBy',
+          'acknowledgedNote',
+          'updatedAt'
+        ]);
+      allow create, delete: if false;
     }
     
     // =========================================================================
