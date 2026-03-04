@@ -7,9 +7,14 @@ import { DriversListPage } from './pages/DriversListPage';
 import { PaymentsListPage } from './pages/PaymentsListPage';
 import { RoadblocksPage } from './pages/RoadblocksPage';
 import { SystemSettingsPage } from './pages/SystemSettingsPage';
+import { OperationsPage } from './pages/OperationsPage';
+import { MonitoringPage } from './pages/MonitoringPage';
+import { installWebErrorTracking } from './services/error-tracking.service';
 import '@waselneh/ui/tokens.css';
 import './ui/styles.css';
 import './index.css';
+
+installWebErrorTracking();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -22,6 +27,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="payments" element={<PaymentsListPage />} />
           <Route path="roadblocks" element={<RoadblocksPage />} />
           <Route path="settings" element={<SystemSettingsPage />} />
+          <Route path="operations" element={<OperationsPage />} />
+          <Route path="monitoring" element={<MonitoringPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

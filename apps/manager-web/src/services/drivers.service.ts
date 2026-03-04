@@ -27,6 +27,8 @@ export interface DriverDocument {
   verificationStatus?: string | null;
   lineId?: string | null;
   licenseId?: string | null;
+  vehicleType?: string | null;
+  seatCapacity?: number | null;
   eligibilityBlocked?: boolean;
   eligibilityBlockReasons?: string[];
   location?: {
@@ -67,6 +69,8 @@ export function subscribeToDrivers(
           verificationStatus: typeof data.verificationStatus === 'string' ? data.verificationStatus : null,
           lineId: typeof data.lineId === 'string' ? data.lineId : null,
           licenseId: typeof data.licenseId === 'string' ? data.licenseId : null,
+          vehicleType: typeof data.vehicleType === 'string' ? data.vehicleType : null,
+          seatCapacity: typeof data.seatCapacity === 'number' ? data.seatCapacity : null,
           eligibilityBlocked: data.eligibilityBlocked === true,
           eligibilityBlockReasons: Array.isArray(data.eligibilityBlockReasons) ? data.eligibilityBlockReasons : [],
           location: data.location ? {
@@ -95,6 +99,8 @@ export interface UpsertDriverEligibilityInput {
   verificationStatus: 'approved' | 'pending' | 'rejected';
   lineId?: string;
   licenseId?: string;
+  vehicleType?: string;
+  seatCapacity?: number;
   note?: string;
   forceOfflineIfIneligible?: boolean;
 }

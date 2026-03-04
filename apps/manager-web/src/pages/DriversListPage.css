@@ -126,6 +126,10 @@
   font-size: 12px;
 }
 
+.table-input-sm {
+  width: 88px;
+}
+
 .actions-cell {
   display: flex;
   flex-direction: column;

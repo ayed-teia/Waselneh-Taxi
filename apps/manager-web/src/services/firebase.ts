@@ -13,9 +13,9 @@ import {
 // Firebase configuration for manager web - Production
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBxSBX302HrkHBt-m0s6rCQDpu74L4Wld0",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "waselneh-prod.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "waselneh-prod",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "waselneh-prod.firebasestorage.app",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "waselneh-prod-414e2.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "waselneh-prod-414e2",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "waselneh-prod-414e2.firebasestorage.app",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1041356838503",
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1041356838503:web:68c077c6d834057e89a6c2",
   measurementId: "G-FNY3H394G2"
@@ -84,7 +84,7 @@ export function getFirebaseAuth(): Auth {
 export function getFunctionsInstance(): Functions {
   if (!functions) {
     const firebaseApp = initializeFirebase();
-    functions = getFunctions(firebaseApp, 'me-west1');
+    functions = getFunctions(firebaseApp, 'europe-west1');
     
     if (useEmulators) {
       connectFunctionsEmulator(functions, emulatorHost, 5001);
@@ -92,4 +92,8 @@ export function getFunctionsInstance(): Functions {
     }
   }
   return functions;
+}
+
+export function isUsingEmulators(): boolean {
+  return useEmulators;
 }

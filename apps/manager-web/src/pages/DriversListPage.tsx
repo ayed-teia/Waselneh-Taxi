@@ -10,6 +10,7 @@ const STALE_THRESHOLD_MS = 10 * 1000;
 
 type ActivityState = 'online' | 'stale' | 'offline';
 type VerificationStatus = 'approved' | 'pending' | 'rejected';
+type DriverVehicleType = 'taxi_standard' | 'family_van' | 'minibus' | 'premium';
 
 interface DriverWithActivity extends DriverDocument {
   activityState: ActivityState;
@@ -21,7 +22,33 @@ interface DriverDraft {
   verificationStatus: VerificationStatus;
   lineId: string;
   licenseId: string;
+  vehicleType: DriverVehicleType;
+  seatCapacity: string;
   note: string;
+}
+
+const VEHICLE_TYPE_OPTIONS: DriverVehicleType[] = [
+  'taxi_standard',
+  'family_van',
+  'minibus',
+  'premium',
+];
+
+function normalizeVehicleType(value: string | null | undefined): DriverVehicleType {
+  if (value === 'family_van' || value === 'minibus' || value === 'premium') {
+    return value;
+  }
+  return 'taxi_standard';
+}
+
+function parseSeatCapacityInput(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) return null;
+  const rounded = Math.round(parsed);
+  if (rounded < 1 || rounded > 14) return null;
+  return rounded;
 }
 
 function computeActivityState(driver: DriverDocument): ActivityState {
@@ -99,6 +126,8 @@ function createInitialDraft(driver: DriverDocument): DriverDraft {
     verificationStatus: normalizeStatus(driver.verificationStatus),
     lineId: driver.lineId || '',
     licenseId: driver.licenseId || '',
+    vehicleType: normalizeVehicleType(driver.vehicleType),
+    seatCapacity: String(typeof driver.seatCapacity === 'number' ? driver.seatCapacity : 4),
     note: '',
   };
 }
@@ -152,7 +181,11 @@ export function DriversListPage() {
   const staleCount = driversWithActivity.filter((d) => d.activityState === 'stale').length;
   const offlineCount = driversWithActivity.filter((d) => d.activityState === 'offline').length;
 
-  const setDraftField = (driverId: string, field: keyof DriverDraft, value: string) => {
+  const setDraftField = <K extends keyof DriverDraft>(
+    driverId: string,
+    field: K,
+    value: DriverDraft[K]
+  ) => {
     setDrafts((current) => ({
       ...current,
       [driverId]: {
@@ -173,7 +206,15 @@ export function DriversListPage() {
         mode === 'approve' ? 'approved' : mode === 'reject' ? 'rejected' : normalizeStatus(draft.verificationStatus),
       lineId: draft.lineId.trim(),
       licenseId: draft.licenseId.trim(),
+      vehicleType: normalizeVehicleType(draft.vehicleType),
+      seatCapacity: draft.seatCapacity.trim(),
     };
+
+    const parsedSeatCapacity = parseSeatCapacityInput(normalizedDraft.seatCapacity);
+    if (parsedSeatCapacity === null) {
+      window.alert('Seat capacity must be a number between 1 and 14.');
+      return;
+    }
 
     if (mode === 'approve' && !hasLink(normalizedDraft.lineId, normalizedDraft.licenseId)) {
       window.alert('Approve requires lineId or licenseId.');
@@ -189,6 +230,8 @@ export function DriversListPage() {
         verificationStatus: normalizedDraft.verificationStatus,
         lineId: normalizedDraft.lineId || undefined,
         licenseId: normalizedDraft.licenseId || undefined,
+        vehicleType: normalizedDraft.vehicleType,
+        seatCapacity: parsedSeatCapacity,
         note: normalizedDraft.note.trim() || undefined,
         forceOfflineIfIneligible: true,
       });
@@ -245,6 +288,8 @@ export function DriversListPage() {
               <th>Verification</th>
               <th>lineId</th>
               <th>licenseId</th>
+              <th>Vehicle</th>
+              <th>Seats</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -287,7 +332,9 @@ export function DriversListPage() {
                     <select
                       className="table-select"
                       value={draft.verificationStatus}
-                      onChange={(e) => setDraftField(driver.id, 'verificationStatus', e.target.value)}
+                      onChange={(e) =>
+                        setDraftField(driver.id, 'verificationStatus', normalizeStatus(e.target.value))
+                      }
                       disabled={isSaving}
                     >
                       <option value="approved">approved</option>
@@ -311,6 +358,31 @@ export function DriversListPage() {
                       onChange={(e) => setDraftField(driver.id, 'licenseId', e.target.value)}
                       disabled={isSaving}
                       placeholder="LIC-001"
+                    />
+                  </td>
+                  <td>
+                    <select
+                      className="table-select"
+                      value={draft.vehicleType}
+                      onChange={(e) =>
+                        setDraftField(driver.id, 'vehicleType', normalizeVehicleType(e.target.value))
+                      }
+                      disabled={isSaving}
+                    >
+                      {VEHICLE_TYPE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      className="table-input table-input-sm"
+                      value={draft.seatCapacity}
+                      onChange={(e) => setDraftField(driver.id, 'seatCapacity', e.target.value)}
+                      disabled={isSaving}
+                      placeholder="4"
                     />
                   </td>
                   <td>
@@ -347,4 +419,3 @@ export function DriversListPage() {
     </div>
   );
 }
-

@@ -204,7 +204,7 @@ export function SystemSettingsPage() {
           </div>
           <div className="limit-item">
             <span className="limit-label">Driver Response Timeout</span>
-            <span className="limit-value">20 seconds</span>
+            <span className="limit-value">45 seconds</span>
           </div>
           <div className="limit-item">
             <span className="limit-label">Search Timeout</span>
