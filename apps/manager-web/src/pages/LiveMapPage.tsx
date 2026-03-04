@@ -253,7 +253,8 @@ export function LiveMapPage() {
   if (loading) {
     return (
       <div className="live-map-page">
-        <h2>📍 Live Driver Locations</h2>
+        <h2>Live Operations Map</h2>
+        <p className="subtitle">Track drivers, trip flow, and road events in realtime.</p>
         <div className="loading">Loading driver locations...</div>
       </div>
     );
@@ -262,7 +263,8 @@ export function LiveMapPage() {
   if (error) {
     return (
       <div className="live-map-page">
-        <h2>📍 Live Driver Locations</h2>
+        <h2>Live Operations Map</h2>
+        <p className="subtitle">Track drivers, trip flow, and road events in realtime.</p>
         <div className="error">{error}</div>
       </div>
     );
@@ -270,7 +272,8 @@ export function LiveMapPage() {
 
   return (
     <div className="live-map-page">
-      <h2>📍 Live Dashboard</h2>
+      <h2>Live Operations Map</h2>
+      <p className="subtitle">Track drivers, trip flow, and road events in realtime.</p>
       
       {/* Stats bar */}
       <div className="stats-bar">

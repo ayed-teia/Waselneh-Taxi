@@ -1,28 +1,13 @@
-import { useEffect, useState } from 'react';
-import { 
-  subscribeToRoadblocks, 
-  createRoadblock, 
-  updateRoadblock, 
+import { FormEvent, useEffect, useState } from 'react';
+import {
+  RoadblockData,
+  createRoadblock,
   deleteRoadblock,
   getRoadblockStatusDisplay,
-  RoadblockData 
+  subscribeToRoadblocks,
+  updateRoadblock,
 } from '../services/roadblocks.service';
 import './RoadblocksPage.css';
-
-/**
- * ============================================================================
- * ROADBLOCKS MANAGEMENT PAGE
- * ============================================================================
- * 
- * Manager can:
- * - View all roadblocks (realtime)
- * - Create new roadblock
- * - Update status (open / closed / congested)
- * - Update note
- * - Delete roadblock
- * 
- * ============================================================================
- */
 
 type RoadblockStatus = 'open' | 'closed' | 'congested';
 
@@ -53,7 +38,6 @@ export function RoadblocksPage() {
   const [editNote, setEditNote] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Subscribe to roadblocks
   useEffect(() => {
     const unsubscribe = subscribeToRoadblocks(
       (data) => {
@@ -68,9 +52,8 @@ export function RoadblocksPage() {
     return () => unsubscribe();
   }, []);
 
-  // Handle create roadblock
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreate = async (event: FormEvent) => {
+    event.preventDefault();
     setSaving(true);
     try {
       await createRoadblock({
@@ -84,51 +67,44 @@ export function RoadblocksPage() {
       });
       setFormData(DEFAULT_FORM);
       setShowCreateForm(false);
-      console.log('🚧 Roadblock status updated');
     } catch (error) {
       console.error('Failed to create roadblock:', error);
-      alert('Failed to create roadblock');
+      alert('Failed to create roadblock. Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
-  // Handle status change
   const handleStatusChange = async (id: string, newStatus: RoadblockStatus) => {
     try {
       await updateRoadblock(id, { status: newStatus, updatedBy: 'manager-web' });
-      console.log('🚧 Roadblock status updated');
     } catch (error) {
       console.error('Failed to update status:', error);
-      alert('Failed to update status');
+      alert('Failed to update status. Please try again.');
     }
   };
 
-  // Handle note update
   const handleNoteUpdate = async (id: string) => {
     try {
       await updateRoadblock(id, { note: editNote, updatedBy: 'manager-web' });
       setEditingId(null);
       setEditNote('');
-      console.log('🚧 Roadblock status updated');
     } catch (error) {
       console.error('Failed to update note:', error);
-      alert('Failed to update note');
+      alert('Failed to update note. Please try again.');
     }
   };
 
-  // Handle delete
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete roadblock "${name}"?`)) return;
+    if (!window.confirm(`Delete roadblock "${name}"?`)) return;
     try {
       await deleteRoadblock(id);
     } catch (error) {
       console.error('Failed to delete roadblock:', error);
-      alert('Failed to delete roadblock');
+      alert('Failed to delete roadblock. Please try again.');
     }
   };
 
-  // Format relative time
   const formatTime = (date: Date | null): string => {
     if (!date) return 'N/A';
     const mins = Math.floor((Date.now() - date.getTime()) / 60000);
@@ -142,8 +118,8 @@ export function RoadblocksPage() {
   if (loading) {
     return (
       <div className="roadblocks-page">
-        <h1>🚧 Roadblocks</h1>
-        <div className="loading">Loading...</div>
+        <h2>Roadblocks</h2>
+        <div className="loading">Loading roadblocks...</div>
       </div>
     );
   }
@@ -151,17 +127,16 @@ export function RoadblocksPage() {
   return (
     <div className="roadblocks-page">
       <div className="page-header">
-        <h1>🚧 Roadblocks</h1>
-        <button 
-          className="btn-create"
-          onClick={() => setShowCreateForm(!showCreateForm)}
-        >
-          {showCreateForm ? 'Cancel' : '+ Add Roadblock'}
+        <div>
+          <h2>Roadblocks</h2>
+          <p className="subtitle">Manage road events, closure status, and operational notes.</p>
+        </div>
+        <button className="btn-create" onClick={() => setShowCreateForm(!showCreateForm)}>
+          {showCreateForm ? 'Cancel' : 'Add Roadblock'}
         </button>
       </div>
 
-      {/* Create Form */}
-      {showCreateForm && (
+      {showCreateForm ? (
         <form className="create-form" onSubmit={handleCreate}>
           <h3>Create New Roadblock</h3>
           <div className="form-row">
@@ -170,8 +145,8 @@ export function RoadblocksPage() {
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., Main Street Checkpoint"
+                onChange={(event) => setFormData({ ...formData, name: event.target.value })}
+                placeholder="Main Street Checkpoint"
                 required
               />
             </div>
@@ -180,11 +155,12 @@ export function RoadblocksPage() {
               <input
                 type="text"
                 value={formData.area}
-                onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                placeholder="e.g., Downtown"
+                onChange={(event) => setFormData({ ...formData, area: event.target.value })}
+                placeholder="Downtown"
               />
             </div>
           </div>
+
           <div className="form-row">
             <div className="form-group">
               <label>Latitude</label>
@@ -192,7 +168,7 @@ export function RoadblocksPage() {
                 type="number"
                 step="any"
                 value={formData.lat}
-                onChange={(e) => setFormData({ ...formData, lat: e.target.value })}
+                onChange={(event) => setFormData({ ...formData, lat: event.target.value })}
                 required
               />
             </div>
@@ -202,21 +178,24 @@ export function RoadblocksPage() {
                 type="number"
                 step="any"
                 value={formData.lng}
-                onChange={(e) => setFormData({ ...formData, lng: e.target.value })}
+                onChange={(event) => setFormData({ ...formData, lng: event.target.value })}
                 required
               />
             </div>
           </div>
+
           <div className="form-row">
             <div className="form-group">
               <label>Status</label>
               <select
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as RoadblockStatus })}
+                onChange={(event) =>
+                  setFormData({ ...formData, status: event.target.value as RoadblockStatus })
+                }
               >
-                <option value="closed">🚫 Closed</option>
-                <option value="congested">⚠️ Congested</option>
-                <option value="open">✅ Open</option>
+                <option value="closed">Closed</option>
+                <option value="congested">Congested</option>
+                <option value="open">Open</option>
               </select>
             </div>
             <div className="form-group">
@@ -224,89 +203,81 @@ export function RoadblocksPage() {
               <input
                 type="text"
                 value={formData.note}
-                onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-                placeholder="Optional description..."
+                onChange={(event) => setFormData({ ...formData, note: event.target.value })}
+                placeholder="Optional context for dispatchers"
               />
             </div>
           </div>
+
           <div className="form-actions">
             <button type="submit" className="btn-save" disabled={saving}>
               {saving ? 'Creating...' : 'Create Roadblock'}
             </button>
           </div>
         </form>
-      )}
+      ) : null}
 
-      {/* Summary */}
       <div className="summary-cards">
         <div className="summary-card closed">
-          <div className="summary-value">
-            {roadblocks.filter(r => r.status === 'closed').length}
-          </div>
+          <div className="summary-value">{roadblocks.filter((item) => item.status === 'closed').length}</div>
           <div className="summary-label">Closed</div>
         </div>
         <div className="summary-card congested">
-          <div className="summary-value">
-            {roadblocks.filter(r => r.status === 'congested').length}
-          </div>
+          <div className="summary-value">{roadblocks.filter((item) => item.status === 'congested').length}</div>
           <div className="summary-label">Congested</div>
         </div>
         <div className="summary-card open">
-          <div className="summary-value">
-            {roadblocks.filter(r => r.status === 'open').length}
-          </div>
+          <div className="summary-value">{roadblocks.filter((item) => item.status === 'open').length}</div>
           <div className="summary-label">Open</div>
         </div>
       </div>
 
-      {/* Roadblocks List */}
       {roadblocks.length === 0 ? (
         <div className="empty-state">
-          <span className="empty-icon">🚧</span>
-          <p>No roadblocks yet</p>
-          <button onClick={() => setShowCreateForm(true)}>Add your first roadblock</button>
+          <p>No roadblocks found.</p>
+          <button onClick={() => setShowCreateForm(true)}>Create first roadblock</button>
         </div>
       ) : (
         <div className="roadblocks-list">
           {roadblocks.map((roadblock) => {
             const statusDisplay = getRoadblockStatusDisplay(roadblock.status);
             const isEditing = editingId === roadblock.id;
-            
+
             return (
               <div key={roadblock.id} className={`roadblock-card status-${roadblock.status}`}>
                 <div className="roadblock-header">
                   <div className="roadblock-name">
                     <span className="status-emoji">{statusDisplay.emoji}</span>
                     <span className="name">{roadblock.name}</span>
-                    {roadblock.area && <span className="area">({roadblock.area})</span>}
+                    {roadblock.area ? <span className="area">({roadblock.area})</span> : null}
                   </div>
                   <div className="roadblock-actions">
                     <select
                       value={roadblock.status}
-                      onChange={(e) => handleStatusChange(roadblock.id, e.target.value as RoadblockStatus)}
+                      onChange={(event) =>
+                        handleStatusChange(roadblock.id, event.target.value as RoadblockStatus)
+                      }
                       className={`status-select status-${roadblock.status}`}
                     >
-                      <option value="closed">🚫 Closed</option>
-                      <option value="congested">⚠️ Congested</option>
-                      <option value="open">✅ Open</option>
+                      <option value="closed">Closed</option>
+                      <option value="congested">Congested</option>
+                      <option value="open">Open</option>
                     </select>
                     <button
                       className="btn-delete"
                       onClick={() => handleDelete(roadblock.id, roadblock.name)}
                       title="Delete roadblock"
                     >
-                      🗑️
+                      Delete
                     </button>
                   </div>
                 </div>
-                
+
                 <div className="roadblock-details">
                   <span className="coords">
-                    📍 {roadblock.lat.toFixed(4)}, {roadblock.lng.toFixed(4)}
+                    {roadblock.lat.toFixed(4)}, {roadblock.lng.toFixed(4)}
                   </span>
-                  <span className="updated">
-                    Updated: {formatTime(roadblock.updatedAt)}
-                  </span>
+                  <span className="updated">Updated: {formatTime(roadblock.updatedAt)}</span>
                 </div>
 
                 <div className="roadblock-note">
@@ -315,19 +286,32 @@ export function RoadblocksPage() {
                       <input
                         type="text"
                         value={editNote}
-                        onChange={(e) => setEditNote(e.target.value)}
+                        onChange={(event) => setEditNote(event.target.value)}
                         placeholder="Enter note..."
                         autoFocus
                       />
                       <button onClick={() => handleNoteUpdate(roadblock.id)}>Save</button>
-                      <button onClick={() => { setEditingId(null); setEditNote(''); }}>Cancel</button>
+                      <button
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditNote('');
+                        }}
+                      >
+                        Cancel
+                      </button>
                     </div>
                   ) : (
-                    <div className="note-display" onClick={() => { setEditingId(roadblock.id); setEditNote(roadblock.note || ''); }}>
+                    <div
+                      className="note-display"
+                      onClick={() => {
+                        setEditingId(roadblock.id);
+                        setEditNote(roadblock.note || '');
+                      }}
+                    >
                       {roadblock.note ? (
                         <span className="note-text">{roadblock.note}</span>
                       ) : (
-                        <span className="note-placeholder">Click to add note...</span>
+                        <span className="note-placeholder">Click to add a note...</span>
                       )}
                     </div>
                   )}

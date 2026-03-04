@@ -1,27 +1,12 @@
 import { useEffect, useState } from 'react';
-import { 
-  subscribeToSystemConfig, 
-  toggleTripsEnabled, 
-  toggleFeatureFlag,
+import {
+  FeatureFlag,
   SystemConfig,
-  FeatureFlag 
+  subscribeToSystemConfig,
+  toggleFeatureFlag,
+  toggleTripsEnabled,
 } from '../services/system-config.service';
 import './SystemSettingsPage.css';
-
-/**
- * ============================================================================
- * SYSTEM SETTINGS PAGE
- * ============================================================================
- * 
- * Step 32: Pilot Hardening & Kill Switches
- * Step 33: Go-Live Mode - Feature Flags
- * 
- * Manager control panel for system-wide settings:
- * - Trips kill switch (enable/disable all trips)
- * - Feature flags for roadblocks, payments, etc.
- * 
- * ============================================================================
- */
 
 export function SystemSettingsPage() {
   const [config, setConfig] = useState<SystemConfig | null>(null);
@@ -46,14 +31,14 @@ export function SystemSettingsPage() {
 
   const handleToggleTrips = async () => {
     if (!config || togglingFlag) return;
-    
+
     const newEnabled = !config.tripsEnabled;
     const confirmed = window.confirm(
       newEnabled
         ? 'Enable trip creation for all users?'
-        : '⚠️ DISABLE all trip creation? This will prevent ALL new trips from being created!'
+        : 'Disable all trip creation? This blocks all new trips.'
     );
-    
+
     if (!confirmed) return;
 
     setTogglingFlag('trips');
@@ -72,18 +57,16 @@ export function SystemSettingsPage() {
     if (togglingFlag) return;
 
     const flagLabels: Record<FeatureFlag, string> = {
-      tripsEnabled: 'Trip Creation',
+      tripsEnabled: 'Trip creation',
       roadblocksEnabled: 'Roadblocks',
       paymentsEnabled: 'Payments',
     };
 
     const newEnabled = !currentValue;
     const confirmed = window.confirm(
-      newEnabled
-        ? `Enable ${flagLabels[flag]}?`
-        : `Disable ${flagLabels[flag]}?`
+      newEnabled ? `Enable ${flagLabels[flag]}?` : `Disable ${flagLabels[flag]}?`
     );
-    
+
     if (!confirmed) return;
 
     setTogglingFlag(flag);
@@ -101,7 +84,8 @@ export function SystemSettingsPage() {
   if (loading) {
     return (
       <div className="settings-page">
-        <h1>⚙️ System Settings</h1>
+        <h2>System Settings</h2>
+        <p className="subtitle">Central controls for trip creation and feature availability.</p>
         <div className="loading">Loading settings...</div>
       </div>
     );
@@ -109,37 +93,31 @@ export function SystemSettingsPage() {
 
   return (
     <div className="settings-page">
-      <h1>⚙️ System Settings</h1>
-      
-      {/* Kill Switch Warning Banner */}
-      {config && !config.tripsEnabled && (
+      <h2>System Settings</h2>
+      <p className="subtitle">Central controls for trip creation and feature availability.</p>
+
+      {config && !config.tripsEnabled ? (
         <div className="warning-banner">
-          <span className="warning-icon">⚠️</span>
           <div className="warning-content">
-            <strong>TRIPS DISABLED</strong>
-            <p>All new trip requests are currently blocked. Users cannot create new trips.</p>
+            <strong>Trips disabled</strong>
+            <p>All new trip requests are currently blocked.</p>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {error && (
-        <div className="error-banner">
-          ❌ {error}
-        </div>
-      )}
+      {error ? <div className="error-banner">{error}</div> : null}
 
-      {/* Kill Switch Control */}
       <div className="settings-card">
         <div className="setting-row">
           <div className="setting-info">
-            <h3>🚕 Trip Creation (Kill Switch)</h3>
+            <h3>Trip Creation (Kill Switch)</h3>
             <p>Control whether passengers can create new trip requests.</p>
-            {config?.updatedAt && (
+            {config?.updatedAt ? (
               <span className="last-updated">
                 Last updated: {config.updatedAt.toLocaleString()}
-                {config.updatedBy && ` by ${config.updatedBy.slice(0, 8)}...`}
+                {config.updatedBy ? ` by ${config.updatedBy.slice(0, 8)}...` : ''}
               </span>
-            )}
+            ) : null}
           </div>
           <div className="setting-control">
             <button
@@ -147,20 +125,23 @@ export function SystemSettingsPage() {
               onClick={handleToggleTrips}
               disabled={!!togglingFlag}
             >
-              {togglingFlag === 'trips' ? 'Updating...' : config?.tripsEnabled ? '✅ ENABLED' : '🔴 DISABLED'}
+              {togglingFlag === 'trips'
+                ? 'Updating...'
+                : config?.tripsEnabled
+                  ? 'Enabled'
+                  : 'Disabled'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Feature Flags */}
       <div className="settings-card">
-        <h3>🚩 Feature Flags</h3>
-        
+        <h3>Feature Flags</h3>
+
         <div className="setting-row">
           <div className="setting-info">
-            <h4>🚧 Roadblocks</h4>
-            <p>Enable/disable roadblock zone management.</p>
+            <h4>Roadblocks</h4>
+            <p>Enable or disable roadblock management screens and actions.</p>
           </div>
           <div className="setting-control">
             <button
@@ -168,15 +149,19 @@ export function SystemSettingsPage() {
               onClick={() => handleToggleFlag('roadblocksEnabled', config?.roadblocksEnabled ?? true)}
               disabled={!!togglingFlag}
             >
-              {togglingFlag === 'roadblocksEnabled' ? '...' : config?.roadblocksEnabled ? 'ON' : 'OFF'}
+              {togglingFlag === 'roadblocksEnabled'
+                ? '...'
+                : config?.roadblocksEnabled
+                  ? 'ON'
+                  : 'OFF'}
             </button>
           </div>
         </div>
-        
+
         <div className="setting-row">
           <div className="setting-info">
-            <h4>💳 Payments</h4>
-            <p>Enable/disable payment features (off for pilot)</p>
+            <h4>Payments</h4>
+            <p>Enable or disable payment features while rolling out to production.</p>
           </div>
           <div className="setting-control">
             <button
@@ -184,35 +169,38 @@ export function SystemSettingsPage() {
               onClick={() => handleToggleFlag('paymentsEnabled', config?.paymentsEnabled ?? false)}
               disabled={!!togglingFlag}
             >
-              {togglingFlag === 'paymentsEnabled' ? '...' : config?.paymentsEnabled ? 'ON' : 'OFF'}
+              {togglingFlag === 'paymentsEnabled'
+                ? '...'
+                : config?.paymentsEnabled
+                  ? 'ON'
+                  : 'OFF'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Pilot Limits Info */}
       <div className="settings-card">
-        <h3>📋 Pilot Limits</h3>
+        <h3>Pilot Limits</h3>
         <div className="pilot-limits">
           <div className="limit-item">
-            <span className="limit-label">Max Active Trips (Driver)</span>
+            <span className="limit-label">Max active trips (driver)</span>
             <span className="limit-value">1</span>
           </div>
           <div className="limit-item">
-            <span className="limit-label">Max Active Trips (Passenger)</span>
+            <span className="limit-label">Max active trips (passenger)</span>
             <span className="limit-value">1</span>
           </div>
           <div className="limit-item">
-            <span className="limit-label">Driver Response Timeout</span>
-            <span className="limit-value">45 seconds</span>
+            <span className="limit-label">Driver response timeout</span>
+            <span className="limit-value">45 sec</span>
           </div>
           <div className="limit-item">
-            <span className="limit-label">Search Timeout</span>
-            <span className="limit-value">2 minutes</span>
+            <span className="limit-label">Search timeout</span>
+            <span className="limit-value">2 min</span>
           </div>
           <div className="limit-item">
-            <span className="limit-label">Driver Arrival Timeout</span>
-            <span className="limit-value">5 minutes</span>
+            <span className="limit-label">Driver arrival timeout</span>
+            <span className="limit-value">5 min</span>
           </div>
         </div>
       </div>
