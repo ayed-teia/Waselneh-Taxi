@@ -17,9 +17,17 @@ import { colors } from '../../../ui/theme';
 import { SavedPlace, loadSavedPlaces, saveSavedPlaces } from '../../../services';
 import { useI18n } from '../../../localization';
 import { LanguageToggle } from '../../../ui';
+import { VehicleType, VEHICLE_TYPES } from '@taxi-line/shared';
 
 const DEFAULT_PICKUP = { lat: 32.2211, lng: 35.2544 };
 const DEFAULT_DESTINATION = { lat: 31.9038, lng: 35.2034 };
+const VEHICLE_TYPE_ORDER: VehicleType[] = [
+  VEHICLE_TYPES.TAXI_STANDARD,
+  VEHICLE_TYPES.FAMILY_VAN,
+  VEHICLE_TYPES.MINIBUS,
+  VEHICLE_TYPES.PREMIUM,
+];
+const SEAT_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10, 12];
 
 /**
  * Passenger map with a polished ride-hailing style bottom sheet.
@@ -33,6 +41,8 @@ export function MapScreen() {
   const [sheetHeight, setSheetHeight] = useState(306);
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [selectedPlaceId, setSelectedPlaceId] = useState<SavedPlace['id']>('favorite');
+  const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleType>(VEHICLE_TYPES.TAXI_STANDARD);
+  const [requiredSeats, setRequiredSeats] = useState(1);
 
   const isCompact = height < 760;
   const isNarrow = width < 390;
@@ -67,6 +77,13 @@ export function MapScreen() {
     () => savedPlaces.find((place) => place.id === selectedPlaceId) ?? null,
     [savedPlaces, selectedPlaceId]
   );
+  const rideOptions = useMemo(
+    () => ({
+      requiredSeats,
+      vehicleType: selectedVehicleType,
+    }),
+    [requiredSeats, selectedVehicleType]
+  );
 
   const destination = selectedPlace
     ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
@@ -82,8 +99,8 @@ export function MapScreen() {
   const handleRequestTrip = useCallback(async () => {
     setIsCreatingTrip(true);
     try {
-      const estimate = await estimateTrip(DEFAULT_PICKUP, destination);
-      const result = await createTripRequest(DEFAULT_PICKUP, destination, estimate);
+      const estimate = await estimateTrip(DEFAULT_PICKUP, destination, rideOptions);
+      const result = await createTripRequest(DEFAULT_PICKUP, destination, estimate, rideOptions);
 
       if (result.status === 'matched' && result.tripId) {
         router.push({
@@ -115,7 +132,17 @@ export function MapScreen() {
     } finally {
       setIsCreatingTrip(false);
     }
-  }, [destination, isRTL, router]);
+  }, [destination, isRTL, rideOptions, router]);
+
+  const vehicleLabelByType = useMemo(
+    () => ({
+      [VEHICLE_TYPES.TAXI_STANDARD]: isRTL ? 'تاكسي عادي' : 'Standard',
+      [VEHICLE_TYPES.FAMILY_VAN]: isRTL ? 'فان عائلي' : 'Family Van',
+      [VEHICLE_TYPES.MINIBUS]: isRTL ? 'ميني باص' : 'Minibus',
+      [VEHICLE_TYPES.PREMIUM]: isRTL ? 'بريميوم' : 'Premium',
+    }),
+    [isRTL]
+  );
 
   const handleSelectPlace = useCallback(
     async (place: SavedPlace) => {
@@ -218,6 +245,47 @@ export function MapScreen() {
               {isRTL ? 'الوجهة' : 'Destination'}: {selectedPlace?.title ?? (isRTL ? 'اختر وجهة' : 'Choose destination')}
             </Text>
           </TouchableOpacity>
+
+          <View style={styles.rideOptionsContainer}>
+            <Text style={styles.rideOptionsTitle}>{isRTL ? 'خيارات الرحلة' : 'Ride options'}</Text>
+
+            <View style={[styles.vehicleChipsRow, isRTL && styles.rowReverse]}>
+              {VEHICLE_TYPE_ORDER.map((vehicleType) => {
+                const selected = selectedVehicleType === vehicleType;
+                return (
+                  <TouchableOpacity
+                    key={vehicleType}
+                    style={[styles.vehicleChip, selected && styles.vehicleChipSelected]}
+                    onPress={() => setSelectedVehicleType(vehicleType)}
+                    activeOpacity={0.88}
+                  >
+                    <Text style={[styles.vehicleChipText, selected && styles.vehicleChipTextSelected]}>
+                      {vehicleLabelByType[vehicleType]}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={[styles.seatOptionsRow, isRTL && styles.rowReverse]}>
+              <Text style={styles.seatOptionsLabel}>{isRTL ? 'عدد المقاعد' : 'Seats'}</Text>
+              <View style={styles.seatChipsWrap}>
+                {SEAT_OPTIONS.map((seat) => {
+                  const selected = requiredSeats === seat;
+                  return (
+                    <TouchableOpacity
+                      key={seat}
+                      style={[styles.seatChip, selected && styles.seatChipSelected]}
+                      onPress={() => setRequiredSeats(seat)}
+                      activeOpacity={0.88}
+                    >
+                      <Text style={[styles.seatChipText, selected && styles.seatChipTextSelected]}>{seat}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
 
           <View style={[styles.quickChipsRow, isRTL && styles.rowReverse]}>{quickChips}</View>
 
@@ -345,6 +413,84 @@ const styles = StyleSheet.create({
     color: '#475569',
     fontSize: 16,
     fontWeight: '500',
+  },
+  rideOptionsContainer: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DDE3F0',
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    gap: 10,
+  },
+  rideOptionsTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  vehicleChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  vehicleChip: {
+    borderWidth: 1,
+    borderColor: '#DDE3F0',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#F8FAFC',
+  },
+  vehicleChipSelected: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+  },
+  vehicleChipText: {
+    fontSize: 12,
+    color: '#334155',
+    fontWeight: '600',
+  },
+  vehicleChipTextSelected: {
+    color: '#1D4ED8',
+  },
+  seatOptionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  seatOptionsLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  seatChipsWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  seatChip: {
+    minWidth: 34,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  seatChipSelected: {
+    borderColor: '#2563EB',
+    backgroundColor: '#DBEAFE',
+  },
+  seatChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  seatChipTextSelected: {
+    color: '#1D4ED8',
   },
   quickChipsRow: {
     flexDirection: 'row',

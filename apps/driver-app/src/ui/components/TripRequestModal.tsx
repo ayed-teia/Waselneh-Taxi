@@ -13,7 +13,7 @@ import { Button } from './Button';
 import { useTripRequestStore } from '../../store/trip-request.store';
 import { acceptTripRequest, rejectTripRequest } from '../../services/api';
 
-const DEFAULT_TIMEOUT_SECONDS = 30;
+const DEFAULT_TIMEOUT_SECONDS = 45;
 const ACTION_GUARD_MS = 1200;
 
 function getRemainingSeconds(expiresAt: Date | null | undefined): number {
@@ -27,6 +27,19 @@ function getRemainingSeconds(expiresAt: Date | null | undefined): number {
 function isNotFoundError(message: string): boolean {
   const normalized = message.toLowerCase();
   return normalized.includes('not-found') || normalized.includes('not found');
+}
+
+function formatVehicleTypeLabel(vehicleType: string | null | undefined): string {
+  if (!vehicleType) {
+    return '--';
+  }
+  const labels: Record<string, string> = {
+    taxi_standard: 'Standard',
+    family_van: 'Family Van',
+    minibus: 'Minibus',
+    premium: 'Premium',
+  };
+  return labels[vehicleType] ?? vehicleType;
 }
 
 /**
@@ -263,6 +276,24 @@ export function TripRequestModal() {
                 <Text style={styles.detailLabel}>Dropoff Location</Text>
                 <Text style={styles.detailValue}>
                   {pendingRequest.dropoff.lat.toFixed(4)}, {pendingRequest.dropoff.lng.toFixed(4)}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.detailRow}>
+              <Text style={styles.detailIcon}>SE</Text>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Seats Requested</Text>
+                <Text style={styles.detailValue}>{pendingRequest.requiredSeats ?? '--'}</Text>
+              </View>
+            </View>
+
+            <View style={styles.detailRow}>
+              <Text style={styles.detailIcon}>VT</Text>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Vehicle Type</Text>
+                <Text style={styles.detailValue}>
+                  {formatVehicleTypeLabel(pendingRequest.requestedVehicleType)}
                 </Text>
               </View>
             </View>

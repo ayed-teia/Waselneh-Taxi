@@ -1,5 +1,5 @@
 import { firebaseFunctions } from '../firebase';
-import { LatLng } from '@taxi-line/shared';
+import { LatLng, VehicleType } from '@taxi-line/shared';
 
 // Dev mode configuration - matches app/index.tsx
 const DEV_MODE = process.env.EXPO_PUBLIC_DEV_AUTH_BYPASS === 'true';
@@ -49,6 +49,7 @@ export async function ping(message?: string) {
 export interface EstimateTripRequest {
   pickup: LatLng;
   dropoff: LatLng;
+  rideOptions?: RideOptions;
 }
 
 /**
@@ -58,6 +59,14 @@ export interface EstimateTripResponse {
   distanceKm: number;
   durationMin: number;
   priceIls: number;
+  rideOptions?: RideOptions;
+}
+
+export interface RideOptions {
+  requiredSeats?: number;
+  vehicleType?: VehicleType;
+  officeId?: string;
+  lineId?: string;
 }
 
 /**
@@ -66,11 +75,17 @@ export interface EstimateTripResponse {
  */
 export async function estimateTrip(
   pickup: LatLng,
-  dropoff: LatLng
+  dropoff: LatLng,
+  rideOptions?: RideOptions
 ): Promise<EstimateTripResponse> {
+  const payload: EstimateTripRequest = { pickup, dropoff };
+  if (rideOptions) {
+    payload.rideOptions = rideOptions;
+  }
+
   return callFunction<EstimateTripRequest, EstimateTripResponse>(
     'estimateTrip',
-    { pickup, dropoff }
+    payload
   );
 }
 
@@ -85,6 +100,7 @@ export interface CreateTripRequestInput {
     durationMin: number;
     priceIls: number;
   };
+  rideOptions?: RideOptions;
 }
 
 /**
@@ -105,11 +121,17 @@ export interface CreateTripRequestResponse {
 export async function createTripRequest(
   pickup: LatLng,
   dropoff: LatLng,
-  estimate: EstimateTripResponse
+  estimate: EstimateTripResponse,
+  rideOptions?: RideOptions
 ): Promise<CreateTripRequestResponse> {
+  const payload: CreateTripRequestInput = { pickup, dropoff, estimate };
+  if (rideOptions) {
+    payload.rideOptions = rideOptions;
+  }
+
   return callFunction<CreateTripRequestInput, CreateTripRequestResponse>(
     'createTripRequest',
-    { pickup, dropoff, estimate }
+    payload
   );
 }
 

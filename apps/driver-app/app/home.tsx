@@ -5,7 +5,6 @@ import { LoadingState, ScreenContainer } from '@waselneh/ui';
 import { useAuthStore, useDriverStore } from '../src/store';
 import { HomeScreen } from '../src/features/home';
 import { DriverAccessDeniedScreen } from '../src/features/auth';
-import { TripRequestModal } from '../src/ui';
 import { 
   startLocationTracking, 
   stopLocationTracking,
@@ -255,11 +254,5 @@ export default function Home() {
     );
   }
 
-  // Render home screen with trip request modal overlay
-  return (
-    <>
-      <HomeScreen onToggleStatus={handleToggleStatus} />
-      <TripRequestModal />
-    </>
-  );
+  return <HomeScreen onToggleStatus={handleToggleStatus} />;
 }

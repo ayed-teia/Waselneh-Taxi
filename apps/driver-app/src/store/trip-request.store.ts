@@ -26,6 +26,10 @@ export interface TripRequest {
   pickup: { lat: number; lng: number };
   dropoff: { lat: number; lng: number };
   estimatedPriceIls: number;
+  requiredSeats?: number;
+  requestedVehicleType?: string | null;
+  driverVehicleType?: string | null;
+  driverSeatCapacity?: number;
   pickupDistanceKm: number; // Calculated from driver's location
   status: 'pending' | 'accepted' | 'rejected' | 'expired';
   createdAt: Date | null;

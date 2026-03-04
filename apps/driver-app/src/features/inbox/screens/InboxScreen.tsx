@@ -37,6 +37,17 @@ export function InboxScreen() {
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const formatVehicleType = (vehicleType: string | null | undefined): string => {
+    if (!vehicleType) return '--';
+    const labels: Record<string, string> = {
+      taxi_standard: 'Standard',
+      family_van: 'Family Van',
+      minibus: 'Minibus',
+      premium: 'Premium',
+    };
+    return labels[vehicleType] ?? vehicleType;
+  };
+
   useEffect(() => {
     if (!user?.uid) return;
 
@@ -121,9 +132,14 @@ export function InboxScreen() {
           </View>
 
           <View style={styles.cardFooter}>
-            <UIText muted style={styles.durationText}>
-              {estimatedDurationMin !== null ? `~${Math.round(estimatedDurationMin)} min` : '--'}
-            </UIText>
+            <View style={styles.metaBlock}>
+              <UIText muted style={styles.durationText}>
+                {estimatedDurationMin !== null ? `~${Math.round(estimatedDurationMin)} min` : '--'}
+              </UIText>
+              <UIText muted style={styles.metaLine}>
+                {`Seats: ${item.requiredSeats ?? '--'} • Vehicle: ${formatVehicleType(item.requestedVehicleType)}`}
+              </UIText>
+            </View>
             <Button
               title={isAccepting ? 'Accepting...' : 'Accept'}
               onPress={() => handleAccept(item.requestId)}
@@ -265,9 +281,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: waselnehSpacing.md,
   },
+  metaBlock: {
+    flex: 1,
+    gap: 2,
+  },
   durationText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  metaLine: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   acceptButton: {
     minWidth: 138,

@@ -20,7 +20,7 @@ export function subscribeToTripChat(
     .doc(tripId)
     .collection('messages')
     .orderBy('createdAt', 'asc')
-    .limit(80)
+    .limit(8)
     .onSnapshot(
       (snapshot) => {
         const messages = snapshot.docs.map((docSnap) => {

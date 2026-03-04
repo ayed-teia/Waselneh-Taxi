@@ -21,7 +21,7 @@ let _unsubscribe: Unsubscribe | null = null;
 let _currentDriverId: string | null = null;
 let _lastShownTripId: string | null = null;
 let _emptySnapshotTimer: ReturnType<typeof setTimeout> | null = null;
-const EMPTY_SNAPSHOT_GRACE_MS = 1500;
+const EMPTY_SNAPSHOT_GRACE_MS = 5000;
 
 function toDateOrNull(value: unknown): Date | null {
   if (
@@ -33,6 +33,13 @@ function toDateOrNull(value: unknown): Date | null {
     return (value as { toDate: () => Date }).toDate();
   }
   return null;
+}
+
+function isExpired(expiresAt: Date | null | undefined, graceMs = 0): boolean {
+  if (!expiresAt) {
+    return false;
+  }
+  return expiresAt.getTime() + graceMs < Date.now();
 }
 
 function calculateDistanceKm(
@@ -81,7 +88,9 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
     .limit(20)
     .onSnapshot(
       (snapshot) => {
-        if (snapshot.empty) {
+        const pendingDocs = snapshot.docs;
+
+        if (pendingDocs.length === 0) {
           if (_emptySnapshotTimer) {
             clearTimeout(_emptySnapshotTimer);
           }
@@ -90,7 +99,11 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
             _lastShownTripId = null;
             const { isModalVisible, pendingRequest, hideRequest } = useTripRequestStore.getState();
             if (isModalVisible && pendingRequest) {
-              hideRequest();
+              if (isExpired(pendingRequest.expiresAt, 5000)) {
+                hideRequest();
+              } else {
+                console.log('[DriverRequests] Empty snapshot ignored, keeping active request visible');
+              }
             }
             console.log('[DriverRequests] No pending requests');
             _emptySnapshotTimer = null;
@@ -103,7 +116,7 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
           _emptySnapshotTimer = null;
         }
 
-        const sortedDocs = [...snapshot.docs].sort((a, b) => {
+        const sortedDocs = [...pendingDocs].sort((a, b) => {
           const aCreatedAt = toDateOrNull((a.data() as { createdAt?: unknown }).createdAt)?.getTime() ?? 0;
           const bCreatedAt = toDateOrNull((b.data() as { createdAt?: unknown }).createdAt)?.getTime() ?? 0;
           return bCreatedAt - aCreatedAt;
@@ -130,6 +143,10 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
           pickup?: { lat?: number; lng?: number };
           dropoff?: { lat?: number; lng?: number };
           estimatedPriceIls?: number;
+          requiredSeats?: number;
+          requestedVehicleType?: string | null;
+          driverVehicleType?: string | null;
+          driverSeatCapacity?: number;
           createdAt?: unknown;
           expiresAt?: unknown;
         };
@@ -158,6 +175,14 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
         const pickupDistanceKm = driverLocation
           ? Math.round(calculateDistanceKm(driverLocation, pickup) * 10) / 10
           : 0;
+        const normalizedRequiredSeats =
+          typeof data.requiredSeats === 'number' && Number.isFinite(data.requiredSeats)
+            ? Math.max(1, Math.round(data.requiredSeats))
+            : null;
+        const normalizedDriverSeatCapacity =
+          typeof data.driverSeatCapacity === 'number' && Number.isFinite(data.driverSeatCapacity)
+            ? Math.max(1, Math.round(data.driverSeatCapacity))
+            : null;
 
         const request: TripRequest = {
           tripId,
@@ -165,6 +190,16 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
           pickup,
           dropoff,
           estimatedPriceIls: Number(data.estimatedPriceIls ?? 0),
+          ...(normalizedRequiredSeats !== null ? { requiredSeats: normalizedRequiredSeats } : {}),
+          ...(typeof data.requestedVehicleType === 'string'
+            ? { requestedVehicleType: data.requestedVehicleType }
+            : {}),
+          ...(typeof data.driverVehicleType === 'string'
+            ? { driverVehicleType: data.driverVehicleType }
+            : {}),
+          ...(normalizedDriverSeatCapacity !== null
+            ? { driverSeatCapacity: normalizedDriverSeatCapacity }
+            : {}),
           pickupDistanceKm,
           status: 'pending',
           createdAt: toDateOrNull(data.createdAt),

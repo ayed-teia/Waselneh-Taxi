@@ -11,6 +11,7 @@ import {
 } from '../src/services';
 import { onAuthStateChanged, type User } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
+import { TripRequestModal } from '../src/ui';
 import { I18nProvider, useI18n } from '../src/localization';
 import '../src/config/mapbox.init';
 
@@ -109,6 +110,7 @@ function RootLayoutContent() {
           headerShown: false,
         }}
       />
+      {authUserId ? <TripRequestModal /> : null}
     </View>
   );
 }
