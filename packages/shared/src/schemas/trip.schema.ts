@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PaymentMethod, PaymentStatus } from '../enums/payment-status.enum';
+import { VEHICLE_MAX_CAPACITY, VEHICLE_TYPE_VALUES } from '../config/vehicle.config';
 
 /**
  * ============================================================================
@@ -86,6 +87,30 @@ export const TripSchema = z.object({
   
   /** Estimated price in ILS */
   estimatedPriceIls: z.number().nonnegative(),
+
+  /** Passenger requested seats for this ride */
+  requiredSeats: z.number().int().min(1).max(VEHICLE_MAX_CAPACITY).optional(),
+
+  /** Requested vehicle type preference (optional) */
+  requestedVehicleType: z.enum(VEHICLE_TYPE_VALUES as [string, ...string[]]).nullable().optional(),
+
+  /** Requested office scope for dispatch */
+  requestedOfficeId: z.string().nullable().optional(),
+
+  /** Requested line scope for dispatch */
+  requestedLineId: z.string().nullable().optional(),
+
+  /** Vehicle type selected during dispatch */
+  matchedVehicleType: z.enum(VEHICLE_TYPE_VALUES as [string, ...string[]]).nullable().optional(),
+
+  /** Seat capacity on matched driver vehicle */
+  matchedSeatCapacity: z.number().int().min(1).max(VEHICLE_MAX_CAPACITY).optional(),
+
+  /** Matched driver's office scope */
+  matchedOfficeId: z.string().nullable().optional(),
+
+  /** Matched driver's line scope */
+  matchedLineId: z.string().nullable().optional(),
   
   // ========================
   // PAYMENT FIELDS

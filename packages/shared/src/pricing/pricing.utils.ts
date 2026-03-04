@@ -1,3 +1,11 @@
+import {
+  VehicleType,
+  VEHICLE_MAX_CAPACITY,
+  VEHICLE_PRICE_MULTIPLIER,
+  normalizeSeatCapacity,
+  normalizeVehicleType,
+} from '../config/vehicle.config';
+
 /**
  * ============================================================================
  * PRICING UTILITIES
@@ -27,6 +35,11 @@ export const PRICING_CONFIG = {
   /** Distance rounding precision (0.1 km) */
   DISTANCE_ROUNDING_KM: 0.1,
 } as const;
+
+export interface RidePricingOptions {
+  requiredSeats?: number;
+  vehicleType?: VehicleType | null;
+}
 
 /**
  * Round distance up to nearest 0.1 km
@@ -74,6 +87,21 @@ export function calculatePrice(distanceKm: number): number {
   return Math.ceil(price);
 }
 
+export function calculateRidePrice(distanceKm: number, options?: RidePricingOptions): number {
+  const basePrice = calculatePrice(distanceKm);
+  const normalizedVehicleType = normalizeVehicleType(options?.vehicleType);
+  const seatCapacityRequest = normalizeSeatCapacity(options?.requiredSeats, normalizedVehicleType);
+
+  // Group trips that need more than 4 seats add incremental cost.
+  const extraSeatSurcharge = seatCapacityRequest > 4 ? (seatCapacityRequest - 4) * 2 : 0;
+  const vehicleMultiplier = normalizedVehicleType
+    ? VEHICLE_PRICE_MULTIPLIER[normalizedVehicleType]
+    : 1;
+
+  const adjusted = (basePrice + extraSeatSurcharge) * vehicleMultiplier;
+  return Math.ceil(Math.max(adjusted, PRICING_CONFIG.MINIMUM_PRICE_ILS));
+}
+
 /**
  * Format price for display
  * 
@@ -115,4 +143,12 @@ export function calculateTripEstimate(distanceKm: number, durationMin: number): 
     durationMin: roundedDuration,
     priceIls,
   };
+}
+
+export function normalizeRequestedSeats(value: number | undefined): number {
+  return normalizeSeatCapacity(value, null);
+}
+
+export function clampRequestedSeats(value: number): number {
+  return Math.min(Math.max(Math.round(value), 1), VEHICLE_MAX_CAPACITY);
 }

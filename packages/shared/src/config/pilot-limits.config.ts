@@ -26,7 +26,7 @@ export const PILOT_LIMITS = {
    * Driver response timeout in seconds
    * If driver doesn't accept/reject within this time, request expires
    */
-  DRIVER_RESPONSE_TIMEOUT_SECONDS: 20,
+  DRIVER_RESPONSE_TIMEOUT_SECONDS: 45,
 
   /**
    * Maximum search radius for drivers in kilometers

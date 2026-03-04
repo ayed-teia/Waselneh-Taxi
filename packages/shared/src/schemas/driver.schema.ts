@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { VEHICLE_MAX_CAPACITY, VEHICLE_TYPE_VALUES } from '../config/vehicle.config';
 
 /**
  * ============================================================================
@@ -34,6 +35,24 @@ export const DriverSchema = z.object({
   
   /** Is driver available for new trips (online and not on a trip) */
   isAvailable: z.boolean(),
+
+  /** Licensed office binding used for dispatch scopes */
+  officeId: z.string().nullable().optional(),
+
+  /** Licensed line binding used for dispatch scopes */
+  lineId: z.string().nullable().optional(),
+
+  /** License binding (at least one of line/license should exist for eligibility) */
+  licenseId: z.string().nullable().optional(),
+
+  /** Assigned operation vehicle id */
+  vehicleId: z.string().nullable().optional(),
+
+  /** Vehicle category used for dispatch matching */
+  vehicleType: z.enum(VEHICLE_TYPE_VALUES as [string, ...string[]]).nullable().optional(),
+
+  /** Available passenger seats for this vehicle */
+  seatCapacity: z.number().int().min(1).max(VEHICLE_MAX_CAPACITY).nullable().optional(),
   
   /** Last known location as GeoPoint { latitude, longitude } */
   lastLocation: z.object({
