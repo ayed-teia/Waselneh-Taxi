@@ -81,7 +81,19 @@ export {
   managerForceCancelTrip,
   managerToggleTrips,
   managerSetDriverEligibility,
+  managerAcknowledgeAlert,
   devIssueDriverToken,
+  devIssueManagerToken,
+  getManagerSession,
+  managerUpsertOffice,
+  managerUpsertLine,
+  managerUpsertLicense,
+  managerUpsertVehicle,
+  managerLinkDriverToOperations,
+  managerUpsertPricingProfile,
+  managerUpsertPricingZone,
+  managerUpsertStaffRole,
+  reportClientError,
   getSystemConfigCallable,
   // Step 33: Feature flag toggle
   managerToggleFeatureFlag,
@@ -116,3 +128,8 @@ export { expireDriverRequests, expireStaleTrips } from './modules/trips';
 // Notifications Module Functions
 // ============================================================================
 // TODO: Export notification functions
+
+// ============================================================================
+// Monitoring Module Functions
+// ============================================================================
+export { aggregateOpsMetrics } from './modules/monitoring';

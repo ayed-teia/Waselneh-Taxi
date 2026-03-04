@@ -1,5 +1,6 @@
 import { onCall } from 'firebase-functions/v2/https';
 import { FieldValue } from 'firebase-admin/firestore';
+import { VEHICLE_TYPES, getDefaultSeatCapacityForVehicleType } from '@taxi-line/shared';
 import { REGION } from '../../core/env';
 import { getAuth, getFirestore, isEmulatorEnvironment } from '../../core/config';
 import { ValidationError } from '../../core/errors';
@@ -28,6 +29,7 @@ export const devIssueDriverToken = onCall<unknown, Promise<DevIssueDriverTokenRe
     }
 
     const db = getFirestore();
+    const vehicleType = VEHICLE_TYPES.TAXI_STANDARD;
     await db.collection('drivers').doc(uid).set(
       {
         driverId: uid,
@@ -35,6 +37,8 @@ export const devIssueDriverToken = onCall<unknown, Promise<DevIssueDriverTokenRe
         verificationStatus: 'approved',
         lineId: `LINE_${uid.slice(0, 8).toUpperCase()}`,
         licenseId: null,
+        vehicleType,
+        seatCapacity: getDefaultSeatCapacityForVehicleType(vehicleType),
         isOnline: false,
         isAvailable: false,
         status: 'offline',
@@ -48,4 +52,3 @@ export const devIssueDriverToken = onCall<unknown, Promise<DevIssueDriverTokenRe
     return { uid, token };
   }
 );
-

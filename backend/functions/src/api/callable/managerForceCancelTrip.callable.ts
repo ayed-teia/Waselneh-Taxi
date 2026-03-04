@@ -7,7 +7,7 @@ import { getFirestore } from '../../core/config';
 import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError, handleError } from '../../core/errors';
 import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
-import { publishTripStatusNotifications } from '../../modules/notifications';
+import { assertManagerPermission, publishTripStatusNotifications } from '../../modules';
 
 const ForceCancelTripSchema = z.object({
   tripId: z.string().min(1),
@@ -32,16 +32,8 @@ export const managerForceCancelTrip = onCall<unknown, Promise<ForceCancelTripRes
         throw new UnauthorizedError('Authentication required');
       }
 
+      await assertManagerPermission(managerId, 'force_cancel_trip');
       const db = getFirestore();
-      const managerDoc = await db.collection('users').doc(managerId).get();
-      if (!managerDoc.exists) {
-        throw new ForbiddenError('User not found');
-      }
-
-      const managerData = managerDoc.data();
-      if (managerData?.role !== 'manager' && managerData?.role !== 'admin') {
-        throw new ForbiddenError('Only managers can force cancel trips');
-      }
 
       const parsed = ForceCancelTripSchema.safeParse(request.data);
       if (!parsed.success) {

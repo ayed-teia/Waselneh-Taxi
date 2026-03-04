@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import admin from 'firebase-admin';
+import fs from 'node:fs';
 import { deleteApp as deleteClientApp, initializeApp as initClientApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInAnonymously } from 'firebase/auth';
 import {
@@ -13,8 +14,21 @@ const projectId = process.env.GCLOUD_PROJECT || 'waselneh-prod-414e2';
 const emulatorHost = process.env.FIREBASE_EMULATOR_HOST || '127.0.0.1';
 const functionsPort = Number(process.env.FUNCTIONS_EMULATOR_PORT || 5001);
 
+if (!process.env.FIRESTORE_EMULATOR_HOST) {
+  process.env.FIRESTORE_EMULATOR_HOST = `${emulatorHost}:8080`;
+}
+if (!process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+  process.env.FIREBASE_AUTH_EMULATOR_HOST = `${emulatorHost}:9099`;
+}
+
 if (process.env.FIRESTORE_EMULATOR_HOST && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   // Ignore host-level service account env when running local emulator QA.
+  delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+}
+
+const credentialPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+if (credentialPath && (credentialPath.includes('%CD%') || !fs.existsSync(credentialPath))) {
+  console.warn(`[QA] Ignoring invalid GOOGLE_APPLICATION_CREDENTIALS path: ${credentialPath}`);
   delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
 }
 

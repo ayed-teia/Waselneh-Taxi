@@ -11,10 +11,13 @@
 export {
   PRICING_CONFIG,
   calculatePrice,
+  calculateRidePrice,
   roundDistanceKm,
   formatPrice,
   formatDistance,
   calculateTripEstimate,
+  normalizeRequestedSeats,
+  clampRequestedSeats,
 } from '@taxi-line/shared';
 
 /**

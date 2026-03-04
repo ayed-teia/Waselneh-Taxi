@@ -18,7 +18,8 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "backfill:driver-eligibility": "node scripts/backfill-driver-eligibility.js",
     "backfill:driver-eligibility:apply": "node scripts/backfill-driver-eligibility.js --apply",
-    "qa:driver-eligibility:e2e": "node scripts/qa-driver-eligibility-e2e.mjs"
+    "qa:driver-eligibility:e2e": "node scripts/qa-driver-eligibility-e2e.mjs",
+    "qa:request-lifecycle:e2e": "node scripts/qa-request-lifecycle-e2e.mjs"
   },
   "engines": {
     "node": "20"

@@ -31,6 +31,31 @@ function toNonEmptyString(value) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+const VEHICLE_DEFAULT_CAPACITY = {
+  taxi_standard: 4,
+  family_van: 6,
+  minibus: 12,
+  premium: 4,
+};
+
+function normalizeVehicleType(value) {
+  const normalized = toNonEmptyString(value);
+  if (!normalized) return null;
+  return Object.prototype.hasOwnProperty.call(VEHICLE_DEFAULT_CAPACITY, normalized)
+    ? normalized
+    : null;
+}
+
+function normalizeSeatCapacity(value, fallbackVehicleType) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const rounded = Math.round(value);
+    return Math.min(Math.max(rounded, 1), 14);
+  }
+
+  const fallback = normalizeVehicleType(fallbackVehicleType) || 'taxi_standard';
+  return VEHICLE_DEFAULT_CAPACITY[fallback];
+}
+
 function computeEligibility(data) {
   const driverType = toNonEmptyString(data.driverType);
   const verificationStatus = toNonEmptyString(data.verificationStatus);
@@ -79,6 +104,8 @@ async function main() {
     touched: 0,
     missingDriverType: 0,
     missingVerificationStatus: 0,
+    missingVehicleType: 0,
+    normalizedSeatCapacity: 0,
     downgradedApprovedWithoutLink: 0,
     forcedOffline: 0,
     stillIneligible: 0,
@@ -101,6 +128,22 @@ async function main() {
       updates.verificationStatus = 'pending';
       counters.missingVerificationStatus += 1;
       next.verificationStatus = 'pending';
+    }
+
+    const normalizedVehicleType = normalizeVehicleType(next.vehicleType);
+    if (!normalizedVehicleType) {
+      updates.vehicleType = 'taxi_standard';
+      counters.missingVehicleType += 1;
+      next.vehicleType = 'taxi_standard';
+    } else {
+      next.vehicleType = normalizedVehicleType;
+    }
+
+    const normalizedSeatCapacity = normalizeSeatCapacity(next.seatCapacity, next.vehicleType);
+    if (next.seatCapacity !== normalizedSeatCapacity) {
+      updates.seatCapacity = normalizedSeatCapacity;
+      counters.normalizedSeatCapacity += 1;
+      next.seatCapacity = normalizedSeatCapacity;
     }
 
     const normalizedLineId = toNonEmptyString(next.lineId);

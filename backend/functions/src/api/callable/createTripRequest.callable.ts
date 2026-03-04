@@ -1,13 +1,25 @@
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import { LatLngSchema, TripEstimateSchema, TripStatus, TripRequestStatus, PILOT_LIMITS, ACTIVE_TRIP_STATUSES } from '@taxi-line/shared';
+import {
+  ACTIVE_TRIP_STATUSES,
+  LatLngSchema,
+  PILOT_LIMITS,
+  RideOptionsSchema,
+  TripEstimateSchema,
+  TripRequestStatus,
+  TripStatus,
+  VehicleType,
+  normalizeRequestedSeats,
+  normalizeSeatCapacity,
+  normalizeVehicleType,
+} from '@taxi-line/shared';
 import { REGION } from '../../core/env';
 import { getFirestore, areTripsEnabled } from '../../core/config';
 import { handleError, ValidationError, UnauthorizedError, NotFoundError, ForbiddenError } from '../../core/errors';
 import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { calculatePrice } from '../../modules/pricing/utils';
+import { calculateDynamicRidePrice } from '../../modules/pricing/services';
 import { publishTripStatusNotifications } from '../../modules/notifications';
 import { evaluateDriverEligibility } from '../../modules/auth';
 
@@ -72,6 +84,7 @@ const CreateTripRequestSchema = z.object({
   pickup: LatLngSchema,
   dropoff: LatLngSchema,
   estimate: TripEstimateSchema,
+  rideOptions: RideOptionsSchema.optional(),
 });
 
 /**
@@ -94,8 +107,11 @@ interface DriverDoc {
   isAvailable: boolean;
   driverType?: string;
   verificationStatus?: string;
+  officeId?: string | null;
   lineId?: string;
   licenseId?: string;
+  vehicleType?: string | null;
+  seatCapacity?: number | null;
   lastLocation: FirebaseFirestore.GeoPoint | null;
   currentTripId: string | null;
   updatedAt: FirebaseFirestore.Timestamp;
@@ -113,6 +129,12 @@ interface TripRequestDocument {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  rideOptions: {
+    requiredSeats: number;
+    vehicleType: VehicleType | null;
+    officeId: string | null;
+    lineId: string | null;
+  };
   status: 'open' | 'matched' | 'expired' | 'cancelled';
   matchedDriverId?: string;
   matchedTripId?: string;
@@ -133,6 +155,14 @@ interface TripDocument {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  requiredSeats: number;
+  requestedVehicleType: VehicleType | null;
+  requestedOfficeId: string | null;
+  requestedLineId: string | null;
+  matchedVehicleType: VehicleType | null;
+  matchedSeatCapacity: number;
+  matchedOfficeId: string | null;
+  matchedLineId: string | null;
   // Payment fields
   paymentMethod: 'cash';
   fareAmount: number;
@@ -149,11 +179,28 @@ interface DriverRequestDocument {
   passengerId: string;
   pickup: { lat: number; lng: number };
   dropoff: { lat: number; lng: number };
+  estimatedDistanceKm: number;
+  estimatedDurationMin: number;
   estimatedPriceIls: number;
+  requiredSeats: number;
+  requestedVehicleType: VehicleType | null;
+  requestedOfficeId: string | null;
+  requestedLineId: string | null;
+  driverOfficeId: string | null;
+  driverLineId: string | null;
+  driverVehicleType: VehicleType | null;
+  driverSeatCapacity: number;
   status: 'pending' | 'accepted' | 'rejected' | 'expired';
   createdAt: FirebaseFirestore.FieldValue;
   expiresAt: FirebaseFirestore.Timestamp; // Actual timestamp for timeout checking
   timeoutSeconds: number; // For reference
+}
+
+interface RideRequirements {
+  requiredSeats: number;
+  vehicleType: VehicleType | null;
+  officeId: string | null;
+  lineId: string | null;
 }
 
 /**
@@ -184,6 +231,14 @@ function haversineDistance(
 
 function toRadians(degrees: number): number {
   return degrees * (Math.PI / 180);
+}
+
+function sanitizeId(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 /**
@@ -226,16 +281,42 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         );
       }
 
-      const { pickup, dropoff, estimate } = parsed.data;
+      const { pickup, dropoff, estimate, rideOptions } = parsed.data;
+      const normalizedRideOptions: RideRequirements = {
+        requiredSeats: normalizeRequestedSeats(rideOptions?.requiredSeats),
+        vehicleType: normalizeVehicleType(rideOptions?.vehicleType),
+        officeId: sanitizeId(rideOptions?.officeId),
+        lineId: sanitizeId(rideOptions?.lineId),
+      };
 
       logger.info('� [CreateTrip] START', {
         passengerId,
         pickup: `${pickup.lat.toFixed(4)}, ${pickup.lng.toFixed(4)}`,
         dropoff: `${dropoff.lat.toFixed(4)}, ${dropoff.lng.toFixed(4)}`,
         estimatedPrice: estimate.priceIls,
+        rideOptions: normalizedRideOptions,
       });
 
       const db = getFirestore();
+      let requestedOfficeId = normalizedRideOptions.officeId;
+      let requestedLineId = normalizedRideOptions.lineId;
+
+      if (requestedLineId) {
+        const lineDoc = await db.collection('lines').doc(requestedLineId).get();
+        if (!lineDoc.exists) {
+          throw new ValidationError('Invalid rideOptions.lineId');
+        }
+        const lineData = lineDoc.data() ?? {};
+        const lineOfficeId = sanitizeId(lineData.officeId);
+
+        if (requestedOfficeId && lineOfficeId && requestedOfficeId !== lineOfficeId) {
+          throw new ValidationError('rideOptions.officeId does not match selected lineId');
+        }
+
+        if (!requestedOfficeId && lineOfficeId) {
+          requestedOfficeId = lineOfficeId;
+        }
+      }
 
       // ========================================
       // 3. Check passenger doesn't have active trip (PILOT SAFETY GUARD)
@@ -262,7 +343,15 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       // ========================================
       // 4. Create tripRequest document for passenger tracking
       // ========================================
-      const serverCalculatedPriceIls = calculatePrice(estimate.distanceKm);
+      const pricingResult = await calculateDynamicRidePrice({
+        distanceKm: estimate.distanceKm,
+        pickup,
+        dropoff,
+        rideOptions: normalizedRideOptions,
+        officeId: requestedOfficeId,
+        lineId: requestedLineId,
+      });
+      const serverCalculatedPriceIls = pricingResult.priceIls;
       
       // Log if client price differs from server calculation
       if (serverCalculatedPriceIls !== estimate.priceIls) {
@@ -270,6 +359,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           clientPrice: estimate.priceIls,
           serverPrice: serverCalculatedPriceIls,
           distanceKm: estimate.distanceKm,
+          pricingProfileId: pricingResult.breakdown.profileId,
         });
       }
 
@@ -284,6 +374,11 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         estimatedDistanceKm: estimate.distanceKm,
         estimatedDurationMin: estimate.durationMin,
         estimatedPriceIls: serverCalculatedPriceIls,
+        rideOptions: {
+          ...normalizedRideOptions,
+          officeId: requestedOfficeId,
+          lineId: requestedLineId,
+        },
         status: TripRequestStatus.OPEN,
         createdAt: FieldValue.serverTimestamp(),
       };
@@ -296,15 +391,27 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       // ========================================
       logger.info('🔍 [CreateTrip] Querying available drivers...');
       
-      const driversSnapshot = await db
+      let driversQuery: FirebaseFirestore.Query = db
         .collection('drivers')
         .where('isOnline', '==', true)
-        .where('isAvailable', '==', true)
-        .get();
+        .where('isAvailable', '==', true);
+
+      if (requestedLineId) {
+        driversQuery = driversQuery.where('lineId', '==', requestedLineId);
+      } else if (requestedOfficeId) {
+        driversQuery = driversQuery.where('officeId', '==', requestedOfficeId);
+      }
+
+      const driversSnapshot = await driversQuery.get();
 
       if (driversSnapshot.empty) {
         logger.warn('🚫 [CreateTrip] No available drivers - keeping request open');
-        logger.dispatchFailed(requestId, 'No available drivers', { passengerId });
+        logger.dispatchFailed(requestId, 'No available drivers', {
+          passengerId,
+          requestedOfficeId,
+          requestedLineId,
+          rideOptions: normalizedRideOptions,
+        });
         
         // Return with searching status - passenger can wait for drivers
         return {
@@ -319,9 +426,14 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       // 4. Compute distance using Haversine formula
       // ========================================
       let skippedIneligibleDrivers = 0;
+      let skippedVehicleTypeDrivers = 0;
+      let skippedCapacityDrivers = 0;
+      let skippedScopeDrivers = 0;
       const driversWithDistance: Array<{
         driverId: string;
         distance: number;
+        vehicleType: VehicleType | null;
+        seatCapacity: number;
         doc: DriverDoc;
       }> = [];
 
@@ -339,10 +451,57 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           });
           return;
         }
+
+        const driverOfficeId = sanitizeId(driverData.officeId);
+        const driverLineId = sanitizeId(driverData.lineId);
+        if (requestedLineId && driverLineId !== requestedLineId) {
+          skippedScopeDrivers += 1;
+          logger.debug(`Driver ${doc.id}: Line scope mismatch - skipping`, {
+            requestedLineId,
+            driverLineId,
+          });
+          return;
+        }
+
+        if (requestedOfficeId && driverOfficeId !== requestedOfficeId) {
+          skippedScopeDrivers += 1;
+          logger.debug(`Driver ${doc.id}: Office scope mismatch - skipping`, {
+            requestedOfficeId,
+            driverOfficeId,
+          });
+          return;
+        }
         
         // Skip drivers without location data
         if (!driverData.lastLocation) {
           logger.debug(`Driver ${doc.id}: No location data - skipping`);
+          return;
+        }
+
+        const normalizedDriverVehicleType = normalizeVehicleType(driverData.vehicleType);
+        const normalizedDriverSeatCapacity = normalizeSeatCapacity(
+          driverData.seatCapacity,
+          normalizedDriverVehicleType
+        );
+
+        if (
+          normalizedRideOptions.vehicleType &&
+          normalizedDriverVehicleType !== normalizedRideOptions.vehicleType
+        ) {
+          skippedVehicleTypeDrivers += 1;
+          logger.debug(`Driver ${doc.id}: Vehicle type mismatch - skipping`, {
+            requiredVehicleType: normalizedRideOptions.vehicleType,
+            driverVehicleType: normalizedDriverVehicleType,
+          });
+          return;
+        }
+
+        if (normalizedDriverSeatCapacity < normalizedRideOptions.requiredSeats) {
+          skippedCapacityDrivers += 1;
+          logger.debug(`Driver ${doc.id}: Seat capacity mismatch - skipping`, {
+            requiredSeats: normalizedRideOptions.requiredSeats,
+            driverSeatCapacity: normalizedDriverSeatCapacity,
+          });
           return;
         }
 
@@ -356,6 +515,8 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         driversWithDistance.push({
           driverId: doc.id,
           distance,
+          vehicleType: normalizedDriverVehicleType,
+          seatCapacity: normalizedDriverSeatCapacity,
           doc: driverData,
         });
 
@@ -371,11 +532,26 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       // ========================================
       // 6. Select nearest driver
       // ========================================
+      if (skippedVehicleTypeDrivers > 0 || skippedCapacityDrivers > 0 || skippedScopeDrivers > 0) {
+        logger.info('[CreateTrip] Skipped drivers by ride options', {
+          skippedVehicleTypeDrivers,
+          skippedCapacityDrivers,
+          skippedScopeDrivers,
+          rideOptions: normalizedRideOptions,
+        });
+      }
+
       if (driversWithDistance.length === 0) {
         logger.dispatchFailed(requestId, 'No eligible drivers with location data', {
           passengerId,
           driversQueried: driversSnapshot.size,
           skippedIneligibleDrivers,
+          skippedVehicleTypeDrivers,
+          skippedCapacityDrivers,
+          skippedScopeDrivers,
+          rideOptions: normalizedRideOptions,
+          requestedOfficeId,
+          requestedLineId,
         });
         
         // Return with searching status - passenger can wait for drivers
@@ -404,6 +580,10 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         .doc(nearestDriver.driverId)
         .collection('requests')
         .doc(tripId);
+      let matchedVehicleType: VehicleType | null = nearestDriver.vehicleType;
+      let matchedSeatCapacity = nearestDriver.seatCapacity;
+      let matchedOfficeId: string | null = sanitizeId(nearestDriver.doc.officeId);
+      let matchedLineId: string | null = sanitizeId(nearestDriver.doc.lineId);
 
       await db.runTransaction(async (transaction) => {
         // Re-verify driver is still available (prevent race condition)
@@ -435,6 +615,58 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           throw new NotFoundError('Driver no longer eligible');
         }
 
+        const transactionDriverOfficeId = sanitizeId(driverData.officeId);
+        const transactionDriverLineId = sanitizeId(driverData.lineId);
+        if (requestedLineId && transactionDriverLineId !== requestedLineId) {
+          logger.warn('[CreateTrip] Driver no longer matches requested line scope', {
+            driverId: nearestDriver.driverId,
+            requestedLineId,
+            driverLineId: transactionDriverLineId,
+          });
+          throw new NotFoundError('Driver no longer matches requested line');
+        }
+
+        if (requestedOfficeId && transactionDriverOfficeId !== requestedOfficeId) {
+          logger.warn('[CreateTrip] Driver no longer matches requested office scope', {
+            driverId: nearestDriver.driverId,
+            requestedOfficeId,
+            driverOfficeId: transactionDriverOfficeId,
+          });
+          throw new NotFoundError('Driver no longer matches requested office');
+        }
+
+        const transactionDriverVehicleType = normalizeVehicleType(driverData.vehicleType);
+        const transactionDriverSeatCapacity = normalizeSeatCapacity(
+          driverData.seatCapacity,
+          transactionDriverVehicleType
+        );
+
+        if (
+          normalizedRideOptions.vehicleType &&
+          transactionDriverVehicleType !== normalizedRideOptions.vehicleType
+        ) {
+          logger.warn('[CreateTrip] Driver no longer matches requested vehicle type', {
+            driverId: nearestDriver.driverId,
+            requestedVehicleType: normalizedRideOptions.vehicleType,
+            driverVehicleType: transactionDriverVehicleType,
+          });
+          throw new NotFoundError('Driver no longer matches requested vehicle type');
+        }
+
+        if (transactionDriverSeatCapacity < normalizedRideOptions.requiredSeats) {
+          logger.warn('[CreateTrip] Driver no longer matches required seats', {
+            driverId: nearestDriver.driverId,
+            requestedSeats: normalizedRideOptions.requiredSeats,
+            driverSeatCapacity: transactionDriverSeatCapacity,
+          });
+          throw new NotFoundError('Driver no longer matches required seats');
+        }
+
+        matchedVehicleType = transactionDriverVehicleType;
+        matchedSeatCapacity = transactionDriverSeatCapacity;
+        matchedOfficeId = transactionDriverOfficeId;
+        matchedLineId = transactionDriverLineId;
+
         // Create trip document
         const tripDoc: TripDocument = {
           tripId,
@@ -446,6 +678,14 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           estimatedDistanceKm: estimate.distanceKm,
           estimatedDurationMin: estimate.durationMin,
           estimatedPriceIls: serverCalculatedPriceIls,
+          requiredSeats: normalizedRideOptions.requiredSeats,
+          requestedVehicleType: normalizedRideOptions.vehicleType,
+          requestedOfficeId,
+          requestedLineId,
+          matchedVehicleType: transactionDriverVehicleType,
+          matchedSeatCapacity: transactionDriverSeatCapacity,
+          matchedOfficeId: transactionDriverOfficeId,
+          matchedLineId: transactionDriverLineId,
           paymentMethod: 'cash',
           fareAmount: serverCalculatedPriceIls,
           paymentStatus: 'pending',
@@ -471,7 +711,17 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           passengerId,
           pickup: { lat: pickup.lat, lng: pickup.lng },
           dropoff: { lat: dropoff.lat, lng: dropoff.lng },
+          estimatedDistanceKm: estimate.distanceKm,
+          estimatedDurationMin: estimate.durationMin,
           estimatedPriceIls: serverCalculatedPriceIls,
+          requiredSeats: normalizedRideOptions.requiredSeats,
+          requestedVehicleType: normalizedRideOptions.vehicleType,
+          requestedOfficeId,
+          requestedLineId,
+          driverOfficeId: transactionDriverOfficeId,
+          driverLineId: transactionDriverLineId,
+          driverVehicleType: transactionDriverVehicleType,
+          driverSeatCapacity: transactionDriverSeatCapacity,
           status: 'pending',
           createdAt: FieldValue.serverTimestamp(),
           expiresAt,
@@ -484,6 +734,10 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           status: TripRequestStatus.MATCHED,
           matchedDriverId: nearestDriver.driverId,
           matchedTripId: tripId,
+          matchedVehicleType: transactionDriverVehicleType,
+          matchedSeatCapacity: transactionDriverSeatCapacity,
+          matchedOfficeId: transactionDriverOfficeId,
+          matchedLineId: transactionDriverLineId,
           matchedAt: FieldValue.serverTimestamp(),
         });
       });
@@ -512,6 +766,15 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         driverId: nearestDriver.driverId,
         estimatedPriceIls: serverCalculatedPriceIls,
         distanceKm: estimate.distanceKm,
+        requiredSeats: normalizedRideOptions.requiredSeats,
+        requestedVehicleType: normalizedRideOptions.vehicleType,
+        requestedOfficeId,
+        requestedLineId,
+        matchedVehicleType,
+        matchedSeatCapacity,
+        matchedOfficeId,
+        matchedLineId,
+        pricingProfileId: pricingResult.breakdown.profileId,
       });
 
       // ========================================

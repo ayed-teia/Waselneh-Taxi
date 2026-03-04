@@ -1,11 +1,15 @@
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import { LatLngSchema } from '@taxi-line/shared';
+import {
+  LatLngSchema,
+  RideOptionsSchema,
+  normalizeRequestedSeats,
+  normalizeVehicleType,
+} from '@taxi-line/shared';
 import { REGION } from '../../core/env';
 import { handleError, ValidationError } from '../../core/errors';
 import { logger } from '../../core/logger';
-import { calculateRoute } from '../../modules/pricing/services';
-import { calculatePrice } from '../../modules/pricing/utils';
+import { calculateDynamicRidePrice, calculateRoute } from '../../modules/pricing/services';
 
 /**
  * Request schema for trip estimation
@@ -13,6 +17,7 @@ import { calculatePrice } from '../../modules/pricing/utils';
 const EstimateTripRequestSchema = z.object({
   pickup: LatLngSchema,
   dropoff: LatLngSchema,
+  rideOptions: RideOptionsSchema.optional(),
 });
 
 /**
@@ -22,6 +27,18 @@ interface EstimateTripResponse {
   distanceKm: number;
   durationMin: number;
   priceIls: number;
+  rideOptions?: {
+    requiredSeats: number;
+    vehicleType: string | null;
+    officeId: string | null;
+    lineId: string | null;
+  };
+  pricing?: {
+    profileId: string;
+    combinedMultiplier: number;
+    appliedZoneIds: string[];
+    appliedPeakWindowIds: string[];
+  };
 }
 
 /**
@@ -53,20 +70,32 @@ export const estimateTrip = onCall<unknown, Promise<EstimateTripResponse>>(
         );
       }
 
-      const { pickup, dropoff } = parsed.data;
+      const { pickup, dropoff, rideOptions } = parsed.data;
       const userId = request.auth?.uid ?? 'anonymous';
+      const normalizedRideOptions = {
+        requiredSeats: normalizeRequestedSeats(rideOptions?.requiredSeats),
+        vehicleType: normalizeVehicleType(rideOptions?.vehicleType),
+        officeId: typeof rideOptions?.officeId === 'string' ? rideOptions.officeId.trim() || null : null,
+        lineId: typeof rideOptions?.lineId === 'string' ? rideOptions.lineId.trim() || null : null,
+      };
 
       logger.info('Estimating trip', {
         userId,
         pickup,
         dropoff,
+        rideOptions: normalizedRideOptions,
       });
 
       // Calculate route using Mapbox (or mock if token not configured)
       const route = await calculateRoute(pickup, dropoff);
 
-      // Apply pricing rules
-      const priceIls = calculatePrice(route.distanceKm);
+      const pricing = await calculateDynamicRidePrice({
+        distanceKm: route.distanceKm,
+        pickup,
+        dropoff,
+        rideOptions: normalizedRideOptions,
+      });
+      const priceIls = pricing.priceIls;
 
       // Round to reasonable precision
       const distanceKm = Math.round(route.distanceKm * 100) / 100;
@@ -83,6 +112,18 @@ export const estimateTrip = onCall<unknown, Promise<EstimateTripResponse>>(
         distanceKm,
         durationMin,
         priceIls,
+        rideOptions: {
+          requiredSeats: normalizedRideOptions.requiredSeats,
+          vehicleType: normalizedRideOptions.vehicleType,
+          officeId: normalizedRideOptions.officeId,
+          lineId: normalizedRideOptions.lineId,
+        },
+        pricing: {
+          profileId: pricing.breakdown.profileId,
+          combinedMultiplier: Math.round(pricing.breakdown.combinedMultiplier * 1000) / 1000,
+          appliedZoneIds: pricing.breakdown.appliedZoneIds,
+          appliedPeakWindowIds: pricing.breakdown.appliedPeakWindowIds,
+        },
       };
     } catch (error) {
       throw handleError(error);

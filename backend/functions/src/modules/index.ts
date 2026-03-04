@@ -4,3 +4,4 @@ export * from './trips';
 export * from './pricing';
 export * from './matching';
 export * from './notifications';
+export * from './monitoring';

@@ -8,6 +8,12 @@ import { logger } from '../../core/logger';
 import { FieldValue } from 'firebase-admin/firestore';
 import { evaluateDriverEligibility } from '../../modules/auth';
 
+function sanitizeId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 /**
  * Request schema for dispatching a trip request
  */
@@ -81,6 +87,8 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
       }
 
       const requestData = requestDoc.data()!;
+      const requestedOfficeId = sanitizeId(requestData.rideOptions?.officeId);
+      const requestedLineId = sanitizeId(requestData.rideOptions?.lineId);
 
       // Ensure status is OPEN
       if (requestData.status !== TripRequestStatus.OPEN) {
@@ -89,11 +97,17 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
         );
       }
 
-      // Query for online drivers
-      // In v1, we just get all drivers with isOnline = true
-      const driversSnapshot = await db
+      // Query for online drivers with scope-aware matching.
+      let driversQuery: FirebaseFirestore.Query = db
         .collection('drivers')
-        .where('isOnline', '==', true)
+        .where('isOnline', '==', true);
+      if (requestedLineId) {
+        driversQuery = driversQuery.where('lineId', '==', requestedLineId);
+      } else if (requestedOfficeId) {
+        driversQuery = driversQuery.where('officeId', '==', requestedOfficeId);
+      }
+
+      const driversSnapshot = await driversQuery
         .limit(50) // Limit to prevent overwhelming the system
         .get();
 
@@ -105,6 +119,7 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
       const driverIds: string[] = [];
       const batch = db.batch();
       let skippedIneligibleDrivers = 0;
+      let skippedScopeDrivers = 0;
 
       // Create inbox document for each driver
       for (const driverDoc of driversSnapshot.docs) {
@@ -120,6 +135,17 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
             lineId: eligibility.lineId,
             licenseId: eligibility.licenseId,
           });
+          continue;
+        }
+
+        const driverOfficeId = sanitizeId(driverDoc.data().officeId);
+        const driverLineId = sanitizeId(driverDoc.data().lineId);
+        if (requestedLineId && driverLineId !== requestedLineId) {
+          skippedScopeDrivers += 1;
+          continue;
+        }
+        if (requestedOfficeId && driverOfficeId !== requestedOfficeId) {
+          skippedScopeDrivers += 1;
           continue;
         }
 
@@ -146,7 +172,13 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
       }
 
       if (driverIds.length === 0) {
-        logger.warn('No eligible drivers found for dispatch', { requestId, skippedIneligibleDrivers });
+        logger.warn('No eligible drivers found for dispatch', {
+          requestId,
+          skippedIneligibleDrivers,
+          skippedScopeDrivers,
+          requestedOfficeId,
+          requestedLineId,
+        });
         return { dispatchedTo: 0, driverIds: [] };
       }
 
@@ -158,6 +190,9 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
         dispatchedTo: driverIds.length,
         driverIds,
         skippedIneligibleDrivers,
+        skippedScopeDrivers,
+        requestedOfficeId,
+        requestedLineId,
       });
 
       return {
