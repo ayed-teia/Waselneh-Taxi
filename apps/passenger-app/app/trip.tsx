@@ -371,6 +371,14 @@ export default function Trip() {
     );
   }
 
+  const activeTripOptionalProps = {
+    ...(trip.bookingType ? { bookingType: trip.bookingType } : {}),
+    ...(typeof trip.requestedSeats === 'number' ? { requestedSeats: trip.requestedSeats } : {}),
+    ...(typeof trip.reservedSeats === 'number' ? { reservedSeats: trip.reservedSeats } : {}),
+    ...(trip.destinationLabel !== undefined ? { destinationLabel: trip.destinationLabel } : {}),
+    ...(trip.destinationCity !== undefined ? { destinationCity: trip.destinationCity } : {}),
+  };
+
   return (
     <ScreenContainer padded={false} edges={[]}>
       <BackButton fallbackRoute="/home" />
@@ -383,6 +391,7 @@ export default function Trip() {
         driverId={trip.driverId}
         pickup={trip.pickup}
         dropoff={trip.dropoff}
+        {...activeTripOptionalProps}
         etaToPickupMin={etaToPickupMin}
         etaToDropoffMin={etaToDropoffMin}
         etaUpdatedAt={etaUpdatedAt}

@@ -1,5 +1,5 @@
 import { firebaseFunctions } from '../firebase';
-import { LatLng, VehicleType } from '@taxi-line/shared';
+import { BookingType, LatLng, VehicleType } from '@taxi-line/shared';
 
 // Dev mode configuration - matches app/index.tsx
 const DEV_MODE = process.env.EXPO_PUBLIC_DEV_AUTH_BYPASS === 'true';
@@ -63,10 +63,13 @@ export interface EstimateTripResponse {
 }
 
 export interface RideOptions {
+  bookingType?: BookingType;
   requiredSeats?: number;
   vehicleType?: VehicleType;
   officeId?: string;
   lineId?: string;
+  destinationLabel?: string;
+  destinationCity?: string;
 }
 
 /**
@@ -132,6 +135,26 @@ export async function createTripRequest(
   return callFunction<CreateTripRequestInput, CreateTripRequestResponse>(
     'createTripRequest',
     payload
+  );
+}
+
+export interface CancelTripRequestInput {
+  requestId: string;
+}
+
+export interface CancelTripRequestResponse {
+  requestId: string;
+  cancelled: boolean;
+  status: 'open' | 'matched' | 'expired' | 'cancelled';
+  matchedTripId?: string;
+}
+
+export async function cancelTripRequest(
+  requestId: string
+): Promise<CancelTripRequestResponse> {
+  return callFunction<CancelTripRequestInput, CancelTripRequestResponse>(
+    'cancelTripRequest',
+    { requestId }
   );
 }
 

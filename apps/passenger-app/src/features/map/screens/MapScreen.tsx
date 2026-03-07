@@ -14,10 +14,10 @@ import { useRouter } from 'expo-router';
 import { PassengerMapView } from '../PassengerMapView';
 import { createTripRequest, estimateTrip } from '../../../services/api';
 import { colors } from '../../../ui/theme';
-import { SavedPlace, loadSavedPlaces, saveSavedPlaces } from '../../../services';
+import { SavedPlace, loadSavedPlaces } from '../../../services';
 import { useI18n } from '../../../localization';
 import { LanguageToggle } from '../../../ui';
-import { VehicleType, VEHICLE_TYPES } from '@taxi-line/shared';
+import { BOOKING_TYPES, BookingType, VehicleType, VEHICLE_TYPES } from '@taxi-line/shared';
 
 const DEFAULT_PICKUP = { lat: 32.2211, lng: 35.2544 };
 const DEFAULT_DESTINATION = { lat: 31.9038, lng: 35.2034 };
@@ -27,7 +27,10 @@ const VEHICLE_TYPE_ORDER: VehicleType[] = [
   VEHICLE_TYPES.MINIBUS,
   VEHICLE_TYPES.PREMIUM,
 ];
-const SEAT_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10, 12];
+const BOOKING_TYPE_OPTIONS: Array<{ value: BookingType; labelEn: string; labelAr: string }> = [
+  { value: BOOKING_TYPES.SEAT_ONLY, labelEn: 'One Seat', labelAr: 'Ù…Ù‚Ø¹Ø¯ ÙˆØ§Ø­Ø¯' },
+  { value: BOOKING_TYPES.FULL_TAXI, labelEn: 'Full Taxi', labelAr: 'ØªÙƒØ³ÙŠ ÙƒØ§Ù…Ù„' },
+];
 
 /**
  * Passenger map with a polished ride-hailing style bottom sheet.
@@ -42,7 +45,7 @@ export function MapScreen() {
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [selectedPlaceId, setSelectedPlaceId] = useState<SavedPlace['id']>('favorite');
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleType>(VEHICLE_TYPES.TAXI_STANDARD);
-  const [requiredSeats, setRequiredSeats] = useState(1);
+  const [bookingType, setBookingType] = useState<BookingType>(BOOKING_TYPES.SEAT_ONLY);
 
   const isCompact = height < 760;
   const isNarrow = width < 390;
@@ -79,10 +82,13 @@ export function MapScreen() {
   );
   const rideOptions = useMemo(
     () => ({
-      requiredSeats,
+      bookingType,
+      requiredSeats: 1,
       vehicleType: selectedVehicleType,
+      ...(selectedPlace?.title ? { destinationLabel: selectedPlace.title } : {}),
+      ...(selectedPlace?.subtitle ? { destinationCity: selectedPlace.subtitle } : {}),
     }),
-    [requiredSeats, selectedVehicleType]
+    [bookingType, selectedPlace?.subtitle, selectedPlace?.title, selectedVehicleType]
   );
 
   const destination = selectedPlace
@@ -128,7 +134,7 @@ export function MapScreen() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to request trip.';
       console.error('[MapScreen] Trip request failed:', message);
-      Alert.alert(isRTL ? 'تعذر طلب الرحلة' : 'Unable to request trip', message);
+      Alert.alert(isRTL ? 'ØªØ¹Ø°Ø± Ø·Ù„Ø¨ Ø§Ù„Ø±Ø­Ù„Ø©' : 'Unable to request trip', message);
     } finally {
       setIsCreatingTrip(false);
     }
@@ -136,36 +142,19 @@ export function MapScreen() {
 
   const vehicleLabelByType = useMemo(
     () => ({
-      [VEHICLE_TYPES.TAXI_STANDARD]: isRTL ? 'تاكسي عادي' : 'Standard',
-      [VEHICLE_TYPES.FAMILY_VAN]: isRTL ? 'فان عائلي' : 'Family Van',
-      [VEHICLE_TYPES.MINIBUS]: isRTL ? 'ميني باص' : 'Minibus',
-      [VEHICLE_TYPES.PREMIUM]: isRTL ? 'بريميوم' : 'Premium',
+      [VEHICLE_TYPES.TAXI_STANDARD]: isRTL ? 'ØªØ§ÙƒØ³ÙŠ Ø¹Ø§Ø¯ÙŠ' : 'Standard',
+      [VEHICLE_TYPES.FAMILY_VAN]: isRTL ? 'ÙØ§Ù† Ø¹Ø§Ø¦Ù„ÙŠ' : 'Family Van',
+      [VEHICLE_TYPES.MINIBUS]: isRTL ? 'Ù…ÙŠÙ†ÙŠ Ø¨Ø§Øµ' : 'Minibus',
+      [VEHICLE_TYPES.PREMIUM]: isRTL ? 'Ø¨Ø±ÙŠÙ…ÙŠÙˆÙ…' : 'Premium',
     }),
     [isRTL]
   );
 
   const handleSelectPlace = useCallback(
-    async (place: SavedPlace) => {
+    (place: SavedPlace) => {
       setSelectedPlaceId(place.id);
-      const nextPlaces = savedPlaces.map((item) =>
-        item.id === place.id
-          ? {
-              ...item,
-              subtitle: isRTL ? 'الوجهة المختارة' : 'Selected destination',
-            }
-          : {
-              ...item,
-              subtitle: item.id === 'favorite' ? (isRTL ? 'وجهة سريعة' : 'Quick destination') : isRTL ? 'عنوان محفوظ' : 'Saved address',
-            }
-      );
-      setSavedPlaces(nextPlaces);
-      try {
-        await saveSavedPlaces(nextPlaces);
-      } catch (error) {
-        console.warn('Failed to persist saved places:', error);
-      }
     },
-    [isRTL, savedPlaces]
+    []
   );
 
   const quickChips = useMemo(
@@ -215,39 +204,39 @@ export function MapScreen() {
           <View style={[styles.topActionsRow, isRTL && styles.rowReverse]}>
             <LanguageToggle />
             <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/history')}>
-              <Text style={styles.topActionText}>{isRTL ? 'السجل' : 'History'}</Text>
+              <Text style={styles.topActionText}>{isRTL ? 'Ø§Ù„Ø³Ø¬Ù„' : 'History'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/promo')}>
-              <Text style={styles.topActionText}>{isRTL ? 'العروض' : 'Promo'}</Text>
+              <Text style={styles.topActionText}>{isRTL ? 'Ø§Ù„Ø¹Ø±ÙˆØ¶' : 'Promo'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/support')}>
-              <Text style={styles.topActionText}>{isRTL ? 'الدعم' : 'Support'}</Text>
+              <Text style={styles.topActionText}>{isRTL ? 'Ø§Ù„Ø¯Ø¹Ù…' : 'Support'}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={[styles.sheetHeaderRow, isRTL && styles.rowReverse]}>
             <View>
               <Text style={[styles.sheetTitle, { fontSize: titleFontSize, lineHeight: titleLineHeight }]}>
-                {isRTL ? 'إلى أين؟' : 'Where to?'}
+                {isRTL ? 'Ø¥Ù„Ù‰ Ø£ÙŠÙ†ØŸ' : 'Where to?'}
               </Text>
               <Text style={[styles.sheetSubtitle, { fontSize: subtitleFontSize }]}>
-                {isRTL ? 'احجز رحلتك خلال ثوانٍ.' : 'Book a ride in seconds.'}
+                {isRTL ? 'Ø§Ø­Ø¬Ø² Ø±Ø­Ù„ØªÙƒ Ø®Ù„Ø§Ù„ Ø«ÙˆØ§Ù†Ù.' : 'Book a ride in seconds.'}
               </Text>
             </View>
             <View style={styles.scheduleBadge}>
-              <Text style={styles.scheduleBadgeText}>{isRTL ? 'الآن' : 'Now'}</Text>
+              <Text style={styles.scheduleBadgeText}>{isRTL ? 'Ø§Ù„Ø¢Ù†' : 'Now'}</Text>
             </View>
           </View>
 
           <TouchableOpacity style={[styles.searchBox, isRTL && styles.rowReverse]} activeOpacity={0.92}>
             <View style={styles.searchDot} />
             <Text style={styles.searchPlaceholder}>
-              {isRTL ? 'الوجهة' : 'Destination'}: {selectedPlace?.title ?? (isRTL ? 'اختر وجهة' : 'Choose destination')}
+              {isRTL ? 'Ø§Ù„ÙˆØ¬Ù‡Ø©' : 'Destination'}: {selectedPlace?.title ?? (isRTL ? 'Ø§Ø®ØªØ± ÙˆØ¬Ù‡Ø©' : 'Choose destination')}
             </Text>
           </TouchableOpacity>
 
           <View style={styles.rideOptionsContainer}>
-            <Text style={styles.rideOptionsTitle}>{isRTL ? 'خيارات الرحلة' : 'Ride options'}</Text>
+            <Text style={styles.rideOptionsTitle}>{isRTL ? 'Ø®ÙŠØ§Ø±Ø§Øª Ø§Ù„Ø±Ø­Ù„Ø©' : 'Ride options'}</Text>
 
             <View style={[styles.vehicleChipsRow, isRTL && styles.rowReverse]}>
               {VEHICLE_TYPE_ORDER.map((vehicleType) => {
@@ -267,26 +256,36 @@ export function MapScreen() {
               })}
             </View>
 
-            <View style={[styles.seatOptionsRow, isRTL && styles.rowReverse]}>
-              <Text style={styles.seatOptionsLabel}>{isRTL ? 'عدد المقاعد' : 'Seats'}</Text>
-              <View style={styles.seatChipsWrap}>
-                {SEAT_OPTIONS.map((seat) => {
-                  const selected = requiredSeats === seat;
+            <View style={styles.bookingTypeSection}>
+              <Text style={styles.seatOptionsLabel}>{isRTL ? 'Ù†ÙˆØ¹ Ø§Ù„Ø­Ø¬Ø²' : 'Booking type'}</Text>
+              <View style={[styles.vehicleChipsRow, isRTL && styles.rowReverse]}>
+                {BOOKING_TYPE_OPTIONS.map((option) => {
+                  const selected = bookingType === option.value;
                   return (
                     <TouchableOpacity
-                      key={seat}
-                      style={[styles.seatChip, selected && styles.seatChipSelected]}
-                      onPress={() => setRequiredSeats(seat)}
+                      key={option.value}
+                      style={[styles.vehicleChip, selected && styles.vehicleChipSelected]}
+                      onPress={() => setBookingType(option.value)}
                       activeOpacity={0.88}
                     >
-                      <Text style={[styles.seatChipText, selected && styles.seatChipTextSelected]}>{seat}</Text>
+                      <Text style={[styles.vehicleChipText, selected && styles.vehicleChipTextSelected]}>
+                        {isRTL ? option.labelAr : option.labelEn}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
+              <Text style={styles.bookingTypeHint}>
+                {bookingType === BOOKING_TYPES.FULL_TAXI
+                  ? isRTL
+                    ? 'Ø­Ø¬Ø² Ø§Ù„ØªÙƒØ³ÙŠ Ø§Ù„ÙƒØ§Ù…Ù„ ÙŠØ­Ø¬Ø² ÙƒÙ„ Ø§Ù„Ù…Ù‚Ø§Ø¹Ø¯ ÙˆÙŠØ®ÙÙŠ Ø§Ù„Ø³Ø§Ø¦Ù‚ Ø¹Ù† Ø§Ù„Ø·Ù„Ø¨Ø§Øª Ø§Ù„Ø¬Ø¯ÙŠØ¯Ø©.'
+                    : 'Full taxi reserves all seats and hides this driver from new matches.'
+                  : isRTL
+                    ? 'Ø³ÙŠØªÙ… Ø­Ø¬Ø² Ù…Ù‚Ø¹Ø¯ ÙˆØ§Ø­Ø¯ ÙÙ‚Ø·.'
+                    : 'Only one seat will be reserved.'}
+              </Text>
             </View>
           </View>
-
           <View style={[styles.quickChipsRow, isRTL && styles.rowReverse]}>{quickChips}</View>
 
           <TouchableOpacity
@@ -298,12 +297,12 @@ export function MapScreen() {
             {isCreatingTrip ? (
               <>
                 <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.requestButtonText}>{isRTL ? 'جاري مطابقة سائق...' : 'Matching driver...'}</Text>
+                <Text style={styles.requestButtonText}>{isRTL ? 'Ø¬Ø§Ø±ÙŠ Ù…Ø·Ø§Ø¨Ù‚Ø© Ø³Ø§Ø¦Ù‚...' : 'Matching driver...'}</Text>
               </>
             ) : (
               <>
                 <View style={styles.requestButtonIndicator} />
-                <Text style={styles.requestButtonText}>{isRTL ? 'اطلب رحلة' : 'Request Ride'}</Text>
+                <Text style={styles.requestButtonText}>{isRTL ? 'Ø§Ø·Ù„Ø¨ Ø±Ø­Ù„Ø©' : 'Request Ride'}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -452,10 +451,7 @@ const styles = StyleSheet.create({
   vehicleChipTextSelected: {
     color: '#1D4ED8',
   },
-  seatOptionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  bookingTypeSection: {
     gap: 8,
   },
   seatOptionsLabel: {
@@ -463,34 +459,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#334155',
   },
-  seatChipsWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  seatChip: {
-    minWidth: 34,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-  },
-  seatChipSelected: {
-    borderColor: '#2563EB',
-    backgroundColor: '#DBEAFE',
-  },
-  seatChipText: {
+  bookingTypeHint: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  seatChipTextSelected: {
-    color: '#1D4ED8',
+    lineHeight: 18,
+    color: '#64748B',
+    fontWeight: '500',
   },
   quickChipsRow: {
     flexDirection: 'row',
@@ -546,3 +519,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
   },
 });
+
+

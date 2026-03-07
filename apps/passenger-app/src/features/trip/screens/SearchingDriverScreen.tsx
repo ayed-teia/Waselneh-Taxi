@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PassengerMapView } from '../../map';
@@ -9,6 +9,8 @@ interface SearchingDriverScreenProps {
   requestId: string;
   onCancel: () => void;
   onDriverAssigned: (tripId: string) => void;
+  onRequestEnded?: (status: 'expired' | 'cancelled') => void;
+  cancelling?: boolean;
   distanceKm: number;
   durationMin: number;
   priceIls: number;
@@ -23,6 +25,8 @@ export function SearchingDriverScreen({
   requestId,
   onCancel,
   onDriverAssigned,
+  onRequestEnded,
+  cancelling = false,
   distanceKm,
   durationMin,
   priceIls,
@@ -34,6 +38,9 @@ export function SearchingDriverScreen({
   const cardWidth = width >= 768 ? 560 : width;
   const [dots, setDots] = useState('');
   const [isMatched, setIsMatched] = useState(false);
+  const [terminalStatus, setTerminalStatus] = useState<'expired' | 'cancelled' | null>(null);
+  const isMatchedRef = useRef(false);
+  const terminalStatusRef = useRef<'expired' | 'cancelled' | null>(null);
   const [pulseAnim] = useState(new Animated.Value(1));
   const [cardHeight, setCardHeight] = useState(236);
   const safeDistance = Number.isFinite(distanceKm) ? distanceKm : 0;
@@ -43,14 +50,31 @@ export function SearchingDriverScreen({
   const topPadding = Math.max(74, insets.top + 52);
 
   useEffect(() => {
+    isMatchedRef.current = isMatched;
+  }, [isMatched]);
+
+  useEffect(() => {
+    terminalStatusRef.current = terminalStatus;
+  }, [terminalStatus]);
+
+  useEffect(() => {
     const unsubscribe = subscribeToTripRequest(
       requestId,
       (request) => {
         if (request?.status === 'matched' && request.matchedTripId) {
+          if (terminalStatusRef.current || isMatchedRef.current) {
+            return;
+          }
           setIsMatched(true);
           setTimeout(() => {
             onDriverAssigned(request.matchedTripId as string);
           }, 500);
+          return;
+        }
+
+        if (request?.status === 'expired' || request?.status === 'cancelled') {
+          setTerminalStatus(request.status);
+          setIsMatched(false);
         }
       },
       (error) => {
@@ -59,6 +83,13 @@ export function SearchingDriverScreen({
     );
     return () => unsubscribe();
   }, [requestId, onDriverAssigned]);
+
+  useEffect(() => {
+    if (!terminalStatus || !onRequestEnded) {
+      return;
+    }
+    onRequestEnded(terminalStatus);
+  }, [onRequestEnded, terminalStatus]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -103,7 +134,13 @@ export function SearchingDriverScreen({
       <View style={styles.overlay} pointerEvents="box-none">
         <View style={[styles.topBadge, { marginTop: topPadding }]}>
           <Text style={styles.topBadgeText}>
-            {isMatched ? 'Driver assigned' : `Searching${dots}`}
+            {isMatched
+              ? 'Driver assigned'
+              : terminalStatus === 'expired'
+                ? 'No compatible driver'
+                : terminalStatus === 'cancelled'
+                  ? 'Request ended'
+                  : `Searching${dots}`}
           </Text>
         </View>
 
@@ -120,21 +157,36 @@ export function SearchingDriverScreen({
             <Animated.View
               style={[
                 styles.iconWrap,
-                { transform: [{ scale: isMatched ? 1 : pulseAnim }] },
+                { transform: [{ scale: isMatched || terminalStatus ? 1 : pulseAnim }] },
                 isMatched && styles.iconWrapMatched,
+                terminalStatus && styles.iconWrapEnded,
               ]}
             >
-              <Text style={styles.iconText}>{isMatched ? 'OK' : 'CAB'}</Text>
+              <Text style={styles.iconText}>
+                {isMatched ? 'OK' : terminalStatus ? 'END' : 'CAB'}
+              </Text>
             </Animated.View>
             <View style={styles.headerText}>
-              <Text style={styles.title}>{isMatched ? 'Driver is on the way' : 'Searching for a driver'}</Text>
+              <Text style={styles.title}>
+                {isMatched
+                  ? 'Driver is on the way'
+                  : terminalStatus === 'expired'
+                    ? 'No driver found'
+                    : terminalStatus === 'cancelled'
+                      ? 'Request cancelled'
+                      : 'Searching for a driver'}
+              </Text>
               <Text style={styles.subtitle}>
                 {isMatched
                   ? 'A driver accepted your trip request.'
-                  : 'We are matching you with the nearest available driver.'}
+                  : terminalStatus === 'expired'
+                    ? 'We could not find a compatible driver in time.'
+                    : terminalStatus === 'cancelled'
+                      ? 'Your request is no longer active.'
+                      : 'We are matching you with the nearest available driver.'}
               </Text>
             </View>
-            {!isMatched ? <ActivityIndicator size="small" color="#1D4ED8" /> : null}
+            {!isMatched && !terminalStatus ? <ActivityIndicator size="small" color="#1D4ED8" /> : null}
           </View>
 
           <View style={styles.summaryCard}>
@@ -156,7 +208,14 @@ export function SearchingDriverScreen({
             </View>
           </View>
 
-          {!isMatched ? <Button title="Cancel Trip" variant="outline" onPress={onCancel} /> : null}
+          {!isMatched ? (
+            <Button
+              title={terminalStatus ? 'Back to Home' : cancelling ? 'Cancelling...' : 'Cancel Trip'}
+              variant="outline"
+              onPress={onCancel}
+              disabled={cancelling}
+            />
+          ) : null}
         </View>
       </View>
     </View>
@@ -220,6 +279,10 @@ const styles = StyleSheet.create({
   iconWrapMatched: {
     backgroundColor: '#DCFCE7',
     borderColor: '#BBF7D0',
+  },
+  iconWrapEnded: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
   },
   iconText: {
     fontSize: 11,

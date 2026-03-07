@@ -22,6 +22,11 @@ interface ActiveTripScreenProps {
   driverId?: string;
   pickup?: LocationCoords;
   dropoff?: LocationCoords;
+  bookingType?: 'seat_only' | 'full_taxi';
+  requestedSeats?: number;
+  reservedSeats?: number;
+  destinationLabel?: string | null;
+  destinationCity?: string | null;
   etaToPickupMin?: number | null;
   etaToDropoffMin?: number | null;
   etaUpdatedAt?: Date | null;
@@ -120,6 +125,11 @@ export function ActiveTripScreen({
   driverId,
   pickup,
   dropoff,
+  bookingType,
+  requestedSeats,
+  reservedSeats,
+  destinationLabel,
+  destinationCity,
   etaToPickupMin = null,
   etaToDropoffMin = null,
   etaUpdatedAt = null,
@@ -176,6 +186,44 @@ export function ActiveTripScreen({
   const vehicleText =
     [driverProfile?.vehicleModel, driverProfile?.plateNumber].filter(Boolean).join(' | ') ||
     (isRTL ? 'معلومات المركبة قيد التحديث' : 'Vehicle info pending');
+  const bookingTypeLabel =
+    bookingType === 'full_taxi'
+      ? isRTL
+        ? 'تكسي كامل'
+        : 'Full taxi'
+      : isRTL
+        ? 'مقعد واحد'
+        : 'One seat';
+  const seatsLabel = (() => {
+    if (bookingType === 'full_taxi') {
+      return isRTL ? 'كل المقاعد محجوزة' : 'All seats reserved';
+    }
+    const seatCount =
+      typeof reservedSeats === 'number' && Number.isFinite(reservedSeats)
+        ? Math.max(1, Math.round(reservedSeats))
+        : typeof requestedSeats === 'number' && Number.isFinite(requestedSeats)
+          ? Math.max(1, Math.round(requestedSeats))
+          : 1;
+    return isRTL ? `${seatCount} مقعد` : `${seatCount} seat`;
+  })();
+  const routeText =
+    [driverProfile?.lineNumber, driverProfile?.routePath || driverProfile?.routeName]
+      .filter(Boolean)
+      .join(' | ') || (isRTL ? 'المسار غير متاح' : 'Route not available');
+  const vehicleTypeText = driverProfile?.vehicleType
+    ? driverProfile.vehicleType
+    : isRTL
+      ? 'غير محدد'
+      : 'N/A';
+  const availableSeatsText =
+    typeof driverProfile?.availableSeats === 'number'
+      ? String(driverProfile.availableSeats)
+      : isRTL
+        ? 'غير متاح'
+        : 'N/A';
+  const destinationText =
+    [destinationLabel, destinationCity].filter(Boolean).join(' | ') ||
+    (isRTL ? 'غير محدد' : 'N/A');
 
   return (
     <View style={styles.container}>
@@ -242,6 +290,32 @@ export function ActiveTripScreen({
                   <Text style={styles.driverMetaItem}>{isRTL ? `التقييم ${ratingText}` : `Rating ${ratingText}`}</Text>
                   <Text style={styles.driverMetaDivider}>|</Text>
                   <Text style={styles.driverMetaItem}>{isRTL ? `${tripsText} رحلة` : `${tripsText} trips`}</Text>
+                </View>
+                <View style={styles.driverFactsGrid}>
+                  <View style={styles.driverFactItem}>
+                    <Text style={styles.driverFactLabel}>{isRTL ? 'نوع الحجز' : 'Booking'}</Text>
+                    <Text style={styles.driverFactValue}>{bookingTypeLabel}</Text>
+                  </View>
+                  <View style={styles.driverFactItem}>
+                    <Text style={styles.driverFactLabel}>{isRTL ? 'المقاعد' : 'Seats'}</Text>
+                    <Text style={styles.driverFactValue}>{seatsLabel}</Text>
+                  </View>
+                  <View style={styles.driverFactItem}>
+                    <Text style={styles.driverFactLabel}>{isRTL ? 'الخط / المسار' : 'Line / Route'}</Text>
+                    <Text style={styles.driverFactValue}>{routeText}</Text>
+                  </View>
+                  <View style={styles.driverFactItem}>
+                    <Text style={styles.driverFactLabel}>{isRTL ? 'نوع المركبة' : 'Vehicle type'}</Text>
+                    <Text style={styles.driverFactValue}>{vehicleTypeText}</Text>
+                  </View>
+                  <View style={styles.driverFactItem}>
+                    <Text style={styles.driverFactLabel}>{isRTL ? 'المقاعد المتاحة الآن' : 'Live available seats'}</Text>
+                    <Text style={styles.driverFactValue}>{availableSeatsText}</Text>
+                  </View>
+                  <View style={styles.driverFactItem}>
+                    <Text style={styles.driverFactLabel}>{isRTL ? 'الوجهة' : 'Destination'}</Text>
+                    <Text style={styles.driverFactValue}>{destinationText}</Text>
+                  </View>
                 </View>
               </View>
             ) : null}
@@ -474,6 +548,31 @@ const styles = StyleSheet.create({
   driverMetaDivider: {
     fontSize: 12,
     color: '#94A3B8',
+  },
+  driverFactsGrid: {
+    marginTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingTop: 8,
+    gap: 6,
+  },
+  driverFactItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  driverFactLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  driverFactValue: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 12,
+    color: '#334155',
+    fontWeight: '700',
   },
   retryBanner: {
     borderRadius: 10,

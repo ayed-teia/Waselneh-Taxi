@@ -31,6 +31,11 @@ export interface TripData {
   estimatedDurationMin: number;
   estimatedPriceIls: number;
   finalPriceIls?: number;
+  bookingType?: 'seat_only' | 'full_taxi';
+  requestedSeats?: number;
+  reservedSeats?: number;
+  destinationLabel?: string | null;
+  destinationCity?: string | null;
   status: string;
   createdAt: Date;
   matchedAt?: Date;
@@ -110,6 +115,11 @@ export function subscribeToTrip(
             estimatedDurationMin: data?.estimatedDurationMin,
             estimatedPriceIls: data?.estimatedPriceIls,
             finalPriceIls: data?.finalPriceIls,
+            bookingType: data?.bookingType,
+            requestedSeats: data?.requestedSeats,
+            reservedSeats: data?.reservedSeats,
+            destinationLabel: data?.destinationLabel ?? null,
+            destinationCity: data?.destinationCity ?? null,
             status: data?.status,
             createdAt: data?.createdAt?.toDate(),
             matchedAt: data?.matchedAt?.toDate(),
@@ -169,6 +179,11 @@ export function subscribeToActiveTrip(
           estimatedDurationMin: data?.estimatedDurationMin,
           estimatedPriceIls: data?.estimatedPriceIls,
           finalPriceIls: data?.finalPriceIls,
+          bookingType: data?.bookingType,
+          requestedSeats: data?.requestedSeats,
+          reservedSeats: data?.reservedSeats,
+          destinationLabel: data?.destinationLabel ?? null,
+          destinationCity: data?.destinationCity ?? null,
           status: data?.status,
           createdAt: data?.createdAt?.toDate(),
           matchedAt: data?.matchedAt?.toDate(),

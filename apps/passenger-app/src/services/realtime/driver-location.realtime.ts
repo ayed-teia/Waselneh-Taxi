@@ -17,6 +17,13 @@ export interface DriverProfile {
   photoUrl: string | null;
   rating: number | null;
   completedTrips: number | null;
+  phone: string | null;
+  lineNumber: string | null;
+  routePath: string | null;
+  routeName: string | null;
+  vehicleType: string | null;
+  seatCapacity: number | null;
+  availableSeats: number | null;
   vehicleModel: string | null;
   plateNumber: string | null;
 }
@@ -137,6 +144,26 @@ export function subscribeToDriverProfile(
           toNumber(data.tripsCount) ??
           toNumber(data.totalTrips);
 
+        const phone =
+          toStringOrNull(data.phone) ||
+          toStringOrNull(data.phoneNumber);
+
+        const lineNumber = toStringOrNull(data.lineNumber);
+        const routePath = toStringOrNull(data.routePath);
+        const routeName = toStringOrNull(data.routeName);
+
+        const vehicleType =
+          toStringOrNull(data.vehicleType) ||
+          toStringOrNull(data?.vehicle?.type);
+
+        const seatCapacity =
+          toNumber(data.seatCapacity) ??
+          toNumber(data?.vehicle?.seatCapacity);
+
+        const availableSeats =
+          toNumber(data.availableSeats) ??
+          toNumber(data?.vehicle?.availableSeats);
+
         const vehicleModel =
           toStringOrNull(data.vehicleModel) ||
           toStringOrNull(data?.vehicle?.model);
@@ -151,6 +178,13 @@ export function subscribeToDriverProfile(
           photoUrl,
           rating,
           completedTrips,
+          phone,
+          lineNumber,
+          routePath,
+          routeName,
+          vehicleType,
+          seatCapacity,
+          availableSeats,
           vehicleModel,
           plateNumber,
         });
