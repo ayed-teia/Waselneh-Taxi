@@ -1,6 +1,12 @@
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import { TripStatus, PaymentStatus, PaymentMethod } from '@taxi-line/shared';
+import {
+  BOOKING_TYPES,
+  TripStatus,
+  PaymentStatus,
+  PaymentMethod,
+  normalizeSeatCapacity,
+} from '@taxi-line/shared';
 import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
 import { handleError, ValidationError, NotFoundError, ForbiddenError, UnauthorizedError } from '../../core/errors';
@@ -10,42 +16,10 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { publishTripStatusNotifications } from '../../modules/notifications';
 import { assertDriverIsLicensedLineOwner } from '../../modules/auth';
 
-/**
- * ============================================================================
- * COMPLETE TRIP - Cloud Function
- * ============================================================================
- * 
- * Called when driver drops off passenger and completes the trip.
- * 
- * FLOW: IN_PROGRESS → COMPLETED
- * 
- * ============================================================================
- * QA VERIFICATION CHECKLIST:
- * ============================================================================
- * 
- * ✅ COMPLETE TRIP FLOW:
- *    LOG: "🏁 [CompleteTrip] START - driverId: {id}, tripId: {id}"
- *    LOG: "🔒 [CompleteTrip] Current status: in_progress ✓"
- *    LOG: "💵 [CompleteTrip] Final price: ₪{amount}"
- *    LOG: "📝 [CompleteTrip] Trip status → completed"
- *    LOG: "🎉 [CompleteTrip] COMPLETE"
- * 
- * ✅ INVALID STATUS:
- *    LOG: "⚠️ [CompleteTrip] Invalid status: {status}"
- * 
- * ============================================================================
- */
-
-/**
- * Request schema for complete trip
- */
 const CompleteTripSchema = z.object({
   tripId: z.string().min(1),
 });
 
-/**
- * Response type
- */
 interface CompleteTripResponse {
   success: boolean;
   status: string;
@@ -53,18 +27,6 @@ interface CompleteTripResponse {
   paymentId: string;
 }
 
-/**
- * Complete the trip (passenger dropped off)
- * 
- * Valid transition: IN_PROGRESS → COMPLETED
- * 
- * Validates:
- * - Driver is authenticated
- * - Driver owns the trip (trip.driverId === auth.uid)
- * - Trip status is IN_PROGRESS
- * 
- * For v1, final price = estimated price (no surge, no adjustments)
- */
 export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
   {
     region: REGION,
@@ -73,71 +35,76 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
   },
   async (request) => {
     try {
-      // Require authentication
       const driverId = getAuthenticatedUserId(request);
       if (!driverId) {
         throw new UnauthorizedError('Authentication required');
       }
       await assertDriverIsLicensedLineOwner(driverId);
 
-      // Validate input
       const parsed = CompleteTripSchema.safeParse(request.data);
-
       if (!parsed.success) {
-        throw new ValidationError(
-          'Invalid request',
-          parsed.error.flatten()
-        );
+        throw new ValidationError('Invalid request', parsed.error.flatten());
       }
 
       const { tripId } = parsed.data;
-
-      logger.info('🏁 [CompleteTrip] START', { driverId, tripId });
+      logger.info('[CompleteTrip] START', { driverId, tripId });
 
       const db = getFirestore();
       const tripRef = db.collection('trips').doc(tripId);
       let passengerIdForNotify = '';
 
-      // Use transaction to prevent race conditions
       const result = await db.runTransaction(async (transaction) => {
         const tripDoc = await transaction.get(tripRef);
-
         if (!tripDoc.exists) {
-          logger.warn('🚫 [CompleteTrip] Trip not found', { tripId });
           throw new NotFoundError('Trip', tripId);
         }
 
         const tripData = tripDoc.data()!;
-
-        // =====================================================================
-        // PAYMENT: Check if payment already exists (must read BEFORE writes)
-        // =====================================================================
         const paymentId = `payment_${tripId}`;
         const paymentRef = db.collection('payments').doc(paymentId);
         const existingPayment = await transaction.get(paymentRef);
+        const driverDocRef = db.collection('drivers').doc(driverId);
+        const driverDoc = await transaction.get(driverDocRef);
+        const driverData = (driverDoc.data() ?? {}) as Record<string, unknown>;
 
-        // Validate driver ownership
         if (tripData.driverId !== driverId) {
-          logger.warn('🚫 [CompleteTrip] Driver not assigned to trip', { driverId, tripId, assignedDriver: tripData.driverId });
           throw new ForbiddenError('You are not assigned to this trip');
         }
 
-        // Validate current status
         if (tripData.status !== TripStatus.IN_PROGRESS) {
-          logger.warn('⚠️ [CompleteTrip] Invalid status', { tripId, currentStatus: tripData.status, expected: TripStatus.IN_PROGRESS });
           throw new ForbiddenError(
             `Cannot complete trip from status '${tripData.status}'. Expected '${TripStatus.IN_PROGRESS}'.`
           );
         }
 
-        logger.info('🔒 [CompleteTrip] Current status: in_progress ✓', { tripId });
         passengerIdForNotify = String(tripData.passengerId || '');
-
-        // For v1, final price = estimated price
         const finalPriceIls = tripData.estimatedPriceIls;
-        logger.info('💵 [CompleteTrip] Final price: ₪' + finalPriceIls, { tripId, finalPriceIls });
 
-        // Update trip status within transaction
+        const seatCapacity = normalizeSeatCapacity(driverData.seatCapacity, driverData.vehicleType as any);
+        const availableSeatsRaw =
+          typeof driverData.availableSeats === 'number' && Number.isFinite(driverData.availableSeats)
+            ? Math.round(driverData.availableSeats)
+            : seatCapacity;
+        const availableSeats = Math.max(0, Math.min(availableSeatsRaw, seatCapacity));
+
+        const bookingType =
+          tripData.bookingType === BOOKING_TYPES.FULL_TAXI
+            ? BOOKING_TYPES.FULL_TAXI
+            : BOOKING_TYPES.SEAT_ONLY;
+        const reservedSeatsRaw =
+          typeof tripData.reservedSeats === 'number' && Number.isFinite(tripData.reservedSeats)
+            ? Math.round(tripData.reservedSeats)
+            : bookingType === BOOKING_TYPES.FULL_TAXI
+              ? seatCapacity
+              : 1;
+        const reservedSeats = Math.max(1, reservedSeatsRaw);
+        const nextAvailableSeats = Math.max(0, Math.min(seatCapacity, availableSeats + reservedSeats));
+
+        const isOnline = driverData.isOnline === true;
+        const shouldClearFullTaxiReservation =
+          bookingType === BOOKING_TYPES.FULL_TAXI &&
+          driverData.fullTaxiReservedTripId === tripId;
+
         transaction.update(tripRef, {
           status: TripStatus.COMPLETED,
           finalPriceIls,
@@ -145,19 +112,30 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
           updatedAt: FieldValue.serverTimestamp(),
         });
 
-        // Set driver as available again (trip completed)
-        const driverDocRef = db.collection('drivers').doc(driverId);
-        transaction.set(driverDocRef, {
-          isAvailable: true,
-          currentTripId: null,
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
+        transaction.set(
+          driverDocRef,
+          {
+            availableSeats: nextAvailableSeats,
+            isAvailable: isOnline && nextAvailableSeats > 0,
+            currentTripId:
+              typeof driverData.currentTripId === 'string' && driverData.currentTripId === tripId
+                ? null
+                : driverData.currentTripId ?? null,
+            ...(shouldClearFullTaxiReservation
+              ? {
+                  fullTaxiReserved: false,
+                  fullTaxiReservedTripId: null,
+                }
+              : {}),
+            tripsCount:
+              typeof driverData.tripsCount === 'number' && Number.isFinite(driverData.tripsCount)
+                ? Math.max(0, Math.round(driverData.tripsCount) + 1)
+                : 1,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
 
-        logger.info('🚗 [CompleteTrip] Driver isAvailable → true', { driverId });
-
-        // =====================================================================
-        // CREATE PAYMENT DOCUMENT (Idempotent - uses tripId as paymentId)
-        // =====================================================================
         if (!existingPayment.exists) {
           transaction.set(paymentRef, {
             paymentId,
@@ -166,20 +144,26 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
             driverId,
             amount: finalPriceIls,
             currency: 'ILS',
-            method: PaymentMethod.CASH, // Default for MVP
+            method: PaymentMethod.CASH,
             status: PaymentStatus.PENDING,
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
           });
-          logger.info('💳 [CompleteTrip] Payment created', { paymentId, tripId, amount: finalPriceIls });
-        } else {
-          logger.info('💳 [CompleteTrip] Payment already exists (idempotent)', { paymentId });
         }
 
-        return { status: TripStatus.COMPLETED, finalPriceIls, paymentId };
-      });
+        logger.tripEvent('TRIP_COMPLETED', tripId, {
+          driverId,
+          finalPriceIls,
+          bookingType,
+          reservedSeats,
+        });
 
-      logger.info('📝 [CompleteTrip] Trip status → completed', { tripId });
+        return {
+          status: TripStatus.COMPLETED,
+          finalPriceIls,
+          paymentId,
+        };
+      });
 
       await publishTripStatusNotifications({
         tripId,
@@ -203,14 +187,12 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
           finalPriceIls: result.finalPriceIls,
         },
       });
-      
-      // Log trip lifecycle event
-      logger.tripEvent('TRIP_COMPLETED', tripId, {
+
+      logger.info('[CompleteTrip] COMPLETE', {
+        tripId,
         driverId,
         finalPriceIls: result.finalPriceIls,
       });
-      
-      logger.info('🎉 [CompleteTrip] COMPLETE', { tripId, driverId, finalPriceIls: result.finalPriceIls });
 
       return {
         success: true,
