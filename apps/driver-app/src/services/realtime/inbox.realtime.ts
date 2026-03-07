@@ -12,7 +12,13 @@ export interface InboxItem {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  bookingType?: 'seat_only' | 'full_taxi';
+  requestedSeats?: number;
   requiredSeats?: number;
+  destinationLabel?: string | null;
+  destinationCity?: string | null;
+  driverLineNumber?: string | null;
+  driverRoutePath?: string | null;
   requestedVehicleType?: string | null;
   driverVehicleType?: string | null;
   driverSeatCapacity?: number;
@@ -47,7 +53,6 @@ export function subscribeToInbox(
     .doc(driverId)
     .collection('requests')
     .where('status', '==', 'pending')
-    .limit(50)
     .onSnapshot(
       (snapshot) => {
         const items: InboxItem[] = snapshot.docs
@@ -58,10 +63,18 @@ export function subscribeToInbox(
             typeof data?.requiredSeats === 'number' && Number.isFinite(data.requiredSeats)
               ? Math.max(1, Math.round(data.requiredSeats))
               : null;
+          const normalizedRequestedSeats =
+            typeof data?.requestedSeats === 'number' && Number.isFinite(data.requestedSeats)
+              ? Math.max(0, Math.round(data.requestedSeats))
+              : null;
           const normalizedDriverSeatCapacity =
             typeof data?.driverSeatCapacity === 'number' && Number.isFinite(data.driverSeatCapacity)
               ? Math.max(1, Math.round(data.driverSeatCapacity))
               : null;
+          const bookingType =
+            data?.bookingType === 'full_taxi' || data?.bookingType === 'seat_only'
+              ? data.bookingType
+              : undefined;
 
           return {
             id: docSnap.id,
@@ -78,7 +91,21 @@ export function subscribeToInbox(
             estimatedDistanceKm: Number(data?.estimatedDistanceKm ?? NaN),
             estimatedDurationMin: Number(data?.estimatedDurationMin ?? NaN),
             estimatedPriceIls: Number(data?.estimatedPriceIls ?? 0),
+            ...(bookingType ? { bookingType } : {}),
+            ...(normalizedRequestedSeats !== null ? { requestedSeats: normalizedRequestedSeats } : {}),
             ...(normalizedRequiredSeats !== null ? { requiredSeats: normalizedRequiredSeats } : {}),
+            ...(typeof data?.destinationLabel === 'string'
+              ? { destinationLabel: data.destinationLabel }
+              : {}),
+            ...(typeof data?.destinationCity === 'string'
+              ? { destinationCity: data.destinationCity }
+              : {}),
+            ...(typeof data?.driverLineNumber === 'string'
+              ? { driverLineNumber: data.driverLineNumber }
+              : {}),
+            ...(typeof data?.driverRoutePath === 'string'
+              ? { driverRoutePath: data.driverRoutePath }
+              : {}),
             ...(typeof data?.requestedVehicleType === 'string'
               ? { requestedVehicleType: data.requestedVehicleType }
               : {}),

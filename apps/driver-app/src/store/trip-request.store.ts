@@ -26,7 +26,13 @@ export interface TripRequest {
   pickup: { lat: number; lng: number };
   dropoff: { lat: number; lng: number };
   estimatedPriceIls: number;
+  bookingType?: 'seat_only' | 'full_taxi';
+  requestedSeats?: number;
   requiredSeats?: number;
+  destinationLabel?: string | null;
+  destinationCity?: string | null;
+  driverLineNumber?: string | null;
+  driverRoutePath?: string | null;
   requestedVehicleType?: string | null;
   driverVehicleType?: string | null;
   driverSeatCapacity?: number;

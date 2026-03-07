@@ -139,12 +139,29 @@ export async function setDriverAvailability(
     const driverRef = firebaseDB.collection('drivers').doc(driverId);
 
     if (isOnline) {
+      const existingDoc = await driverRef.get();
+      const existingData = (existingDoc.data() ?? {}) as Record<string, unknown>;
+      const seatCapacityRaw =
+        typeof existingData.seatCapacity === 'number' && Number.isFinite(existingData.seatCapacity)
+          ? Math.max(1, Math.round(existingData.seatCapacity))
+          : 4;
+      const availableSeatsRaw =
+        typeof existingData.availableSeats === 'number' && Number.isFinite(existingData.availableSeats)
+          ? Math.round(existingData.availableSeats)
+          : seatCapacityRaw;
+      const availableSeats = Math.max(0, Math.min(availableSeatsRaw, seatCapacityRaw));
+      const fullTaxiReserved = existingData.fullTaxiReserved === true;
+      const hasActiveTrip =
+        typeof existingData.currentTripId === 'string' && existingData.currentTripId.trim().length > 0;
+      const canReceiveRequests = availableSeats > 0 && !fullTaxiReserved && !hasActiveTrip;
+
       const onlinePayload: Record<string, unknown> = {
         driverId,
         status: 'online',
         isOnline: true,
-        isAvailable: true, // When going online, driver is available for trips
-        availability: 'available', // Trip lifecycle controls this field
+        isAvailable: canReceiveRequests,
+        availability: canReceiveRequests ? 'available' : 'busy',
+        availableSeats,
         lastSeen: serverTimestamp(),
         onlineSince: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -156,7 +173,12 @@ export async function setDriverAvailability(
       }
 
       await driverRef.set(onlinePayload, { merge: true });
-      console.log('[Driver] Online + Available:', driverId);
+      console.log('[Driver] Online state synced:', driverId, {
+        canReceiveRequests,
+        availableSeats,
+        fullTaxiReserved,
+        hasActiveTrip,
+      });
     } else {
       await driverRef.set({
         driverId,

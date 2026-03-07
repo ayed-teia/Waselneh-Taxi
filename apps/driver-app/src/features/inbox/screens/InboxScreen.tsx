@@ -48,6 +48,12 @@ export function InboxScreen() {
     return labels[vehicleType] ?? vehicleType;
   };
 
+  const formatBookingType = (bookingType: InboxItem['bookingType']): string => {
+    if (bookingType === 'full_taxi') return 'Full Taxi';
+    if (bookingType === 'seat_only') return 'Seat Only';
+    return '--';
+  };
+
   useEffect(() => {
     if (!user?.uid) return;
 
@@ -137,8 +143,17 @@ export function InboxScreen() {
                 {estimatedDurationMin !== null ? `~${Math.round(estimatedDurationMin)} min` : '--'}
               </UIText>
               <UIText muted style={styles.metaLine}>
-                {`Seats: ${item.requiredSeats ?? '--'} • Vehicle: ${formatVehicleType(item.requestedVehicleType)}`}
+                {`Booking: ${formatBookingType(item.bookingType)} | Seats: ${
+                  item.requestedSeats ?? item.requiredSeats ?? '--'
+                } | Vehicle: ${formatVehicleType(item.requestedVehicleType)}`}
               </UIText>
+              {(item.destinationLabel || item.destinationCity) && (
+                <UIText muted style={styles.metaLine}>
+                  {`Destination: ${item.destinationLabel ?? '--'}${
+                    item.destinationCity ? ` | ${item.destinationCity}` : ''
+                  }`}
+                </UIText>
+              )}
             </View>
             <Button
               title={isAccepting ? 'Accepting...' : 'Accept'}

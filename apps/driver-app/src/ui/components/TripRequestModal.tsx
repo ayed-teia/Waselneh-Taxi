@@ -42,6 +42,16 @@ function formatVehicleTypeLabel(vehicleType: string | null | undefined): string 
   return labels[vehicleType] ?? vehicleType;
 }
 
+function formatBookingTypeLabel(bookingType: 'seat_only' | 'full_taxi' | undefined): string {
+  if (bookingType === 'full_taxi') {
+    return 'Full Taxi';
+  }
+  if (bookingType === 'seat_only') {
+    return 'Seat Only';
+  }
+  return '--';
+}
+
 /**
  * ============================================================================
  * TRIP REQUEST MODAL
@@ -283,8 +293,13 @@ export function TripRequestModal() {
             <View style={styles.detailRow}>
               <Text style={styles.detailIcon}>SE</Text>
               <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Seats Requested</Text>
-                <Text style={styles.detailValue}>{pendingRequest.requiredSeats ?? '--'}</Text>
+                <Text style={styles.detailLabel}>Booking</Text>
+                <Text style={styles.detailValue}>
+                  {formatBookingTypeLabel(pendingRequest.bookingType)}
+                  {pendingRequest.bookingType === 'seat_only'
+                    ? ` | ${pendingRequest.requestedSeats ?? pendingRequest.requiredSeats ?? 1} seat`
+                    : ''}
+                </Text>
               </View>
             </View>
 
@@ -297,6 +312,32 @@ export function TripRequestModal() {
                 </Text>
               </View>
             </View>
+
+            {(pendingRequest.destinationLabel || pendingRequest.destinationCity) ? (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailIcon}>DST</Text>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Destination</Text>
+                  <Text style={styles.detailValue}>
+                    {pendingRequest.destinationLabel ?? '--'}
+                    {pendingRequest.destinationCity ? ` | ${pendingRequest.destinationCity}` : ''}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {(pendingRequest.driverLineNumber || pendingRequest.driverRoutePath) ? (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailIcon}>LN</Text>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Line / Route</Text>
+                  <Text style={styles.detailValue}>
+                    {pendingRequest.driverLineNumber ?? '--'}
+                    {pendingRequest.driverRoutePath ? ` | ${pendingRequest.driverRoutePath}` : ''}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
           </View>
 
           {errorMessage && (
@@ -436,3 +477,4 @@ const styles = StyleSheet.create({
     flex: 2,
   },
 });
+
