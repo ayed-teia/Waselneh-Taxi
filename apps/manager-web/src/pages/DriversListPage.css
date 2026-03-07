@@ -74,7 +74,7 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 1200px;
+  min-width: 1500px;
 }
 
 .drivers-table th,
@@ -175,6 +175,23 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  min-width: 180px;
+}
+
+.readonly-chip {
+  border: 1px solid #dbeafe;
+  border-radius: 0.5rem;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.3rem 0.45rem;
 }
 
 .action-btn {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  subscribeToDrivers,
   DriverDocument,
+  subscribeToDrivers,
   upsertDriverEligibility,
 } from '../services/drivers.service';
 import './DriversListPage.css';
@@ -18,6 +18,15 @@ interface DriverWithActivity extends DriverDocument {
 }
 
 interface DriverDraft {
+  fullName: string;
+  nationalId: string;
+  phone: string;
+  officeId: string;
+  lineNumber: string;
+  routePath: string;
+  routeName: string;
+  routeCities: string;
+  photoUrl: string;
   driverType: string;
   verificationStatus: VerificationStatus;
   lineId: string;
@@ -41,6 +50,11 @@ function normalizeVehicleType(value: string | null | undefined): DriverVehicleTy
   return 'taxi_standard';
 }
 
+function normalizeStatus(value: string | null | undefined): VerificationStatus {
+  if (value === 'approved' || value === 'rejected') return value;
+  return 'pending';
+}
+
 function parseSeatCapacityInput(raw: string): number | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -49,6 +63,14 @@ function parseSeatCapacityInput(raw: string): number | null {
   const rounded = Math.round(parsed);
   if (rounded < 1 || rounded > 14) return null;
   return rounded;
+}
+
+function parseRouteCitiesInput(raw: string): string[] | undefined {
+  const normalized = raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function computeActivityState(driver: DriverDocument): ActivityState {
@@ -99,13 +121,18 @@ function getStatusBadge(state: ActivityState): { text: string } {
   }
 }
 
-function normalizeStatus(value: string | null | undefined): VerificationStatus {
-  if (value === 'approved' || value === 'rejected') return value;
-  return 'pending';
+function hasLineOrLicenseLink(lineId: string, licenseId: string): boolean {
+  return lineId.trim().length > 0 || licenseId.trim().length > 0;
 }
 
-function hasLink(lineId: string, licenseId: string): boolean {
-  return lineId.trim().length > 0 || licenseId.trim().length > 0;
+function isProfileCompleteForApproval(draft: DriverDraft): boolean {
+  return (
+    draft.fullName.trim().length > 0 &&
+    draft.nationalId.trim().length > 0 &&
+    draft.phone.trim().length > 0 &&
+    draft.lineNumber.trim().length > 0 &&
+    (draft.routePath.trim().length > 0 || draft.routeName.trim().length > 0)
+  );
 }
 
 function computeEligibilityFromDraft(draft: DriverDraft): {
@@ -119,14 +146,26 @@ function computeEligibilityFromDraft(draft: DriverDraft): {
   if (draft.verificationStatus !== 'approved') {
     reasons.push('verificationStatus must be approved');
   }
-  if (!hasLink(draft.lineId, draft.licenseId)) {
+  if (!hasLineOrLicenseLink(draft.lineId, draft.licenseId)) {
     reasons.push('lineId or licenseId is required');
+  }
+  if (!isProfileCompleteForApproval(draft)) {
+    reasons.push('fullName, nationalId, phone, lineNumber, routePath/routeName are required');
   }
   return { isEligible: reasons.length === 0, reasons };
 }
 
 function createInitialDraft(driver: DriverDocument): DriverDraft {
   return {
+    fullName: driver.fullName || '',
+    nationalId: driver.nationalId || '',
+    phone: driver.phone || '',
+    officeId: driver.officeId || '',
+    lineNumber: driver.lineNumber || '',
+    routePath: driver.routePath || '',
+    routeName: driver.routeName || '',
+    routeCities: Array.isArray(driver.routeCities) ? driver.routeCities.join(', ') : '',
+    photoUrl: driver.photoUrl || '',
     driverType: driver.driverType || 'licensed_line_owner',
     verificationStatus: normalizeStatus(driver.verificationStatus),
     lineId: driver.lineId || '',
@@ -214,10 +253,21 @@ export function DriversListPage() {
           : mode === 'reject'
             ? 'rejected'
             : normalizeStatus(draft.verificationStatus),
+      officeId: draft.officeId.trim(),
       lineId: draft.lineId.trim(),
       licenseId: draft.licenseId.trim(),
+      fullName: draft.fullName.trim(),
+      nationalId: draft.nationalId.trim(),
+      phone: draft.phone.trim(),
+      lineNumber: draft.lineNumber.trim(),
+      routePath: draft.routePath.trim(),
+      routeName: draft.routeName.trim(),
+      routeCities: draft.routeCities.trim(),
+      photoUrl: draft.photoUrl.trim(),
+      driverType: draft.driverType.trim(),
       vehicleType: normalizeVehicleType(draft.vehicleType),
       seatCapacity: draft.seatCapacity.trim(),
+      note: draft.note.trim(),
     };
 
     const parsedSeatCapacity = parseSeatCapacityInput(normalizedDraft.seatCapacity);
@@ -226,8 +276,14 @@ export function DriversListPage() {
       return;
     }
 
-    if (mode === 'approve' && !hasLink(normalizedDraft.lineId, normalizedDraft.licenseId)) {
-      window.alert('Approve requires lineId or licenseId.');
+    if (
+      mode === 'approve' &&
+      (!hasLineOrLicenseLink(normalizedDraft.lineId, normalizedDraft.licenseId) ||
+        !isProfileCompleteForApproval(normalizedDraft))
+    ) {
+      window.alert(
+        'Approve requires lineId/licenseId and complete profile (fullName, nationalId, phone, lineNumber, routePath/routeName).'
+      );
       return;
     }
 
@@ -236,13 +292,22 @@ export function DriversListPage() {
     try {
       const result = await upsertDriverEligibility({
         driverId,
-        driverType: normalizedDraft.driverType.trim(),
+        driverType: normalizedDraft.driverType || undefined,
         verificationStatus: normalizedDraft.verificationStatus,
+        officeId: normalizedDraft.officeId || undefined,
         lineId: normalizedDraft.lineId || undefined,
         licenseId: normalizedDraft.licenseId || undefined,
+        fullName: normalizedDraft.fullName || undefined,
+        nationalId: normalizedDraft.nationalId || undefined,
+        phone: normalizedDraft.phone || undefined,
+        lineNumber: normalizedDraft.lineNumber || undefined,
+        routePath: normalizedDraft.routePath || undefined,
+        routeName: normalizedDraft.routeName || undefined,
+        routeCities: parseRouteCitiesInput(normalizedDraft.routeCities),
+        photoUrl: normalizedDraft.photoUrl || undefined,
         vehicleType: normalizedDraft.vehicleType,
         seatCapacity: parsedSeatCapacity,
-        note: normalizedDraft.note.trim() || undefined,
+        note: normalizedDraft.note || undefined,
         forceOfflineIfIneligible: true,
       });
 
@@ -275,7 +340,7 @@ export function DriversListPage() {
     <div className="drivers-page">
       <h2>Drivers ({drivers.length} total)</h2>
       <p className="drivers-subtitle">
-        Live status, eligibility controls, and profile edits in one place.
+        Driver registration, profile completeness, route assignment, and eligibility control.
       </p>
 
       <div className="drivers-summary">
@@ -287,23 +352,18 @@ export function DriversListPage() {
       {pageError ? <div className="page-error">{pageError}</div> : null}
 
       {drivers.length === 0 ? (
-        <p className="no-drivers">No drivers found. Start the driver app to see updates.</p>
+        <p className="no-drivers">No drivers found.</p>
       ) : (
         <div className="drivers-table-wrap">
           <table className="drivers-table">
             <thead>
               <tr>
-                <th>Driver ID</th>
-                <th>Status</th>
-                <th>Coordinates</th>
-                <th>Last Seen</th>
+                <th>Driver</th>
+                <th>Scope</th>
+                <th>Profile</th>
+                <th>Route / Line</th>
+                <th>Vehicle / Seats</th>
                 <th>Eligibility</th>
-                <th>Driver Type</th>
-                <th>Verification</th>
-                <th>lineId</th>
-                <th>licenseId</th>
-                <th>Vehicle</th>
-                <th>Seats</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -313,104 +373,186 @@ export function DriversListPage() {
                 const draft = drafts[driver.id] ?? createInitialDraft(driver);
                 const eligibility = computeEligibilityFromDraft(draft);
                 const isSaving = savingByDriverId[driver.id] === true;
+                const availableSeatsText =
+                  typeof driver.availableSeats === 'number' ? String(driver.availableSeats) : '--';
 
                 return (
                   <tr key={driver.id} className={driver.activityState}>
-                    <td className="driver-id">{driver.id}</td>
-                    <td className="status">
+                    <td>
+                      <div className="driver-id">{driver.id}</div>
+                      <div className="timestamp">{driver.lastSeenAgo}</div>
                       <span className={`status-badge ${driver.activityState}`}>{badge.text}</span>
                     </td>
-                    <td className="coord">
-                      {driver.location
-                        ? `${driver.location.lat.toFixed(5)}, ${driver.location.lng.toFixed(5)}`
-                        : 'N/A'}
-                    </td>
-                    <td className="timestamp">{driver.lastSeenAgo}</td>
+
                     <td>
-                      <span
-                        className={`eligibility-badge ${eligibility.isEligible ? 'ok' : 'blocked'}`}
-                      >
-                        {eligibility.isEligible ? 'Eligible' : 'Blocked'}
-                      </span>
-                      {!eligibility.isEligible ? (
-                        <div className="eligibility-reasons">{eligibility.reasons.join(', ')}</div>
-                      ) : null}
+                      <div className="cell-stack">
+                        <input
+                          className="table-input"
+                          value={draft.officeId}
+                          onChange={(e) => setDraftField(driver.id, 'officeId', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="officeId"
+                        />
+                        <input
+                          className="table-input"
+                          value={draft.lineId}
+                          onChange={(e) => setDraftField(driver.id, 'lineId', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="lineId"
+                        />
+                        <input
+                          className="table-input"
+                          value={draft.licenseId}
+                          onChange={(e) => setDraftField(driver.id, 'licenseId', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="licenseId"
+                        />
+                      </div>
                     </td>
+
                     <td>
-                      <input
-                        className="table-input"
-                        value={draft.driverType}
-                        onChange={(e) => setDraftField(driver.id, 'driverType', e.target.value)}
-                        disabled={isSaving}
-                      />
+                      <div className="cell-stack">
+                        <input
+                          className="table-input"
+                          value={draft.fullName}
+                          onChange={(e) => setDraftField(driver.id, 'fullName', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="Full name"
+                        />
+                        <input
+                          className="table-input"
+                          value={draft.nationalId}
+                          onChange={(e) => setDraftField(driver.id, 'nationalId', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="National ID"
+                        />
+                        <input
+                          className="table-input"
+                          value={draft.phone}
+                          onChange={(e) => setDraftField(driver.id, 'phone', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="Phone"
+                        />
+                        <input
+                          className="table-input"
+                          value={draft.photoUrl}
+                          onChange={(e) => setDraftField(driver.id, 'photoUrl', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="Photo URL (optional)"
+                        />
+                      </div>
                     </td>
+
                     <td>
-                      <select
-                        className="table-select"
-                        value={draft.verificationStatus}
-                        onChange={(e) =>
-                          setDraftField(
-                            driver.id,
-                            'verificationStatus',
-                            normalizeStatus(e.target.value)
-                          )
-                        }
-                        disabled={isSaving}
-                      >
-                        <option value="approved">approved</option>
-                        <option value="pending">pending</option>
-                        <option value="rejected">rejected</option>
-                      </select>
+                      <div className="cell-stack">
+                        <input
+                          className="table-input"
+                          value={draft.lineNumber}
+                          onChange={(e) => setDraftField(driver.id, 'lineNumber', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="Line number"
+                        />
+                        <input
+                          className="table-input"
+                          value={draft.routePath}
+                          onChange={(e) => setDraftField(driver.id, 'routePath', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="Route path (Nablus ↔ Ramallah)"
+                        />
+                        <input
+                          className="table-input"
+                          value={draft.routeName}
+                          onChange={(e) => setDraftField(driver.id, 'routeName', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="Route name (optional)"
+                        />
+                        <input
+                          className="table-input"
+                          value={draft.routeCities}
+                          onChange={(e) => setDraftField(driver.id, 'routeCities', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="Route cities CSV (Nablus,Ramallah)"
+                        />
+                      </div>
                     </td>
+
                     <td>
-                      <input
-                        className="table-input"
-                        value={draft.lineId}
-                        onChange={(e) => setDraftField(driver.id, 'lineId', e.target.value)}
-                        disabled={isSaving}
-                        placeholder="line-001"
-                      />
+                      <div className="cell-stack">
+                        <select
+                          className="table-select"
+                          value={draft.vehicleType}
+                          onChange={(e) =>
+                            setDraftField(
+                              driver.id,
+                              'vehicleType',
+                              normalizeVehicleType(e.target.value)
+                            )
+                          }
+                          disabled={isSaving}
+                        >
+                          {VEHICLE_TYPE_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          className="table-input table-input-sm"
+                          value={draft.seatCapacity}
+                          onChange={(e) => setDraftField(driver.id, 'seatCapacity', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="Seats"
+                        />
+                        <div className="readonly-chip">{`Live available seats: ${availableSeatsText}`}</div>
+                      </div>
                     </td>
+
                     <td>
-                      <input
-                        className="table-input"
-                        value={draft.licenseId}
-                        onChange={(e) => setDraftField(driver.id, 'licenseId', e.target.value)}
-                        disabled={isSaving}
-                        placeholder="LIC-001"
-                      />
+                      <div className="cell-stack">
+                        <input
+                          className="table-input"
+                          value={draft.driverType}
+                          onChange={(e) => setDraftField(driver.id, 'driverType', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="licensed_line_owner"
+                        />
+                        <select
+                          className="table-select"
+                          value={draft.verificationStatus}
+                          onChange={(e) =>
+                            setDraftField(
+                              driver.id,
+                              'verificationStatus',
+                              normalizeStatus(e.target.value)
+                            )
+                          }
+                          disabled={isSaving}
+                        >
+                          <option value="approved">approved</option>
+                          <option value="pending">pending</option>
+                          <option value="rejected">rejected</option>
+                        </select>
+
+                        <span
+                          className={`eligibility-badge ${eligibility.isEligible ? 'ok' : 'blocked'}`}
+                        >
+                          {eligibility.isEligible ? 'Eligible' : 'Blocked'}
+                        </span>
+                        {!eligibility.isEligible ? (
+                          <div className="eligibility-reasons">{eligibility.reasons.join(', ')}</div>
+                        ) : null}
+                      </div>
                     </td>
-                    <td>
-                      <select
-                        className="table-select"
-                        value={draft.vehicleType}
-                        onChange={(e) =>
-                          setDraftField(
-                            driver.id,
-                            'vehicleType',
-                            normalizeVehicleType(e.target.value)
-                          )
-                        }
-                        disabled={isSaving}
-                      >
-                        {VEHICLE_TYPE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        className="table-input table-input-sm"
-                        value={draft.seatCapacity}
-                        onChange={(e) => setDraftField(driver.id, 'seatCapacity', e.target.value)}
-                        disabled={isSaving}
-                        placeholder="4"
-                      />
-                    </td>
+
                     <td>
                       <div className="actions-cell">
+                        <input
+                          className="table-input"
+                          value={draft.note}
+                          onChange={(e) => setDraftField(driver.id, 'note', e.target.value)}
+                          disabled={isSaving}
+                          placeholder="Eligibility note (optional)"
+                        />
                         <button
                           className="action-btn approve"
                           onClick={() => persistDriverEligibility(driver.id, draft, 'approve')}

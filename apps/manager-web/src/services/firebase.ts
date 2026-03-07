@@ -25,10 +25,23 @@ const firebaseConfig = {
 // APP MODE CONFIGURATION (Step 33)
 // ============================================================================
 
-const appMode: AppMode = parseAppMode(import.meta.env.VITE_APP_MODE);
-const emulatorsRequested = import.meta.env.VITE_USE_EMULATORS === 'true';
+const requestedMode: AppMode = parseAppMode(import.meta.env.VITE_APP_MODE);
+const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
+const forceLocalDevMode =
+  isLocalHost && import.meta.env.VITE_FORCE_LOCAL_DEV_MODE !== 'false';
+const appMode: AppMode = forceLocalDevMode ? 'dev' : requestedMode;
+const emulatorsRequested =
+  import.meta.env.VITE_USE_EMULATORS === 'true' ||
+  (forceLocalDevMode && import.meta.env.VITE_USE_EMULATORS !== 'false');
 const useEmulators = shouldAllowEmulators(appMode, emulatorsRequested);
 const emulatorHost = import.meta.env.VITE_EMULATOR_HOST || '127.0.0.1';
+
+if (forceLocalDevMode && requestedMode !== 'dev') {
+  console.warn(
+    `[ManagerWeb] Localhost detected. Forcing app mode to 'dev' (requested '${requestedMode}'). Set VITE_FORCE_LOCAL_DEV_MODE=false to opt out.`
+  );
+}
 
 // Log connection guard message
 const connectionMessage = getConnectionGuardMessage(appMode, emulatorsRequested);
