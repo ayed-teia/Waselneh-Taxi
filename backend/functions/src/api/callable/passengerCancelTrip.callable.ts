@@ -1,7 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import { TripStatus } from '@taxi-line/shared';
+import { BOOKING_TYPES, TripStatus, normalizeSeatCapacity } from '@taxi-line/shared';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { getFirestore } from '../../core/config';
 import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError, handleError } from '../../core/errors';
@@ -53,7 +53,6 @@ export const passengerCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
         }
 
         const tripData = tripDoc.data()!;
-
         if (tripData.passengerId !== passengerId) {
           throw new ForbiddenError('You are not the owner of this trip');
         }
@@ -62,20 +61,71 @@ export const passengerCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
           throw new ForbiddenError(`Cannot cancel trip with status: ${tripData.status}`);
         }
 
-        const driverId = tripData.driverId as string | undefined;
-        driverIdForNotify = driverId || '';
-        let shouldUpdateDriverRequest = false;
+        const driverId = typeof tripData.driverId === 'string' ? tripData.driverId : '';
+        driverIdForNotify = driverId;
 
-        // Read optional docs before writes (required by Firestore transactions).
+        let shouldUpdateDriverRequest = false;
         if (driverId) {
           const driverRequestRef = db
             .collection('driverRequests')
             .doc(driverId)
             .collection('requests')
             .doc(tripId);
-
           const driverRequestDoc = await transaction.get(driverRequestRef);
           shouldUpdateDriverRequest = driverRequestDoc.exists;
+
+          const driverRef = db.collection('drivers').doc(driverId);
+          const driverDoc = await transaction.get(driverRef);
+          const driverData = (driverDoc.data() ?? {}) as Record<string, unknown>;
+
+          const seatCapacity = normalizeSeatCapacity(driverData.seatCapacity, driverData.vehicleType as any);
+          const availableSeatsRaw =
+            typeof driverData.availableSeats === 'number' && Number.isFinite(driverData.availableSeats)
+              ? Math.round(driverData.availableSeats)
+              : seatCapacity;
+          const availableSeats = Math.max(0, Math.min(availableSeatsRaw, seatCapacity));
+
+          const bookingType =
+            tripData.bookingType === BOOKING_TYPES.FULL_TAXI
+              ? BOOKING_TYPES.FULL_TAXI
+              : BOOKING_TYPES.SEAT_ONLY;
+          const reservedSeatsRaw =
+            typeof tripData.reservedSeats === 'number' && Number.isFinite(tripData.reservedSeats)
+              ? Math.round(tripData.reservedSeats)
+              : 0;
+          const reservedSeats = Math.max(0, reservedSeatsRaw);
+          const nextAvailableSeats = Math.max(0, Math.min(seatCapacity, availableSeats + reservedSeats));
+          const isOnline = driverData.isOnline === true;
+
+          transaction.set(
+            driverRef,
+            {
+              availableSeats: nextAvailableSeats,
+              isAvailable: isOnline && nextAvailableSeats > 0,
+              currentTripId:
+                typeof driverData.currentTripId === 'string' && driverData.currentTripId === tripId
+                  ? null
+                  : driverData.currentTripId ?? null,
+              ...(bookingType === BOOKING_TYPES.FULL_TAXI
+                ? {
+                    fullTaxiReserved: false,
+                    fullTaxiReservedTripId:
+                      driverData.fullTaxiReservedTripId === tripId
+                        ? null
+                        : driverData.fullTaxiReservedTripId ?? null,
+                  }
+                : {}),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          if (shouldUpdateDriverRequest) {
+            transaction.update(driverRequestRef, {
+              status: 'cancelled',
+              cancelledAt: FieldValue.serverTimestamp(),
+            });
+          }
         }
 
         transaction.update(tripRef, {
@@ -83,32 +133,6 @@ export const passengerCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
           cancelledAt: FieldValue.serverTimestamp(),
           cancellationReason: 'passenger_cancelled',
         });
-
-        if (driverId) {
-          const driverRef = db.collection('drivers').doc(driverId);
-          transaction.set(
-            driverRef,
-            {
-              isAvailable: true,
-              currentTripId: null,
-              updatedAt: FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
-
-          if (shouldUpdateDriverRequest) {
-            const driverRequestRef = db
-              .collection('driverRequests')
-              .doc(driverId)
-              .collection('requests')
-              .doc(tripId);
-
-            transaction.update(driverRequestRef, {
-              status: 'cancelled',
-              cancelledAt: FieldValue.serverTimestamp(),
-            });
-          }
-        }
       });
 
       logger.tripEvent('TRIP_CANCELLED', tripId, {

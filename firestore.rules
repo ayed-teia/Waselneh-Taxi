@@ -117,9 +117,10 @@ service cloud.firestore {
 
     function isTripParticipantById(tripId) {
       return isAuthenticated() &&
-        exists(tripDocPath(tripId)) && (
-          get(tripDocPath(tripId)).data.passengerId == request.auth.uid ||
-          get(tripDocPath(tripId)).data.driverId == request.auth.uid
+        exists(tripDocPath(tripId)) &&
+        (
+        get(tripDocPath(tripId)).data.passengerId == request.auth.uid ||
+        get(tripDocPath(tripId)).data.driverId == request.auth.uid
         );
     }
 
@@ -349,12 +350,12 @@ service cloud.firestore {
       // Passengers can read trips where they are the passenger
       // Drivers can read trips where they are assigned
       // Managers can read all trips
-      allow read: if isManager() || (
+      allow read: if (
         isAuthenticated() && (
           resource.data.passengerId == request.auth.uid ||
           resource.data.driverId == request.auth.uid
         )
-      );
+      ) || isManager();
       
       // NO direct writes allowed - all trip operations go through Cloud Functions
       // Protected fields: status transitions, fare, timestamps, driver assignment
@@ -363,7 +364,7 @@ service cloud.firestore {
 
       // Chat messages between trip participants
       match /messages/{messageId} {
-        allow read: if isManager() || isTripParticipantById(tripId);
+        allow read: if isTripParticipantById(tripId) || isManager();
         allow create: if isTripParticipantById(tripId) &&
           request.resource.data.senderId == request.auth.uid &&
           request.resource.data.senderRole in ['passenger', 'driver'] &&
@@ -420,6 +421,15 @@ service cloud.firestore {
     match /pricingRules/{ruleId} {
       // Only managers can read and write pricing rules
       allow read, write: if isManager();
+    }
+
+    // =========================================================================
+    // System Configuration
+    // Path: /system/{docId}
+    // =========================================================================
+    match /system/{docId} {
+      allow read: if isManager();
+      allow write: if false;
     }
 
     // =========================================================================

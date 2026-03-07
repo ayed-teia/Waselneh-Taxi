@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { BOOKING_TYPE_VALUES, BookingType } from '../config/booking.config';
 import { PaymentMethod, PaymentStatus } from '../enums/payment-status.enum';
+import { TripStatusSchema } from '../enums/trip-status.enum';
 import { VEHICLE_MAX_CAPACITY, VEHICLE_TYPE_VALUES } from '../config/vehicle.config';
 
 /**
@@ -63,15 +65,7 @@ export const TripSchema = z.object({
   driverId: z.string(),
   
   /** Current trip status */
-  status: z.enum([
-    'pending',
-    'accepted',
-    'driver_arrived',
-    'in_progress',
-    'completed',
-    'cancelled',
-    'no_driver_available',
-  ]),
+  status: TripStatusSchema,
   
   /** Pickup location */
   pickup: LocationPointSchema,
@@ -88,8 +82,21 @@ export const TripSchema = z.object({
   /** Estimated price in ILS */
   estimatedPriceIls: z.number().nonnegative(),
 
+  /** Passenger booking choice */
+  bookingType: z.enum(BOOKING_TYPE_VALUES as [BookingType, ...BookingType[]]).default('seat_only'),
+
   /** Passenger requested seats for this ride */
   requiredSeats: z.number().int().min(1).max(VEHICLE_MAX_CAPACITY).optional(),
+
+  /** Explicit requested seat count after bookingType normalization */
+  requestedSeats: z.number().int().min(0).max(VEHICLE_MAX_CAPACITY).optional(),
+
+  /** Seats actually reserved on acceptance */
+  reservedSeats: z.number().int().min(0).max(VEHICLE_MAX_CAPACITY).optional(),
+
+  /** Destination metadata used for route matching and UX */
+  destinationLabel: z.string().nullable().optional(),
+  destinationCity: z.string().nullable().optional(),
 
   /** Requested vehicle type preference (optional) */
   requestedVehicleType: z.enum(VEHICLE_TYPE_VALUES as [string, ...string[]]).nullable().optional(),
@@ -111,6 +118,10 @@ export const TripSchema = z.object({
 
   /** Matched driver's line scope */
   matchedLineId: z.string().nullable().optional(),
+
+  /** Matched driver's route/profile context */
+  matchedLineNumber: z.string().nullable().optional(),
+  matchedRoutePath: z.string().nullable().optional(),
   
   // ========================
   // PAYMENT FIELDS

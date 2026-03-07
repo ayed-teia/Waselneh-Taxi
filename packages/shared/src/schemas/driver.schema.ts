@@ -29,6 +29,20 @@ import { VEHICLE_MAX_CAPACITY, VEHICLE_TYPE_VALUES } from '../config/vehicle.con
 export const DriverSchema = z.object({
   /** Driver's auth UID */
   driverId: z.string(),
+
+  /** Human profile fields maintained by operations manager */
+  fullName: z.string().trim().min(2).max(120).nullable().optional(),
+  nationalId: z.string().trim().min(5).max(32).nullable().optional(),
+  phone: z.string().trim().min(5).max(32).nullable().optional(),
+  lineNumber: z.string().trim().min(1).max(40).nullable().optional(),
+  routePath: z.string().trim().min(2).max(180).nullable().optional(),
+  routeName: z.string().trim().min(2).max(180).nullable().optional(),
+  routeCities: z.array(z.string().trim().min(2).max(80)).nullable().optional(),
+
+  /** Optional avatar and reputation details */
+  photoUrl: z.string().url().nullable().optional(),
+  rating: z.number().min(0).max(5).nullable().optional(),
+  tripsCount: z.number().int().min(0).nullable().optional(),
   
   /** Is driver currently online (toggled by driver) */
   isOnline: z.boolean(),
@@ -53,6 +67,13 @@ export const DriverSchema = z.object({
 
   /** Available passenger seats for this vehicle */
   seatCapacity: z.number().int().min(1).max(VEHICLE_MAX_CAPACITY).nullable().optional(),
+
+  /** Dynamic seat inventory used by dispatch/matching */
+  availableSeats: z.number().int().min(0).max(VEHICLE_MAX_CAPACITY).nullable().optional(),
+
+  /** Full taxi lock when a full reservation is active */
+  fullTaxiReserved: z.boolean().nullable().optional(),
+  fullTaxiReservedTripId: z.string().nullable().optional(),
   
   /** Last known location as GeoPoint { latitude, longitude } */
   lastLocation: z.object({

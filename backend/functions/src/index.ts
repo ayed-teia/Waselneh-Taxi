@@ -65,6 +65,7 @@ export {
   ping,
   estimateTrip,
   createTripRequest,
+  cancelTripRequest,
   dispatchTripRequest,
   acceptTripRequest,
   rejectTripRequest,

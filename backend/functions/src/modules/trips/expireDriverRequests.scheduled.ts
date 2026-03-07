@@ -1,49 +1,10 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { TripStatus } from '@taxi-line/shared';
+import { TripStatus, normalizeSeatCapacity, normalizeVehicleType } from '@taxi-line/shared';
 import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
 import { logger } from '../../core/logger';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
-/**
- * ============================================================================
- * EXPIRE DRIVER REQUESTS - Scheduled Cloud Function
- * ============================================================================
- * 
- * Runs every minute to check for expired driver requests.
- * 
- * FLOW:
- * 1. Query all pending driver requests where expiresAt < now
- * 2. For each expired request:
- *    a. Update request status to 'expired'
- *    b. Update trip status to 'no_driver_available'
- *    c. Mark driver isAvailable=true again
- * 
- * PILOT SAFETY:
- * - Ensures drivers aren't stuck in unavailable state
- * - Ensures passengers get quick feedback when no driver responds
- * - Timeout is configurable via PILOT_LIMITS.DRIVER_RESPONSE_TIMEOUT_SECONDS
- * 
- * ============================================================================
- * QA VERIFICATION CHECKLIST:
- * ============================================================================
- * 
- * ✅ TIMEOUT DETECTION:
- *    LOG: "⏰ [ExpireRequests] START - checking expired requests"
- *    LOG: "🔍 [ExpireRequests] Found {N} expired request(s)"
- * 
- * ✅ EXPIRATION HANDLING:
- *    LOG: "⏰ [ExpireRequests] Expiring request: {tripId} for driver: {driverId}"
- *    LOG: "📝 [ExpireRequests] Request expired, trip cancelled"
- *    LOG: "🚗 [ExpireRequests] Driver {driverId} isAvailable → true"
- * 
- * ============================================================================
- */
-
-/**
- * Scheduled function to expire driver requests that have timed out
- * Runs every minute
- */
 export const expireDriverRequests = onSchedule(
   {
     region: REGION,
@@ -53,19 +14,15 @@ export const expireDriverRequests = onSchedule(
   },
   async () => {
     const startTime = Date.now();
-    logger.info('⏰ [ExpireRequests] START - checking expired requests');
+    logger.info('[ExpireRequests] START - checking expired requests');
 
     const db = getFirestore();
     const now = Timestamp.now();
-    
+
     let expiredCount = 0;
     let errorCount = 0;
 
     try {
-      // ========================================
-      // 1. Query all drivers with pending requests
-      // ========================================
-      // We need to do a collection group query on 'requests' subcollection
       const expiredRequestsSnapshot = await db
         .collectionGroup('requests')
         .where('status', '==', 'pending')
@@ -73,51 +30,49 @@ export const expireDriverRequests = onSchedule(
         .get();
 
       if (expiredRequestsSnapshot.empty) {
-        logger.info('✅ [ExpireRequests] No expired requests found');
+        logger.info('[ExpireRequests] No expired requests found');
         return;
       }
 
-      logger.info(`🔍 [ExpireRequests] Found ${expiredRequestsSnapshot.size} expired request(s)`);
+      logger.info('[ExpireRequests] Found expired requests', {
+        count: expiredRequestsSnapshot.size,
+      });
 
-      // ========================================
-      // 2. Process each expired request
-      // ========================================
       for (const requestDoc of expiredRequestsSnapshot.docs) {
         try {
           const requestData = requestDoc.data();
-          const tripId = requestData.tripId;
-          
-          // Extract driverId from the document path
-          // Path: driverRequests/{driverId}/requests/{tripId}
+          const tripId = String(requestData.tripId || '');
           const pathParts = requestDoc.ref.path.split('/');
           const driverId = pathParts[1];
 
           if (!driverId || !tripId) {
-            logger.error('❌ [ExpireRequests] Invalid request document path', {
+            logger.error('[ExpireRequests] Invalid request path', {
               path: requestDoc.ref.path,
             });
             errorCount++;
             continue;
           }
 
-          logger.info(`⏰ [ExpireRequests] Expiring request`, { tripId, driverId });
-
-          // Use a transaction to ensure consistency
           await db.runTransaction(async (transaction) => {
-            // a. Update the request status to 'expired'
+            const latestRequestDoc = await transaction.get(requestDoc.ref);
+            if (!latestRequestDoc.exists) {
+              return;
+            }
+            const latestRequestData = latestRequestDoc.data() ?? {};
+            if (latestRequestData.status !== 'pending') {
+              return;
+            }
+
             transaction.update(requestDoc.ref, {
               status: 'expired',
               expiredAt: FieldValue.serverTimestamp(),
             });
 
-            // b. Update trip status to 'no_driver_available'
             const tripRef = db.collection('trips').doc(tripId);
             const tripDoc = await transaction.get(tripRef);
-            
             if (tripDoc.exists) {
-              const tripData = tripDoc.data();
-              // Only update if still pending
-              if (tripData?.status === TripStatus.PENDING) {
+              const tripData = tripDoc.data() ?? {};
+              if (tripData.status === TripStatus.PENDING) {
                 transaction.update(tripRef, {
                   status: TripStatus.NO_DRIVER_AVAILABLE,
                   cancelledAt: FieldValue.serverTimestamp(),
@@ -126,26 +81,48 @@ export const expireDriverRequests = onSchedule(
               }
             }
 
-            // c. Mark driver as available again
             const driverRef = db.collection('drivers').doc(driverId);
-            transaction.update(driverRef, {
-              isAvailable: true,
-              currentTripId: null,
-              updatedAt: FieldValue.serverTimestamp(),
-            });
+            const driverDoc = await transaction.get(driverRef);
+            const driverData = (driverDoc.data() ?? {}) as Record<string, unknown>;
+            const seatCapacity = normalizeSeatCapacity(
+              driverData.seatCapacity,
+              normalizeVehicleType(driverData.vehicleType)
+            );
+            const availableSeatsRaw =
+              typeof driverData.availableSeats === 'number' && Number.isFinite(driverData.availableSeats)
+                ? Math.round(driverData.availableSeats)
+                : seatCapacity;
+            const availableSeats = Math.max(0, Math.min(availableSeatsRaw, seatCapacity));
+            const isOnline = driverData.isOnline === true;
+            const fullTaxiReserved = driverData.fullTaxiReserved === true;
+            const currentTripId =
+              typeof driverData.currentTripId === 'string' && driverData.currentTripId.trim().length > 0
+                ? driverData.currentTripId
+                : null;
+            const shouldClearCurrentTrip = currentTripId === tripId;
+
+            transaction.set(
+              driverRef,
+              {
+                isAvailable:
+                  isOnline &&
+                  availableSeats > 0 &&
+                  !fullTaxiReserved &&
+                  (currentTripId == null || shouldClearCurrentTrip),
+                currentTripId: shouldClearCurrentTrip ? null : currentTripId,
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
           });
 
-          // Log trip lifecycle event
-          logger.tripEvent('TRIP_EXPIRED', tripId, { 
-            driverId, 
-            reason: 'Driver did not respond in time' 
+          logger.tripEvent('TRIP_EXPIRED', tripId, {
+            driverId,
+            reason: 'Driver did not respond in time',
           });
-          
-          logger.info(`✅ [ExpireRequests] Request expired successfully`, { tripId, driverId });
           expiredCount++;
-
         } catch (docError) {
-          logger.error('❌ [ExpireRequests] Failed to expire request', {
+          logger.error('[ExpireRequests] Failed to expire request', {
             docId: requestDoc.id,
             error: docError,
           });
@@ -153,15 +130,13 @@ export const expireDriverRequests = onSchedule(
         }
       }
 
-      const duration = Date.now() - startTime;
-      logger.info('🎉 [ExpireRequests] COMPLETE', {
+      logger.info('[ExpireRequests] COMPLETE', {
         expiredCount,
         errorCount,
-        durationMs: duration,
+        durationMs: Date.now() - startTime,
       });
-
     } catch (error) {
-      logger.error('❌ [ExpireRequests] FAILED', { error });
+      logger.error('[ExpireRequests] FAILED', { error });
       throw error;
     }
   }

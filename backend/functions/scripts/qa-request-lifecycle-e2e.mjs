@@ -40,6 +40,15 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+async function runStep(name, action) {
+  try {
+    return await action();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${name} failed: ${message}`);
+  }
+}
+
 async function callCallable(functionName, data) {
   const url = `http://${emulatorHost}:${functionsPort}/${projectId}/europe-west1/${functionName}`;
   const response = await fetch(url, {
@@ -83,16 +92,37 @@ async function main() {
   const suffix = Date.now();
 
   const driverId = `qa-driver-${suffix}`;
-  const passengerId = `qa-passenger-${suffix}`;
+  const passengerLifecycle = `qa-passenger-lifecycle-${suffix}`;
+  const passengerReject = `qa-passenger-reject-${suffix}`;
+  const passengerExpiry = `qa-passenger-expiry-${suffix}`;
+  const passengerReconnect = `qa-passenger-reconnect-${suffix}`;
+  const passengerSeat = `qa-passenger-seat-${suffix}`;
+  const passengerFullTaxi = `qa-passenger-full-${suffix}`;
+  const passengerFullTaxiProbe = `qa-passenger-full-probe-${suffix}`;
   const pickup = { lat: 32.2211, lng: 35.2544 };
   const dropoff = { lat: 31.9038, lng: 35.2034 };
   const lineId = `LINE_QA_${suffix}`;
   const officeId = `OFFICE_QA_${suffix}`;
+  const driverRef = db.collection('drivers').doc(driverId);
 
   const cleanupDocRefs = [];
   const cleanupCollectionRefs = [];
   const trackDoc = (ref) => cleanupDocRefs.push(ref);
   const trackCollection = (ref) => cleanupCollectionRefs.push(ref);
+  const getDriverSeatState = async () => {
+    const snap = await driverRef.get();
+    const data = snap.data() || {};
+    return {
+      availableSeats:
+        typeof data.availableSeats === 'number' ? Math.round(data.availableSeats) : null,
+      seatCapacity: typeof data.seatCapacity === 'number' ? Math.round(data.seatCapacity) : null,
+      fullTaxiReserved: data.fullTaxiReserved === true,
+      fullTaxiReservedTripId:
+        typeof data.fullTaxiReservedTripId === 'string' ? data.fullTaxiReservedTripId : null,
+      isAvailable: data.isAvailable === true,
+      isOnline: data.isOnline === true,
+    };
+  };
 
   try {
     // Seed operation scope + eligible driver.
@@ -118,7 +148,6 @@ async function main() {
     });
     trackDoc(db.collection('lines').doc(lineId));
 
-    const driverRef = db.collection('drivers').doc(driverId);
     await driverRef.set({
       driverId,
       driverType: 'licensed_line_owner',
@@ -141,22 +170,32 @@ async function main() {
 
     // Scenario 1: Full lifecycle.
     try {
-      const { created } = await createTrip(passengerId, pickup, dropoff, {
-        requiredSeats: 2,
-        vehicleType: 'taxi_standard',
-        officeId,
-        lineId,
-      });
+      const { created } = await runStep('createTrip(lifecycle)', () =>
+        createTrip(passengerLifecycle, pickup, dropoff, {
+          requiredSeats: 2,
+          vehicleType: 'taxi_standard',
+          officeId,
+          lineId,
+        })
+      );
       assert(created.status === 'matched', 'Expected matched trip in lifecycle scenario');
       assert(created.tripId, 'Expected tripId in lifecycle scenario');
       const tripId = created.tripId;
       trackDoc(db.collection('trips').doc(tripId));
       trackDoc(db.collection('payments').doc(`payment_${tripId}`));
 
-      await callCallable('acceptTripRequest', { tripId, devUserId: driverId });
-      await callCallable('driverArrived', { tripId, devUserId: driverId });
-      await callCallable('startTrip', { tripId, devUserId: driverId });
-      await callCallable('completeTrip', { tripId, devUserId: driverId });
+      await runStep('acceptTripRequest(lifecycle)', () =>
+        callCallable('acceptTripRequest', { tripId, devUserId: driverId })
+      );
+      await runStep('driverArrived(lifecycle)', () =>
+        callCallable('driverArrived', { tripId, devUserId: driverId })
+      );
+      await runStep('startTrip(lifecycle)', () =>
+        callCallable('startTrip', { tripId, devUserId: driverId })
+      );
+      await runStep('completeTrip(lifecycle)', () =>
+        callCallable('completeTrip', { tripId, devUserId: driverId })
+      );
 
       const tripDoc = await db.collection('trips').doc(tripId).get();
       assert(tripDoc.data()?.status === 'completed', 'Trip should be completed');
@@ -178,16 +217,20 @@ async function main() {
         { merge: true }
       );
 
-      const { created } = await createTrip(passengerId, pickup, dropoff, {
-        requiredSeats: 1,
-        officeId,
-        lineId,
-      });
+      const { created } = await runStep('createTrip(reject)', () =>
+        createTrip(passengerReject, pickup, dropoff, {
+          requiredSeats: 1,
+          officeId,
+          lineId,
+        })
+      );
       assert(created.tripId, 'Expected tripId in reject scenario');
       const tripId = created.tripId;
       trackDoc(db.collection('trips').doc(tripId));
 
-      await callCallable('rejectTripRequest', { tripId, devUserId: driverId });
+      await runStep('rejectTripRequest(reject)', () =>
+        callCallable('rejectTripRequest', { tripId, devUserId: driverId })
+      );
       const tripDoc = await db.collection('trips').doc(tripId).get();
       assert(tripDoc.data()?.status === 'no_driver_available', 'Trip should move to no_driver_available');
       ok('Reject scenario', tripId);
@@ -207,7 +250,7 @@ async function main() {
         { merge: true }
       );
 
-      const { created } = await createTrip(passengerId, pickup, dropoff, {
+      const { created } = await createTrip(passengerExpiry, pickup, dropoff, {
         requiredSeats: 1,
         officeId,
         lineId,
@@ -257,7 +300,7 @@ async function main() {
         { merge: true }
       );
 
-      const firstAttempt = await createTrip(passengerId, pickup, dropoff, {
+      const firstAttempt = await createTrip(passengerReconnect, pickup, dropoff, {
         requiredSeats: 1,
         officeId,
         lineId,
@@ -275,7 +318,7 @@ async function main() {
         { merge: true }
       );
 
-      const secondAttempt = await createTrip(passengerId, pickup, dropoff, {
+      const secondAttempt = await createTrip(passengerReconnect, pickup, dropoff, {
         requiredSeats: 1,
         officeId,
         lineId,
@@ -283,9 +326,165 @@ async function main() {
       assert(secondAttempt.created.status === 'matched', 'Expected matched after reconnect');
       assert(secondAttempt.created.tripId, 'Expected tripId after reconnect');
       trackDoc(db.collection('trips').doc(secondAttempt.created.tripId));
+
+      // Cleanup reconnect scenario trip so later scenarios start from a clean
+      // passenger state and do not hit active-trip guard.
+      await callCallable('passengerCancelTrip', {
+        tripId: secondAttempt.created.tripId,
+        devUserId: passengerReconnect,
+      });
+
       ok('Reconnect scenario', secondAttempt.created.tripId);
     } catch (error) {
       fail('Reconnect scenario', error instanceof Error ? error.message : String(error));
+    }
+
+    // Scenario 5: Seat-only reservation decrements one seat and restores on cancel.
+    try {
+      await driverRef.set(
+        {
+          isOnline: true,
+          isAvailable: true,
+          status: 'online',
+          fullTaxiReserved: false,
+          fullTaxiReservedTripId: null,
+          availableSeats: 4,
+          seatCapacity: 4,
+          currentTripId: null,
+          lastLocation: new admin.firestore.GeoPoint(pickup.lat, pickup.lng),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      const { created } = await createTrip(passengerSeat, pickup, dropoff, {
+        bookingType: 'seat_only',
+        requiredSeats: 1,
+        officeId,
+        lineId,
+      });
+      assert(created.status === 'matched', 'Expected matched in seat-only scenario');
+      assert(created.tripId, 'Expected tripId in seat-only scenario');
+      const tripId = created.tripId;
+      trackDoc(db.collection('trips').doc(tripId));
+
+      await callCallable('acceptTripRequest', { tripId, devUserId: driverId });
+
+      const acceptedTrip = await db.collection('trips').doc(tripId).get();
+      const acceptedTripData = acceptedTrip.data() || {};
+      const seatOnlyBookingType = String(acceptedTripData.bookingType ?? 'undefined');
+      assert(acceptedTripData.status === 'accepted', 'Seat-only trip should be accepted');
+      assert(
+        seatOnlyBookingType === 'seat_only',
+        `Seat-only bookingType mismatch (got: ${seatOnlyBookingType})`
+      );
+      assert(
+        Number(acceptedTripData.reservedSeats) === 1,
+        `Seat-only reservedSeats should equal 1, got ${acceptedTripData.reservedSeats}`
+      );
+
+      const driverAfterAccept = await getDriverSeatState();
+      assert(driverAfterAccept.availableSeats === 3, 'Seat-only should decrement available seats to 3');
+      assert(driverAfterAccept.isAvailable === true, 'Driver should remain available after seat-only accept');
+      assert(driverAfterAccept.fullTaxiReserved === false, 'Seat-only should not set fullTaxiReserved');
+
+      await callCallable('passengerCancelTrip', { tripId, devUserId: passengerSeat });
+      const cancelledTrip = await db.collection('trips').doc(tripId).get();
+      assert(
+        cancelledTrip.data()?.status === 'cancelled_by_passenger',
+        'Seat-only cancelled trip should become cancelled_by_passenger'
+      );
+
+      const driverAfterCancel = await getDriverSeatState();
+      assert(driverAfterCancel.availableSeats === 4, 'Seat-only cancel should restore seats to 4');
+      assert(driverAfterCancel.isAvailable === true, 'Driver should be available after seat-only cancel');
+      ok('Seat-only reserve/restore scenario', tripId);
+    } catch (error) {
+      fail('Seat-only reserve/restore scenario', error instanceof Error ? error.message : String(error));
+    }
+
+    // Scenario 6: Full-taxi reservation blocks driver and restores on cancel.
+    try {
+      await driverRef.set(
+        {
+          isOnline: true,
+          isAvailable: true,
+          status: 'online',
+          fullTaxiReserved: false,
+          fullTaxiReservedTripId: null,
+          availableSeats: 4,
+          seatCapacity: 4,
+          currentTripId: null,
+          lastLocation: new admin.firestore.GeoPoint(pickup.lat, pickup.lng),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      const { created } = await createTrip(passengerFullTaxi, pickup, dropoff, {
+        bookingType: 'full_taxi',
+        requiredSeats: 1,
+        officeId,
+        lineId,
+      });
+      assert(created.status === 'matched', 'Expected matched in full-taxi scenario');
+      assert(created.tripId, 'Expected tripId in full-taxi scenario');
+      const tripId = created.tripId;
+      trackDoc(db.collection('trips').doc(tripId));
+
+      await callCallable('acceptTripRequest', { tripId, devUserId: driverId });
+
+      const acceptedTrip = await db.collection('trips').doc(tripId).get();
+      const acceptedTripData = acceptedTrip.data() || {};
+      const fullTaxiBookingType = String(acceptedTripData.bookingType ?? 'undefined');
+      assert(acceptedTripData.status === 'accepted', 'Full-taxi trip should be accepted');
+      assert(
+        fullTaxiBookingType === 'full_taxi',
+        `Full-taxi bookingType mismatch (got: ${fullTaxiBookingType})`
+      );
+      assert(
+        Number(acceptedTripData.reservedSeats) === 4,
+        `Full-taxi reservedSeats should equal full capacity (4), got ${acceptedTripData.reservedSeats}`
+      );
+
+      const driverAfterAccept = await getDriverSeatState();
+      assert(driverAfterAccept.availableSeats === 0, 'Full-taxi should drop available seats to 0');
+      assert(driverAfterAccept.isAvailable === false, 'Driver should be unavailable after full-taxi accept');
+      assert(driverAfterAccept.fullTaxiReserved === true, 'Driver should be fullTaxiReserved after full-taxi accept');
+      assert(
+        driverAfterAccept.fullTaxiReservedTripId === tripId,
+        'fullTaxiReservedTripId should match accepted trip'
+      );
+
+      const unmatchedAttempt = await createTrip(passengerFullTaxiProbe, pickup, dropoff, {
+        bookingType: 'seat_only',
+        requiredSeats: 1,
+        officeId,
+        lineId,
+      });
+      assert(
+        unmatchedAttempt.created.status === 'searching',
+        'Driver should be hidden from matching while full-taxi reservation is active'
+      );
+      trackDoc(db.collection('tripRequests').doc(unmatchedAttempt.created.requestId));
+
+      await callCallable('passengerCancelTrip', { tripId, devUserId: passengerFullTaxi });
+      const cancelledTrip = await db.collection('trips').doc(tripId).get();
+      assert(
+        cancelledTrip.data()?.status === 'cancelled_by_passenger',
+        'Full-taxi cancelled trip should become cancelled_by_passenger'
+      );
+
+      const driverAfterCancel = await getDriverSeatState();
+      assert(driverAfterCancel.availableSeats === 4, 'Full-taxi cancel should restore seats to 4');
+      assert(driverAfterCancel.fullTaxiReserved === false, 'Full-taxi cancel should clear fullTaxiReserved');
+      assert(driverAfterCancel.isAvailable === true, 'Driver should be available after full-taxi cancel');
+      ok('Full-taxi reserve/block/restore scenario', tripId);
+    } catch (error) {
+      fail(
+        'Full-taxi reserve/block/restore scenario',
+        error instanceof Error ? error.message : String(error)
+      );
     }
   } finally {
     for (const ref of cleanupDocRefs.reverse()) {

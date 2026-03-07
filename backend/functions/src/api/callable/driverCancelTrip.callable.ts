@@ -1,7 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import { TripStatus } from '@taxi-line/shared';
+import { BOOKING_TYPES, TripStatus, normalizeSeatCapacity } from '@taxi-line/shared';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { getFirestore } from '../../core/config';
 import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError, handleError } from '../../core/errors';
@@ -54,7 +54,6 @@ export const driverCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
         }
 
         const tripData = tripDoc.data()!;
-
         if (tripData.driverId !== driverId) {
           throw new ForbiddenError('You are not assigned to this trip');
         }
@@ -64,16 +63,28 @@ export const driverCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
           throw new ForbiddenError(`Cannot cancel trip with status: ${tripData.status}`);
         }
 
-        let shouldUpdateDriverRequest = false;
-        const driverRequestRef = db
-          .collection('driverRequests')
-          .doc(driverId)
-          .collection('requests')
-          .doc(tripId);
+        const driverRef = db.collection('drivers').doc(driverId);
+        const driverDoc = await transaction.get(driverRef);
+        const driverData = (driverDoc.data() ?? {}) as Record<string, unknown>;
 
-        // Read before writes.
-        const driverRequestDoc = await transaction.get(driverRequestRef);
-        shouldUpdateDriverRequest = driverRequestDoc.exists;
+        const seatCapacity = normalizeSeatCapacity(driverData.seatCapacity, driverData.vehicleType as any);
+        const availableSeatsRaw =
+          typeof driverData.availableSeats === 'number' && Number.isFinite(driverData.availableSeats)
+            ? Math.round(driverData.availableSeats)
+            : seatCapacity;
+        const availableSeats = Math.max(0, Math.min(availableSeatsRaw, seatCapacity));
+
+        const bookingType =
+          tripData.bookingType === BOOKING_TYPES.FULL_TAXI
+            ? BOOKING_TYPES.FULL_TAXI
+            : BOOKING_TYPES.SEAT_ONLY;
+        const reservedSeatsRaw =
+          typeof tripData.reservedSeats === 'number' && Number.isFinite(tripData.reservedSeats)
+            ? Math.round(tripData.reservedSeats)
+            : 0;
+        const reservedSeats = Math.max(0, reservedSeatsRaw);
+        const nextAvailableSeats = Math.max(0, Math.min(seatCapacity, availableSeats + reservedSeats));
+        const isOnline = driverData.isOnline === true;
 
         transaction.update(tripRef, {
           status: TripStatus.CANCELLED_BY_DRIVER,
@@ -81,18 +92,36 @@ export const driverCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
           cancellationReason: reason || 'driver_cancelled',
         });
 
-        const driverRef = db.collection('drivers').doc(driverId);
         transaction.set(
           driverRef,
           {
-            isAvailable: true,
-            currentTripId: null,
+            availableSeats: nextAvailableSeats,
+            isAvailable: isOnline && nextAvailableSeats > 0,
+            currentTripId:
+              typeof driverData.currentTripId === 'string' && driverData.currentTripId === tripId
+                ? null
+                : driverData.currentTripId ?? null,
+            ...(bookingType === BOOKING_TYPES.FULL_TAXI
+              ? {
+                  fullTaxiReserved: false,
+                  fullTaxiReservedTripId:
+                    driverData.fullTaxiReservedTripId === tripId
+                      ? null
+                      : driverData.fullTaxiReservedTripId ?? null,
+                }
+              : {}),
             updatedAt: FieldValue.serverTimestamp(),
           },
           { merge: true }
         );
 
-        if (shouldUpdateDriverRequest) {
+        const driverRequestRef = db
+          .collection('driverRequests')
+          .doc(driverId)
+          .collection('requests')
+          .doc(tripId);
+        const driverRequestDoc = await transaction.get(driverRequestRef);
+        if (driverRequestDoc.exists) {
           transaction.update(driverRequestRef, {
             status: 'cancelled',
             cancelledAt: FieldValue.serverTimestamp(),

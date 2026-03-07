@@ -2,6 +2,8 @@ import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
 import {
   ACTIVE_TRIP_STATUSES,
+  BOOKING_TYPES,
+  BookingType,
   LatLngSchema,
   PILOT_LIMITS,
   RideOptionsSchema,
@@ -9,6 +11,8 @@ import {
   TripRequestStatus,
   TripStatus,
   VehicleType,
+  getRequestedSeatsForBookingType,
+  normalizeBookingType,
   normalizeRequestedSeats,
   normalizeSeatCapacity,
   normalizeVehicleType,
@@ -112,6 +116,19 @@ interface DriverDoc {
   licenseId?: string;
   vehicleType?: string | null;
   seatCapacity?: number | null;
+  availableSeats?: number | null;
+  fullTaxiReserved?: boolean;
+  fullTaxiReservedTripId?: string | null;
+  lineNumber?: string | null;
+  routePath?: string | null;
+  routeName?: string | null;
+  routeCities?: unknown;
+  fullName?: string | null;
+  phone?: string | null;
+  nationalId?: string | null;
+  photoUrl?: string | null;
+  rating?: number | null;
+  tripsCount?: number | null;
   lastLocation: FirebaseFirestore.GeoPoint | null;
   currentTripId: string | null;
   updatedAt: FirebaseFirestore.Timestamp;
@@ -130,10 +147,14 @@ interface TripRequestDocument {
   estimatedDurationMin: number;
   estimatedPriceIls: number;
   rideOptions: {
+    bookingType: BookingType;
+    requestedSeats: number;
     requiredSeats: number;
     vehicleType: VehicleType | null;
     officeId: string | null;
     lineId: string | null;
+    destinationLabel: string | null;
+    destinationCity: string | null;
   };
   status: 'open' | 'matched' | 'expired' | 'cancelled';
   matchedDriverId?: string;
@@ -155,7 +176,12 @@ interface TripDocument {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  bookingType: BookingType;
+  requestedSeats: number;
+  reservedSeats: number;
   requiredSeats: number;
+  destinationLabel: string | null;
+  destinationCity: string | null;
   requestedVehicleType: VehicleType | null;
   requestedOfficeId: string | null;
   requestedLineId: string | null;
@@ -163,6 +189,8 @@ interface TripDocument {
   matchedSeatCapacity: number;
   matchedOfficeId: string | null;
   matchedLineId: string | null;
+  matchedLineNumber: string | null;
+  matchedRoutePath: string | null;
   // Payment fields
   paymentMethod: 'cash';
   fareAmount: number;
@@ -182,14 +210,21 @@ interface DriverRequestDocument {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  bookingType: BookingType;
+  requestedSeats: number;
   requiredSeats: number;
+  destinationLabel: string | null;
+  destinationCity: string | null;
   requestedVehicleType: VehicleType | null;
   requestedOfficeId: string | null;
   requestedLineId: string | null;
   driverOfficeId: string | null;
   driverLineId: string | null;
+  driverLineNumber: string | null;
+  driverRoutePath: string | null;
   driverVehicleType: VehicleType | null;
   driverSeatCapacity: number;
+  driverAvailableSeats: number;
   status: 'pending' | 'accepted' | 'rejected' | 'expired';
   createdAt: FirebaseFirestore.FieldValue;
   expiresAt: FirebaseFirestore.Timestamp; // Actual timestamp for timeout checking
@@ -197,10 +232,14 @@ interface DriverRequestDocument {
 }
 
 interface RideRequirements {
+  bookingType: BookingType;
+  requestedSeats: number;
   requiredSeats: number;
   vehicleType: VehicleType | null;
   officeId: string | null;
   lineId: string | null;
+  destinationLabel: string | null;
+  destinationCity: string | null;
 }
 
 /**
@@ -239,6 +278,68 @@ function sanitizeId(value: unknown): string | null {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeText(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function tokenizeRouteHint(value: string | null): string[] {
+  if (!value) return [];
+  return value
+    .split(/[\s,\/\-\u2192\u2194]+/g)
+    .map((token) => token.trim().toLowerCase())
+    .filter((token) => token.length >= 3);
+}
+
+function normalizeRouteCities(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === 'string' ? item.trim().toLowerCase() : ''))
+    .filter((item) => item.length >= 2);
+}
+
+function getDriverAvailableSeats(driverData: DriverDoc, seatCapacity: number): number {
+  if (typeof driverData.availableSeats === 'number' && Number.isFinite(driverData.availableSeats)) {
+    const rounded = Math.round(driverData.availableSeats);
+    return Math.max(0, Math.min(rounded, seatCapacity));
+  }
+  return seatCapacity;
+}
+
+function driverRouteMatchesDestination(
+  driverData: DriverDoc,
+  destinationLabel: string | null,
+  destinationCity: string | null
+): boolean {
+  const tokens = new Set<string>([
+    ...tokenizeRouteHint(destinationLabel),
+    ...tokenizeRouteHint(destinationCity),
+  ]);
+
+  if (tokens.size === 0) {
+    return true;
+  }
+
+  const routeBlob = [
+    normalizeText(driverData.routePath),
+    normalizeText(driverData.routeName),
+    normalizeText(driverData.lineNumber),
+    ...normalizeRouteCities(driverData.routeCities),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(' ');
+
+  if (!routeBlob) {
+    return false;
+  }
+
+  return Array.from(tokens).some((token) => routeBlob.includes(token));
 }
 
 /**
@@ -282,11 +383,20 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       }
 
       const { pickup, dropoff, estimate, rideOptions } = parsed.data;
+      const bookingType = normalizeBookingType(rideOptions?.bookingType);
+      const requestedSeats = getRequestedSeatsForBookingType(
+        bookingType,
+        normalizeRequestedSeats(rideOptions?.requiredSeats)
+      );
       const normalizedRideOptions: RideRequirements = {
-        requiredSeats: normalizeRequestedSeats(rideOptions?.requiredSeats),
+        bookingType,
+        requestedSeats,
+        requiredSeats: bookingType === BOOKING_TYPES.SEAT_ONLY ? 1 : normalizeRequestedSeats(rideOptions?.requiredSeats),
         vehicleType: normalizeVehicleType(rideOptions?.vehicleType),
         officeId: sanitizeId(rideOptions?.officeId),
         lineId: sanitizeId(rideOptions?.lineId),
+        destinationLabel: normalizeText(rideOptions?.destinationLabel),
+        destinationCity: normalizeText(rideOptions?.destinationCity),
       };
 
       logger.info('� [CreateTrip] START', {
@@ -434,6 +544,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         distance: number;
         vehicleType: VehicleType | null;
         seatCapacity: number;
+        availableSeats: number;
         doc: DriverDoc;
       }> = [];
 
@@ -483,6 +594,10 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           driverData.seatCapacity,
           normalizedDriverVehicleType
         );
+        const normalizedDriverAvailableSeats = getDriverAvailableSeats(
+          driverData,
+          normalizedDriverSeatCapacity
+        );
 
         if (
           normalizedRideOptions.vehicleType &&
@@ -496,11 +611,49 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           return;
         }
 
-        if (normalizedDriverSeatCapacity < normalizedRideOptions.requiredSeats) {
+        if (driverData.fullTaxiReserved === true) {
           skippedCapacityDrivers += 1;
-          logger.debug(`Driver ${doc.id}: Seat capacity mismatch - skipping`, {
+          logger.debug(`Driver ${doc.id}: Full taxi reserved - skipping`, {
+            fullTaxiReservedTripId: driverData.fullTaxiReservedTripId ?? null,
+          });
+          return;
+        }
+
+        if (normalizedDriverAvailableSeats <= 0) {
+          skippedCapacityDrivers += 1;
+          logger.debug(`Driver ${doc.id}: No available seats - skipping`, {
+            driverAvailableSeats: normalizedDriverAvailableSeats,
+          });
+          return;
+        }
+
+        if (
+          normalizedRideOptions.bookingType === BOOKING_TYPES.SEAT_ONLY &&
+          normalizedDriverAvailableSeats < normalizedRideOptions.requiredSeats
+        ) {
+          skippedCapacityDrivers += 1;
+          logger.debug(`Driver ${doc.id}: Not enough seats - skipping`, {
             requiredSeats: normalizedRideOptions.requiredSeats,
-            driverSeatCapacity: normalizedDriverSeatCapacity,
+            driverAvailableSeats: normalizedDriverAvailableSeats,
+          });
+          return;
+        }
+
+        if (
+          !requestedLineId &&
+          !driverRouteMatchesDestination(
+            driverData,
+            normalizedRideOptions.destinationLabel,
+            normalizedRideOptions.destinationCity
+          )
+        ) {
+          skippedScopeDrivers += 1;
+          logger.debug(`Driver ${doc.id}: Route mismatch - skipping`, {
+            destinationLabel: normalizedRideOptions.destinationLabel,
+            destinationCity: normalizedRideOptions.destinationCity,
+            routePath: driverData.routePath ?? null,
+            routeName: driverData.routeName ?? null,
+            routeCities: normalizeRouteCities(driverData.routeCities),
           });
           return;
         }
@@ -517,6 +670,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           distance,
           vehicleType: normalizedDriverVehicleType,
           seatCapacity: normalizedDriverSeatCapacity,
+          availableSeats: normalizedDriverAvailableSeats,
           doc: driverData,
         });
 
@@ -640,6 +794,10 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           driverData.seatCapacity,
           transactionDriverVehicleType
         );
+        const transactionDriverAvailableSeats = getDriverAvailableSeats(
+          driverData,
+          transactionDriverSeatCapacity
+        );
 
         if (
           normalizedRideOptions.vehicleType &&
@@ -653,13 +811,47 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           throw new NotFoundError('Driver no longer matches requested vehicle type');
         }
 
-        if (transactionDriverSeatCapacity < normalizedRideOptions.requiredSeats) {
+        if (driverData.fullTaxiReserved === true) {
+          logger.warn('[CreateTrip] Driver has full taxi reservation', {
+            driverId: nearestDriver.driverId,
+            fullTaxiReservedTripId: driverData.fullTaxiReservedTripId ?? null,
+          });
+          throw new NotFoundError('Driver no longer available');
+        }
+
+        if (transactionDriverAvailableSeats <= 0) {
+          logger.warn('[CreateTrip] Driver has no available seats', {
+            driverId: nearestDriver.driverId,
+          });
+          throw new NotFoundError('Driver no longer has seats');
+        }
+
+        if (
+          normalizedRideOptions.bookingType === BOOKING_TYPES.SEAT_ONLY &&
+          transactionDriverAvailableSeats < normalizedRideOptions.requiredSeats
+        ) {
           logger.warn('[CreateTrip] Driver no longer matches required seats', {
             driverId: nearestDriver.driverId,
             requestedSeats: normalizedRideOptions.requiredSeats,
-            driverSeatCapacity: transactionDriverSeatCapacity,
+            driverAvailableSeats: transactionDriverAvailableSeats,
           });
           throw new NotFoundError('Driver no longer matches required seats');
+        }
+
+        if (
+          !requestedLineId &&
+          !driverRouteMatchesDestination(
+            driverData,
+            normalizedRideOptions.destinationLabel,
+            normalizedRideOptions.destinationCity
+          )
+        ) {
+          logger.warn('[CreateTrip] Driver no longer matches route destination', {
+            driverId: nearestDriver.driverId,
+            destinationLabel: normalizedRideOptions.destinationLabel,
+            destinationCity: normalizedRideOptions.destinationCity,
+          });
+          throw new NotFoundError('Driver no longer matches route');
         }
 
         matchedVehicleType = transactionDriverVehicleType;
@@ -678,7 +870,12 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           estimatedDistanceKm: estimate.distanceKm,
           estimatedDurationMin: estimate.durationMin,
           estimatedPriceIls: serverCalculatedPriceIls,
+          bookingType: normalizedRideOptions.bookingType,
+          requestedSeats: normalizedRideOptions.requestedSeats,
+          reservedSeats: 0,
           requiredSeats: normalizedRideOptions.requiredSeats,
+          destinationLabel: normalizedRideOptions.destinationLabel,
+          destinationCity: normalizedRideOptions.destinationCity,
           requestedVehicleType: normalizedRideOptions.vehicleType,
           requestedOfficeId,
           requestedLineId,
@@ -686,6 +883,8 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           matchedSeatCapacity: transactionDriverSeatCapacity,
           matchedOfficeId: transactionDriverOfficeId,
           matchedLineId: transactionDriverLineId,
+          matchedLineNumber: sanitizeId(driverData.lineNumber),
+          matchedRoutePath: sanitizeId(driverData.routePath) ?? sanitizeId(driverData.routeName),
           paymentMethod: 'cash',
           fareAmount: serverCalculatedPriceIls,
           paymentStatus: 'pending',
@@ -693,13 +892,6 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           createdAt: FieldValue.serverTimestamp(),
         };
         transaction.set(tripRef, tripDoc);
-
-        // Mark driver as busy
-        transaction.set(driverDocRef, {
-          isAvailable: false,
-          currentTripId: tripId,
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
 
         // Create driver request notification
         const expiresAt = Timestamp.fromMillis(
@@ -714,20 +906,40 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           estimatedDistanceKm: estimate.distanceKm,
           estimatedDurationMin: estimate.durationMin,
           estimatedPriceIls: serverCalculatedPriceIls,
+          bookingType: normalizedRideOptions.bookingType,
+          requestedSeats: normalizedRideOptions.requestedSeats,
           requiredSeats: normalizedRideOptions.requiredSeats,
+          destinationLabel: normalizedRideOptions.destinationLabel,
+          destinationCity: normalizedRideOptions.destinationCity,
           requestedVehicleType: normalizedRideOptions.vehicleType,
           requestedOfficeId,
           requestedLineId,
           driverOfficeId: transactionDriverOfficeId,
           driverLineId: transactionDriverLineId,
+          driverLineNumber: sanitizeId(driverData.lineNumber),
+          driverRoutePath: sanitizeId(driverData.routePath) ?? sanitizeId(driverData.routeName),
           driverVehicleType: transactionDriverVehicleType,
           driverSeatCapacity: transactionDriverSeatCapacity,
+          driverAvailableSeats: transactionDriverAvailableSeats,
           status: 'pending',
           createdAt: FieldValue.serverTimestamp(),
           expiresAt,
           timeoutSeconds: PILOT_LIMITS.DRIVER_RESPONSE_TIMEOUT_SECONDS,
         };
         transaction.set(driverRequestRef, driverRequestDoc);
+
+        // Lock driver availability while this request is pending to avoid
+        // dispatching concurrent requests to the same driver.
+        transaction.set(
+          driverDocRef,
+          {
+            isAvailable: false,
+            availability: 'busy',
+            currentTripId: tripId,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
 
         // Update tripRequest to MATCHED
         transaction.update(tripRequestRef, {
@@ -738,12 +950,14 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           matchedSeatCapacity: transactionDriverSeatCapacity,
           matchedOfficeId: transactionDriverOfficeId,
           matchedLineId: transactionDriverLineId,
+          requestedSeats: normalizedRideOptions.requestedSeats,
+          bookingType: normalizedRideOptions.bookingType,
           matchedAt: FieldValue.serverTimestamp(),
         });
       });
 
       logger.info(`📝 [CreateTrip] Trip created: ${tripId}`);
-      logger.info(`🚗 [CreateTrip] Driver isAvailable → false`, { driverId: nearestDriver.driverId });
+      logger.info(`🚗 [CreateTrip] Driver isAvailable → false`);
       logger.info(`📨 [CreateTrip] Request sent to driver: ${nearestDriver.driverId}`);
 
       await publishTripStatusNotifications({
@@ -767,7 +981,11 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         estimatedPriceIls: serverCalculatedPriceIls,
         distanceKm: estimate.distanceKm,
         requiredSeats: normalizedRideOptions.requiredSeats,
+        requestedSeats: normalizedRideOptions.requestedSeats,
+        bookingType: normalizedRideOptions.bookingType,
         requestedVehicleType: normalizedRideOptions.vehicleType,
+        destinationLabel: normalizedRideOptions.destinationLabel,
+        destinationCity: normalizedRideOptions.destinationCity,
         requestedOfficeId,
         requestedLineId,
         matchedVehicleType,
