@@ -57,7 +57,9 @@ let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 let auth: Auth | null = null;
 let functions: Functions | null = null;
-let emulatorsConnected = false;
+let firestoreEmulatorConnected = false;
+let authEmulatorConnected = false;
+let functionsEmulatorConnected = false;
 
 export function initializeFirebase(): FirebaseApp {
   if (!app) {
@@ -72,8 +74,9 @@ export function getFirestoreDb(): Firestore {
     const firebaseApp = initializeFirebase();
     db = getFirestore(firebaseApp);
     
-    if (useEmulators && !emulatorsConnected) {
+    if (useEmulators && !firestoreEmulatorConnected) {
       connectFirestoreEmulator(db, emulatorHost, 8080);
+      firestoreEmulatorConnected = true;
       console.log(`  ✓ Firestore Emulator: ${emulatorHost}:8080`);
     }
   }
@@ -85,10 +88,10 @@ export function getFirebaseAuth(): Auth {
     const firebaseApp = initializeFirebase();
     auth = getAuth(firebaseApp);
     
-    if (useEmulators && !emulatorsConnected) {
+    if (useEmulators && !authEmulatorConnected) {
       connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
       console.log(`  ✓ Auth Emulator: http://${emulatorHost}:9099`);
-      emulatorsConnected = true;
+      authEmulatorConnected = true;
     }
   }
   return auth;
@@ -99,8 +102,9 @@ export function getFunctionsInstance(): Functions {
     const firebaseApp = initializeFirebase();
     functions = getFunctions(firebaseApp, 'europe-west1');
     
-    if (useEmulators) {
+    if (useEmulators && !functionsEmulatorConnected) {
       connectFunctionsEmulator(functions, emulatorHost, 5001);
+      functionsEmulatorConnected = true;
       console.log(`  ✓ Functions Emulator: ${emulatorHost}:5001`);
     }
   }

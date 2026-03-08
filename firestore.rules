@@ -374,6 +374,25 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
+
+    // =========================================================================
+    // Payments Collection
+    // Path: /payments/{paymentId}
+    //
+    // Payment records derived from completed trips.
+    // - Managers can read all payments for reporting/operations
+    // - Trip participants can read their own payment records
+    // - NO direct client writes (Cloud Functions are source of truth)
+    // =========================================================================
+    match /payments/{paymentId} {
+      allow read: if isManager() || (
+        isAuthenticated() && (
+          resource.data.passengerId == request.auth.uid ||
+          resource.data.driverId == request.auth.uid
+        )
+      );
+      allow write: if false;
+    }
     
     // =========================================================================
     // Trip Requests Collection

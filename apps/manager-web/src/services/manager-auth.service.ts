@@ -31,6 +31,7 @@ interface DevIssueManagerTokenResponse {
 }
 
 const DEFAULT_MANAGER_ROLE: ManagerRole = 'admin';
+let managerSignInPromise: Promise<User> | null = null;
 
 export function subscribeAuthState(
   callback: (user: User | null) => void
@@ -45,27 +46,46 @@ export async function ensureSignedInManager(
   const auth = getFirebaseAuth();
   const functions = getFunctionsInstance();
 
-  if (isUsingEmulators()) {
-    const issueTokenCallable = httpsCallable<
-      { role?: ManagerRole; uid?: string },
-      DevIssueManagerTokenResponse
-    >(functions, 'devIssueManagerToken');
-
-    const response = await issueTokenCallable({
-      role,
-      uid: `dev-manager-${role}`,
-    });
-
-    const credential = await signInWithCustomToken(auth, response.data.token);
-    return credential.user;
+  if (managerSignInPromise) {
+    return managerSignInPromise;
   }
 
-  if (auth.currentUser) {
+  if (!isUsingEmulators() && auth.currentUser) {
     return auth.currentUser;
   }
 
-  const credential = await signInAnonymously(auth);
-  return credential.user;
+  if (isUsingEmulators()) {
+    const desiredUid = `dev-manager-${role}`;
+    if (auth.currentUser?.uid === desiredUid) {
+      return auth.currentUser;
+    }
+  }
+
+  managerSignInPromise = (async () => {
+    if (isUsingEmulators()) {
+      const issueTokenCallable = httpsCallable<
+        { role?: ManagerRole; uid?: string },
+        DevIssueManagerTokenResponse
+      >(functions, 'devIssueManagerToken');
+
+      const response = await issueTokenCallable({
+        role,
+        uid: `dev-manager-${role}`,
+      });
+
+      const credential = await signInWithCustomToken(auth, response.data.token);
+      return credential.user;
+    }
+
+    const credential = await signInAnonymously(auth);
+    return credential.user;
+  })();
+
+  try {
+    return await managerSignInPromise;
+  } finally {
+    managerSignInPromise = null;
+  }
 }
 
 export async function getManagerSession(): Promise<ManagerSession> {

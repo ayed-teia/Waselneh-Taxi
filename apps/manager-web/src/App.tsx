@@ -143,20 +143,22 @@ export function App() {
             </div>
           </div>
 
-          {loading ? <p className="session-loading">Loading manager session...</p> : null}
-          {error ? <div className="session-error">{error}</div> : null}
-          {!loading && !error && session ? (
-            <div className="session-info">
-              <span>
+        {loading ? <p className="session-loading">Loading manager session...</p> : null}
+        {error ? <div className="session-error">{error}</div> : null}
+        {!loading && !error && session ? (
+          <div className="session-info">
+            <span>
                 <strong>User:</strong> {session.userId}
               </span>
               <span>
-                <strong>Permissions:</strong> {permissionPreview || 'none'}
-              </span>
-            </div>
-          ) : null}
+              <strong>Permissions:</strong> {permissionPreview || 'none'}
+            </span>
+          </div>
+        ) : null}
 
-          <Outlet />
+          {!loading && !error && session ? (
+            <Outlet />
+          ) : null}
         </Card>
       </main>
     </div>
