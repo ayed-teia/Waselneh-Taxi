@@ -118,7 +118,7 @@ export async function signInAnonymouslyForDev(): Promise<{ user: User | null; er
 export async function signInWithDriverUidForDev(
   driverUid: string
 ): Promise<{ user: User | null; error: Error | null }> {
-  const uid = driverUid.trim();
+  const uid = typeof driverUid === 'string' ? driverUid.trim() : '';
   if (!uid) {
     return { user: null, error: new Error('Driver UID is required') };
   }

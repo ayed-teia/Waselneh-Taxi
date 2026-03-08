@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useI18n } from '../localization';
 import {
   DriverDocument,
   subscribeToDrivers,
@@ -93,31 +94,37 @@ function computeActivityState(driver: DriverDocument): ActivityState {
   }
 }
 
-function formatRelativeTime(timestamp: any): string {
-  if (!timestamp) return 'N/A';
+function formatRelativeTime(
+  timestamp: any,
+  txt: (ar: string, en: string) => string
+): string {
+  if (!timestamp) return txt('غير متوفر', 'N/A');
 
   try {
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const ageMs = Date.now() - date.getTime();
     const ageSec = Math.floor(ageMs / 1000);
 
-    if (ageSec < 0) return 'just now';
+    if (ageSec < 0) return txt('الآن', 'just now');
     if (ageSec < 60) return `${ageSec}s ago`;
     if (ageSec < 3600) return `${Math.floor(ageSec / 60)}m ago`;
     return `${Math.floor(ageSec / 3600)}h ago`;
   } catch {
-    return 'N/A';
+    return txt('غير متوفر', 'N/A');
   }
 }
 
-function getStatusBadge(state: ActivityState): { text: string } {
+function getStatusBadge(
+  state: ActivityState,
+  txt: (ar: string, en: string) => string
+): { text: string } {
   switch (state) {
     case 'online':
-      return { text: 'Online' };
+      return { text: txt('متصل', 'Online') };
     case 'stale':
-      return { text: 'Stale' };
+      return { text: txt('غير محدث', 'Stale') };
     case 'offline':
-      return { text: 'Offline' };
+      return { text: txt('غير متصل', 'Offline') };
   }
 }
 
@@ -177,6 +184,7 @@ function createInitialDraft(driver: DriverDocument): DriverDraft {
 }
 
 export function DriversListPage() {
+  const { txt } = useI18n();
   const [drivers, setDrivers] = useState<DriverDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
@@ -216,9 +224,9 @@ export function DriversListPage() {
       drivers.map((driver) => ({
         ...driver,
         activityState: computeActivityState(driver),
-        lastSeenAgo: formatRelativeTime(driver.lastSeen),
+        lastSeenAgo: formatRelativeTime(driver.lastSeen, txt),
       })),
-    [drivers]
+    [drivers, txt]
   );
 
   const onlineCount = driversWithActivity.filter((d) => d.activityState === 'online').length;
@@ -272,7 +280,7 @@ export function DriversListPage() {
 
     const parsedSeatCapacity = parseSeatCapacityInput(normalizedDraft.seatCapacity);
     if (parsedSeatCapacity === null) {
-      window.alert('Seat capacity must be a number between 1 and 14.');
+      window.alert(txt('يجب أن تكون سعة المقاعد رقمًا بين 1 و 14.', 'Seat capacity must be a number between 1 and 14.'));
       return;
     }
 
@@ -282,7 +290,10 @@ export function DriversListPage() {
         !isProfileCompleteForApproval(normalizedDraft))
     ) {
       window.alert(
-        'Approve requires lineId/licenseId and complete profile (fullName, nationalId, phone, lineNumber, routePath/routeName).'
+        txt(
+          'القبول يتطلب lineId/licenseId وملفًا مكتملًا (الاسم، الهوية، الهاتف، رقم الخط، routePath/routeName).',
+          'Approve requires lineId/licenseId and complete profile (fullName, nationalId, phone, lineNumber, routePath/routeName).'
+        )
       );
       return;
     }
@@ -317,11 +328,11 @@ export function DriversListPage() {
       }));
 
       if (!result.isEligible) {
-        console.warn(`[DriverEligibility] ${driverId} not eligible`, result.reasons);
+      console.warn(`[DriverEligibility] ${driverId} not eligible`, result.reasons);
       }
     } catch (error) {
       console.error('Failed to update driver eligibility', error);
-      setPageError(error instanceof Error ? error.message : 'Failed to update driver eligibility.');
+      setPageError(error instanceof Error ? error.message : txt('تعذّر تحديث أهلية السائق.', 'Failed to update driver eligibility.'));
     } finally {
       setSavingByDriverId((current) => ({ ...current, [driverId]: false }));
     }
@@ -330,46 +341,49 @@ export function DriversListPage() {
   if (loading) {
     return (
       <div className="drivers-page">
-        <h2>Drivers</h2>
-        <p>Loading...</p>
+        <h2>{txt('السائقون', 'Drivers')}</h2>
+        <p>{txt('جاري التحميل...', 'Loading...')}</p>
       </div>
     );
   }
 
   return (
     <div className="drivers-page">
-      <h2>Drivers ({drivers.length} total)</h2>
+      <h2>{txt(`السائقون (${drivers.length} إجمالي)`, `Drivers (${drivers.length} total)`)}</h2>
       <p className="drivers-subtitle">
-        Driver registration, profile completeness, route assignment, and eligibility control.
+        {txt(
+          'تسجيل السائقين، اكتمال الملف، ربط الخطوط، والتحكم بالأهلية.',
+          'Driver registration, profile completeness, route assignment, and eligibility control.'
+        )}
       </p>
 
       <div className="drivers-summary">
-        <span className="online-count">{onlineCount} Online</span>
-        <span className="stale-count">{staleCount} Stale</span>
-        <span className="offline-count">{offlineCount} Offline</span>
+        <span className="online-count">{txt(`${onlineCount} متصل`, `${onlineCount} Online`)}</span>
+        <span className="stale-count">{txt(`${staleCount} غير محدث`, `${staleCount} Stale`)}</span>
+        <span className="offline-count">{txt(`${offlineCount} غير متصل`, `${offlineCount} Offline`)}</span>
       </div>
 
       {pageError ? <div className="page-error">{pageError}</div> : null}
 
       {drivers.length === 0 ? (
-        <p className="no-drivers">No drivers found.</p>
+        <p className="no-drivers">{txt('لا يوجد سائقون.', 'No drivers found.')}</p>
       ) : (
         <div className="drivers-table-wrap">
           <table className="drivers-table">
             <thead>
               <tr>
-                <th>Driver</th>
-                <th>Scope</th>
-                <th>Profile</th>
-                <th>Route / Line</th>
-                <th>Vehicle / Seats</th>
-                <th>Eligibility</th>
-                <th>Actions</th>
+                <th>{txt('السائق', 'Driver')}</th>
+                <th>{txt('النطاق', 'Scope')}</th>
+                <th>{txt('الملف', 'Profile')}</th>
+                <th>{txt('المسار / الخط', 'Route / Line')}</th>
+                <th>{txt('المركبة / المقاعد', 'Vehicle / Seats')}</th>
+                <th>{txt('الأهلية', 'Eligibility')}</th>
+                <th>{txt('الإجراءات', 'Actions')}</th>
               </tr>
             </thead>
             <tbody>
               {driversWithActivity.map((driver) => {
-                const badge = getStatusBadge(driver.activityState);
+                const badge = getStatusBadge(driver.activityState, txt);
                 const draft = drafts[driver.id] ?? createInitialDraft(driver);
                 const eligibility = computeEligibilityFromDraft(draft);
                 const isSaving = savingByDriverId[driver.id] === true;
@@ -380,7 +394,7 @@ export function DriversListPage() {
                   <tr key={driver.id} className={driver.activityState}>
                     <td>
                       <div className="driver-id">{driver.id}</div>
-                      <div className="timestamp">{driver.lastSeenAgo}</div>
+                      <div className="timestamp">{formatRelativeTime(driver.lastSeen, txt)}</div>
                       <span className={`status-badge ${driver.activityState}`}>{badge.text}</span>
                     </td>
 
@@ -501,9 +515,11 @@ export function DriversListPage() {
                           value={draft.seatCapacity}
                           onChange={(e) => setDraftField(driver.id, 'seatCapacity', e.target.value)}
                           disabled={isSaving}
-                          placeholder="Seats"
+                          placeholder={txt('المقاعد', 'Seats')}
                         />
-                        <div className="readonly-chip">{`Live available seats: ${availableSeatsText}`}</div>
+                        <div className="readonly-chip">
+                          {txt(`المقاعد المتاحة الآن: ${availableSeatsText}`, `Live available seats: ${availableSeatsText}`)}
+                        </div>
                       </div>
                     </td>
 
@@ -528,15 +544,17 @@ export function DriversListPage() {
                           }
                           disabled={isSaving}
                         >
-                          <option value="approved">approved</option>
-                          <option value="pending">pending</option>
-                          <option value="rejected">rejected</option>
+                          <option value="approved">{txt('مقبول', 'approved')}</option>
+                          <option value="pending">{txt('قيد المراجعة', 'pending')}</option>
+                          <option value="rejected">{txt('مرفوض', 'rejected')}</option>
                         </select>
 
                         <span
                           className={`eligibility-badge ${eligibility.isEligible ? 'ok' : 'blocked'}`}
                         >
-                          {eligibility.isEligible ? 'Eligible' : 'Blocked'}
+                          {eligibility.isEligible
+                            ? txt('مؤهل', 'Eligible')
+                            : txt('غير مؤهل', 'Blocked')}
                         </span>
                         {!eligibility.isEligible ? (
                           <div className="eligibility-reasons">{eligibility.reasons.join(', ')}</div>
@@ -551,28 +569,28 @@ export function DriversListPage() {
                           value={draft.note}
                           onChange={(e) => setDraftField(driver.id, 'note', e.target.value)}
                           disabled={isSaving}
-                          placeholder="Eligibility note (optional)"
+                          placeholder={txt('ملاحظة الأهلية (اختياري)', 'Eligibility note (optional)')}
                         />
                         <button
                           className="action-btn approve"
                           onClick={() => persistDriverEligibility(driver.id, draft, 'approve')}
                           disabled={isSaving}
                         >
-                          Approve
+                          {txt('قبول', 'Approve')}
                         </button>
                         <button
                           className="action-btn reject"
                           onClick={() => persistDriverEligibility(driver.id, draft, 'reject')}
                           disabled={isSaving}
                         >
-                          Reject
+                          {txt('رفض', 'Reject')}
                         </button>
                         <button
                           className="action-btn save"
                           onClick={() => persistDriverEligibility(driver.id, draft, 'save')}
                           disabled={isSaving}
                         >
-                          Save
+                          {txt('حفظ', 'Save')}
                         </button>
                       </div>
                     </td>

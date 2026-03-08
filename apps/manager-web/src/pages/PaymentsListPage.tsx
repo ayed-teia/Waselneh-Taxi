@@ -1,51 +1,59 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '../localization';
 import { PaymentDocument, subscribeToPayments } from '../services/payments.service';
 import './PaymentsListPage.css';
 
-function getStatusBadge(status: PaymentDocument['status']): { className: string; text: string } {
+function getStatusBadge(
+  status: PaymentDocument['status'],
+  txt: (ar: string, en: string) => string
+): { className: string; text: string } {
   switch (status) {
     case 'paid':
-      return { className: 'badge-paid', text: 'Paid' };
+      return { className: 'badge-paid', text: txt('مدفوع', 'Paid') };
     case 'pending':
-      return { className: 'badge-pending', text: 'Pending' };
+      return { className: 'badge-pending', text: txt('معلّق', 'Pending') };
     case 'failed':
-      return { className: 'badge-failed', text: 'Failed' };
+      return { className: 'badge-failed', text: txt('فشل', 'Failed') };
     default:
       return { className: 'badge-pending', text: status };
   }
 }
 
-function getMethodDisplay(method: PaymentDocument['method']): string {
+function getMethodDisplay(method: PaymentDocument['method'], txt: (ar: string, en: string) => string): string {
   switch (method) {
     case 'cash':
-      return 'Cash';
+      return txt('نقدي', 'Cash');
     case 'card':
-      return 'Card';
+      return txt('بطاقة', 'Card');
     case 'wallet':
-      return 'Wallet';
+      return txt('محفظة', 'Wallet');
     default:
       return method;
   }
 }
 
-function formatDate(timestamp: unknown): string {
-  if (!timestamp) return 'N/A';
+function formatDate(
+  timestamp: unknown,
+  locale: 'ar' | 'en'
+): string {
+  if (!timestamp) return locale === 'ar' ? 'غير متوفر' : 'N/A';
 
   try {
     const raw = timestamp as { toDate?: () => Date };
     const date = raw.toDate ? raw.toDate() : new Date(timestamp as string | number | Date);
-    return date.toLocaleString('en-US', {
+    return date.toLocaleString(locale === 'ar' ? 'ar-PS' : 'en-US', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
   } catch {
-    return 'N/A';
+    return locale === 'ar' ? 'غير متوفر' : 'N/A';
   }
 }
 
 export function PaymentsListPage() {
+  const { txt, locale } = useI18n();
   const [payments, setPayments] = useState<PaymentDocument[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,47 +77,52 @@ export function PaymentsListPage() {
 
   return (
     <div className="payments-page">
-      <h2>Payments</h2>
-      <p className="payments-subtitle">Realtime payment ledger with status and method visibility.</p>
+      <h2>{txt('المدفوعات', 'Payments')}</h2>
+      <p className="payments-subtitle">
+        {txt(
+          'سجل مدفوعات مباشر مع حالة الدفع وطريقة السداد.',
+          'Realtime payment ledger with status and method visibility.'
+        )}
+      </p>
 
-      {loading ? <div className="loading">Loading payments...</div> : null}
+      {loading ? <div className="loading">{txt('جاري تحميل المدفوعات...', 'Loading payments...')}</div> : null}
 
       {!loading ? (
         <>
           <div className="summary-cards">
             <div className="summary-card paid">
               <div className="summary-value">NIS {totalPaid.toFixed(2)}</div>
-              <div className="summary-label">{paidCount} paid</div>
+              <div className="summary-label">{txt(`${paidCount} مدفوع`, `${paidCount} paid`)}</div>
             </div>
             <div className="summary-card pending">
               <div className="summary-value">NIS {totalPending.toFixed(2)}</div>
-              <div className="summary-label">{pendingCount} pending</div>
+              <div className="summary-label">{txt(`${pendingCount} معلّق`, `${pendingCount} pending`)}</div>
             </div>
             <div className="summary-card total">
               <div className="summary-value">{payments.length}</div>
-              <div className="summary-label">Total records</div>
+              <div className="summary-label">{txt('إجمالي السجلات', 'Total records')}</div>
             </div>
           </div>
 
           {payments.length === 0 ? (
             <div className="empty-state">
-              <p>No payments yet.</p>
+              <p>{txt('لا توجد مدفوعات بعد.', 'No payments yet.')}</p>
             </div>
           ) : (
             <div className="table-container">
               <table className="payments-table">
                 <thead>
                   <tr>
-                    <th>Trip ID</th>
-                    <th>Amount</th>
-                    <th>Method</th>
-                    <th>Status</th>
-                    <th>Created</th>
+                    <th>{txt('رقم الرحلة', 'Trip ID')}</th>
+                    <th>{txt('المبلغ', 'Amount')}</th>
+                    <th>{txt('الطريقة', 'Method')}</th>
+                    <th>{txt('الحالة', 'Status')}</th>
+                    <th>{txt('تاريخ الإنشاء', 'Created')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {payments.map((payment) => {
-                    const statusBadge = getStatusBadge(payment.status);
+                    const statusBadge = getStatusBadge(payment.status, txt);
                     return (
                       <tr key={payment.paymentId}>
                         <td className="trip-id">
@@ -121,13 +134,13 @@ export function PaymentsListPage() {
                           <span className="currency">{payment.currency ?? 'NIS'}</span>
                           {payment.amount.toFixed(2)}
                         </td>
-                        <td className="method">{getMethodDisplay(payment.method)}</td>
+                        <td className="method">{getMethodDisplay(payment.method, txt)}</td>
                         <td>
                           <span className={`status-badge ${statusBadge.className}`}>
                             {statusBadge.text}
                           </span>
                         </td>
-                        <td className="date">{formatDate(payment.createdAt)}</td>
+                        <td className="date">{formatDate(payment.createdAt, locale)}</td>
                       </tr>
                     );
                   })}

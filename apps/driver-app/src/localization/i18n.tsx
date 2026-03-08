@@ -17,8 +17,8 @@ interface I18nContextValue {
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 const FALLBACK_CONTEXT: I18nContextValue = {
-  locale: 'en',
-  isRTL: false,
+  locale: 'ar',
+  isRTL: true,
   setLocale: async () => undefined,
   toggleLocale: async () => undefined,
   t: (key: string) => key,
@@ -34,12 +34,11 @@ function formatTemplate(template: string, params?: Record<string, string | numbe
 }
 
 function detectDefaultLocale(): AppLocale {
-  const locale = Intl.DateTimeFormat().resolvedOptions().locale.toLowerCase();
-  return locale.startsWith('ar') ? 'ar' : 'en';
+  return 'ar';
 }
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<AppLocale>('en');
+  const [locale, setLocaleState] = useState<AppLocale>('ar');
 
   useEffect(() => {
     I18nManager.allowRTL(true);

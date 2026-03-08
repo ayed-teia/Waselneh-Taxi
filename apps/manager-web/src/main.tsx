@@ -10,6 +10,7 @@ import { SystemSettingsPage } from './pages/SystemSettingsPage';
 import { OperationsPage } from './pages/OperationsPage';
 import { MonitoringPage } from './pages/MonitoringPage';
 import { installWebErrorTracking } from './services/error-tracking.service';
+import { I18nProvider } from './localization';
 import '@waselneh/ui/tokens.css';
 import './ui/styles.css';
 import './index.css';
@@ -18,19 +19,21 @@ installWebErrorTracking();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<App />}>
-          <Route index element={<Navigate to="/drivers" replace />} />
-          <Route path="live-map" element={<LiveMapPage />} />
-          <Route path="drivers" element={<DriversListPage />} />
-          <Route path="payments" element={<PaymentsListPage />} />
-          <Route path="roadblocks" element={<RoadblocksPage />} />
-          <Route path="settings" element={<SystemSettingsPage />} />
-          <Route path="operations" element={<OperationsPage />} />
-          <Route path="monitoring" element={<MonitoringPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <I18nProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<App />}>
+            <Route index element={<Navigate to="/drivers" replace />} />
+            <Route path="live-map" element={<LiveMapPage />} />
+            <Route path="drivers" element={<DriversListPage />} />
+            <Route path="payments" element={<PaymentsListPage />} />
+            <Route path="roadblocks" element={<RoadblocksPage />} />
+            <Route path="settings" element={<SystemSettingsPage />} />
+            <Route path="operations" element={<OperationsPage />} />
+            <Route path="monitoring" element={<MonitoringPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </I18nProvider>
   </React.StrictMode>
 );

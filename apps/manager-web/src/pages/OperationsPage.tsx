@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useI18n } from '../localization';
 import {
   CollectionItem,
   linkDriverToOperations,
@@ -47,6 +48,7 @@ function commaSeparatedList(input: string): string[] {
 }
 
 export function OperationsPage() {
+  const { txt } = useI18n();
   const [snapshots, setSnapshots] = useState<SnapshotState>(INITIAL_SNAPSHOTS);
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -194,9 +196,9 @@ export function OperationsPage() {
     setMessage(null);
     try {
       await handler();
-      setMessage(`${key} saved successfully.`);
+      setMessage(txt(`تم حفظ ${key} بنجاح.`, `${key} saved successfully.`));
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to save ${key}`);
+      setError(err instanceof Error ? err.message : txt(`تعذّر حفظ ${key}`, `Failed to save ${key}`));
     } finally {
       setSaving(null);
     }
@@ -348,9 +350,12 @@ export function OperationsPage() {
 
   return (
     <div className="operations-page">
-      <h2>Operations Control Panel</h2>
+      <h2>{txt('لوحة التحكم التشغيلية', 'Operations Control Panel')}</h2>
       <p className="subtitle">
-        Manage offices, lines, licenses, vehicles, driver binding, pricing, and manager RBAC.
+        {txt(
+          'إدارة المكاتب، الخطوط، الرخص، المركبات، ربط السائقين، التسعير، وصلاحيات الإدارة.',
+          'Manage offices, lines, licenses, vehicles, driver binding, pricing, and manager RBAC.'
+        )}
       </p>
 
       {message ? <div className="ops-banner success">{message}</div> : null}
@@ -368,7 +373,7 @@ export function OperationsPage() {
             <option value="line_based">line_based</option>
             <option value="hybrid">hybrid</option>
           </select>
-          <button disabled={saving === 'office'} type="submit">{saving === 'office' ? 'Saving...' : 'Save Office'}</button>
+          <button disabled={saving === 'office'} type="submit">{saving === 'office' ? txt('جارٍ الحفظ...', 'Saving...') : txt('حفظ المكتب', 'Save Office')}</button>
         </form>
 
         <form className="ops-card" onSubmit={onSubmitLine}>
@@ -381,7 +386,7 @@ export function OperationsPage() {
           <input placeholder="Max seats" value={lineForm.maxSeats} onChange={(e) => setLineForm((s) => ({ ...s, maxSeats: e.target.value }))} required />
           <input placeholder="Pricing profile id" value={lineForm.pricingProfileId} onChange={(e) => setLineForm((s) => ({ ...s, pricingProfileId: e.target.value }))} />
           <input placeholder="Allowed vehicle types (csv)" value={lineForm.allowedVehicleTypes} onChange={(e) => setLineForm((s) => ({ ...s, allowedVehicleTypes: e.target.value }))} />
-          <button disabled={saving === 'line'} type="submit">{saving === 'line' ? 'Saving...' : 'Save Line'}</button>
+          <button disabled={saving === 'line'} type="submit">{saving === 'line' ? txt('جارٍ الحفظ...', 'Saving...') : txt('حفظ الخط', 'Save Line')}</button>
         </form>
 
         <form className="ops-card" onSubmit={onSubmitLicense}>
@@ -391,7 +396,7 @@ export function OperationsPage() {
           <input placeholder="Line ID" list="line-list" value={licenseForm.lineId} onChange={(e) => setLicenseForm((s) => ({ ...s, lineId: e.target.value }))} required />
           <input placeholder="License number" value={licenseForm.licenseNumber} onChange={(e) => setLicenseForm((s) => ({ ...s, licenseNumber: e.target.value }))} required />
           <input placeholder="Holder name" value={licenseForm.holderName} onChange={(e) => setLicenseForm((s) => ({ ...s, holderName: e.target.value }))} required />
-          <button disabled={saving === 'license'} type="submit">{saving === 'license' ? 'Saving...' : 'Save License'}</button>
+          <button disabled={saving === 'license'} type="submit">{saving === 'license' ? txt('جارٍ الحفظ...', 'Saving...') : txt('حفظ الرخصة', 'Save License')}</button>
         </form>
 
         <form className="ops-card" onSubmit={onSubmitVehicle}>
@@ -408,7 +413,7 @@ export function OperationsPage() {
             <option value="premium">premium</option>
           </select>
           <input placeholder="Seat capacity" value={vehicleForm.seatCapacity} onChange={(e) => setVehicleForm((s) => ({ ...s, seatCapacity: e.target.value }))} required />
-          <button disabled={saving === 'vehicle'} type="submit">{saving === 'vehicle' ? 'Saving...' : 'Save Vehicle'}</button>
+          <button disabled={saving === 'vehicle'} type="submit">{saving === 'vehicle' ? txt('جارٍ الحفظ...', 'Saving...') : txt('حفظ المركبة', 'Save Vehicle')}</button>
         </form>
 
         <form className="ops-card" onSubmit={onSubmitDriverLink}>
@@ -420,7 +425,7 @@ export function OperationsPage() {
           <input placeholder="Vehicle ID" value={driverLinkForm.vehicleId} onChange={(e) => setDriverLinkForm((s) => ({ ...s, vehicleId: e.target.value }))} />
           <input placeholder="Vehicle type (optional)" value={driverLinkForm.vehicleType} onChange={(e) => setDriverLinkForm((s) => ({ ...s, vehicleType: e.target.value }))} />
           <input placeholder="Seat capacity (optional)" value={driverLinkForm.seatCapacity} onChange={(e) => setDriverLinkForm((s) => ({ ...s, seatCapacity: e.target.value }))} />
-          <button disabled={saving === 'driver-link'} type="submit">{saving === 'driver-link' ? 'Saving...' : 'Bind Driver'}</button>
+          <button disabled={saving === 'driver-link'} type="submit">{saving === 'driver-link' ? txt('جارٍ الحفظ...', 'Saving...') : txt('ربط السائق', 'Bind Driver')}</button>
         </form>
 
         <form className="ops-card" onSubmit={onSubmitPricingProfile}>
@@ -435,7 +440,7 @@ export function OperationsPage() {
           <textarea placeholder="Line multipliers JSON" value={pricingProfileForm.lineMultipliersJson} onChange={(e) => setPricingProfileForm((s) => ({ ...s, lineMultipliersJson: e.target.value }))} rows={2} />
           <textarea placeholder="Peak windows JSON" value={pricingProfileForm.peakWindowsJson} onChange={(e) => setPricingProfileForm((s) => ({ ...s, peakWindowsJson: e.target.value }))} rows={4} />
           <textarea placeholder="Notes" value={pricingProfileForm.notes} onChange={(e) => setPricingProfileForm((s) => ({ ...s, notes: e.target.value }))} rows={2} />
-          <button disabled={saving === 'pricing-profile'} type="submit">{saving === 'pricing-profile' ? 'Saving...' : 'Save Pricing Profile'}</button>
+          <button disabled={saving === 'pricing-profile'} type="submit">{saving === 'pricing-profile' ? txt('جارٍ الحفظ...', 'Saving...') : txt('حفظ ملف التسعير', 'Save Pricing Profile')}</button>
         </form>
 
         <form className="ops-card" onSubmit={onSubmitPricingZone}>
@@ -454,7 +459,7 @@ export function OperationsPage() {
             <option value="pickup">pickup</option>
             <option value="dropoff">dropoff</option>
           </select>
-          <button disabled={saving === 'pricing-zone'} type="submit">{saving === 'pricing-zone' ? 'Saving...' : 'Save Pricing Zone'}</button>
+          <button disabled={saving === 'pricing-zone'} type="submit">{saving === 'pricing-zone' ? txt('جارٍ الحفظ...', 'Saving...') : txt('حفظ منطقة التسعير', 'Save Pricing Zone')}</button>
         </form>
 
         <form className="ops-card" onSubmit={onSubmitStaffRole}>
@@ -472,22 +477,22 @@ export function OperationsPage() {
           <input placeholder="lineIds CSV (optional)" value={staffRoleForm.lineIdsCsv} onChange={(e) => setStaffRoleForm((s) => ({ ...s, lineIdsCsv: e.target.value }))} />
           <label className="checkbox">
             <input type="checkbox" checked={staffRoleForm.isActive} onChange={(e) => setStaffRoleForm((s) => ({ ...s, isActive: e.target.checked }))} />
-            Active
+            {txt('نشط', 'Active')}
           </label>
-          <button disabled={saving === 'staff-role'} type="submit">{saving === 'staff-role' ? 'Saving...' : 'Save Staff Role'}</button>
+          <button disabled={saving === 'staff-role'} type="submit">{saving === 'staff-role' ? txt('جارٍ الحفظ...', 'Saving...') : txt('حفظ دور الطاقم', 'Save Staff Role')}</button>
         </form>
       </section>
 
       <section className="ops-snapshot">
-        <h3>Current Snapshot</h3>
+        <h3>{txt('اللقطة الحالية', 'Current Snapshot')}</h3>
         <div className="snapshot-grid">
-          <div><strong>Offices</strong><span>{snapshots.offices.length}</span></div>
-          <div><strong>Lines</strong><span>{snapshots.lines.length}</span></div>
-          <div><strong>Licenses</strong><span>{snapshots.licenses.length}</span></div>
-          <div><strong>Vehicles</strong><span>{snapshots.vehicles.length}</span></div>
-          <div><strong>Pricing Profiles</strong><span>{snapshots.pricingProfiles.length}</span></div>
-          <div><strong>Pricing Zones</strong><span>{snapshots.pricingZones.length}</span></div>
-          <div><strong>Manager Roles</strong><span>{snapshots.managerRoles.length}</span></div>
+          <div><strong>{txt('المكاتب', 'Offices')}</strong><span>{snapshots.offices.length}</span></div>
+          <div><strong>{txt('الخطوط', 'Lines')}</strong><span>{snapshots.lines.length}</span></div>
+          <div><strong>{txt('الرخص', 'Licenses')}</strong><span>{snapshots.licenses.length}</span></div>
+          <div><strong>{txt('المركبات', 'Vehicles')}</strong><span>{snapshots.vehicles.length}</span></div>
+          <div><strong>{txt('ملفات التسعير', 'Pricing Profiles')}</strong><span>{snapshots.pricingProfiles.length}</span></div>
+          <div><strong>{txt('مناطق التسعير', 'Pricing Zones')}</strong><span>{snapshots.pricingZones.length}</span></div>
+          <div><strong>{txt('أدوار الإدارة', 'Manager Roles')}</strong><span>{snapshots.managerRoles.length}</span></div>
         </div>
       </section>
 
@@ -510,10 +515,11 @@ export function OperationsPage() {
 }
 
 export function OperationsPageSummary() {
+  const { txt } = useI18n();
   return (
     <div>
-      <h2>Operations</h2>
-      <p>Configure offices, lines, licenses, vehicles, pricing profiles/zones, and manager RBAC.</p>
+      <h2>{txt('العمليات', 'Operations')}</h2>
+      <p>{txt('تهيئة المكاتب، الخطوط، الرخص، المركبات، التسعير، وصلاحيات الإدارة.', 'Configure offices, lines, licenses, vehicles, pricing profiles/zones, and manager RBAC.')}</p>
     </div>
   );
 }

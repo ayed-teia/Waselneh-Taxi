@@ -8,6 +8,14 @@
     linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
 }
 
+.app-rtl {
+  direction: rtl;
+}
+
+.app-ltr {
+  direction: ltr;
+}
+
 .header {
   position: sticky;
   top: 0;
@@ -55,6 +63,32 @@
 
 .top-nav a {
   text-decoration: none;
+}
+
+.language-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  padding: 0.18rem;
+}
+
+.language-chip {
+  border: 0;
+  background: transparent;
+  color: #334155;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  font: var(--ws-font-caption);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.language-chip.active {
+  background: #1d4ed8;
+  color: #f8fafc;
 }
 
 .nav-link {

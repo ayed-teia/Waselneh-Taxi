@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useI18n } from '../localization';
 import { subscribeToAllDriverLocations, DriverLiveLocation, getUniqueLineIds } from '../services/driver-location.service';
 import { subscribeToActiveTrips, subscribeToPendingTrips, subscribeToCompletedTrips, TripData, getTripStatusDisplay, getPaymentStatusDisplay } from '../services/trips.service';
 import { subscribeToRoadblocks, createRoadblock, updateRoadblock, deleteRoadblock, RoadblockData, getRoadblockStatusDisplay } from '../services/roadblocks.service';
@@ -7,6 +8,7 @@ import '../components/DriverMap.css';
 import './LiveMapPage.css';
 
 export function LiveMapPage() {
+  const { txt, locale } = useI18n();
   const [drivers, setDrivers] = useState<DriverLiveLocation[]>([]);
   const [activeTrips, setActiveTrips] = useState<TripData[]>([]);
   const [pendingTrips, setPendingTrips] = useState<TripData[]>([]);
@@ -50,7 +52,7 @@ export function LiveMapPage() {
       (err) => {
         if (isMounted.current) {
           console.error('Error subscribing to driver locations:', err);
-          setError('Failed to load driver locations. Please check your connection.');
+          setError(txt('تعذّر تحميل مواقع السائقين. يرجى التحقق من الاتصال.', 'Failed to load driver locations. Please check your connection.'));
           setLoading(false);
         }
       }
@@ -113,7 +115,7 @@ export function LiveMapPage() {
       unsubCompletedTrips();
       unsubRoadblocks();
     };
-  }, []);
+  }, [txt]);
 
   // Get unique line IDs for filter dropdown
   const lineIds = useMemo(() => getUniqueLineIds(drivers), [drivers]);
@@ -167,7 +169,7 @@ export function LiveMapPage() {
   const handleSaveRoadblock = async () => {
     // Validate name is provided
     if (!roadblockForm.name.trim()) {
-      alert('Please enter a name for the roadblock');
+      alert(txt('يرجى إدخال اسم للإغلاق.', 'Please enter a name for the roadblock'));
       return;
     }
     
@@ -189,7 +191,7 @@ export function LiveMapPage() {
       setNewRoadblockLocation(null);
     } catch (err) {
       console.error('Failed to save roadblock:', err);
-      alert('Failed to save roadblock');
+      alert(txt('تعذّر حفظ الإغلاق.', 'Failed to save roadblock'));
     } finally {
       setIsSavingRoadblock(false);
     }
@@ -197,7 +199,7 @@ export function LiveMapPage() {
 
   const handleDeleteRoadblock = async () => {
     if (!editingRoadblock) return;
-    if (!confirm('Are you sure you want to delete this roadblock?')) return;
+    if (!confirm(txt('هل أنت متأكد من حذف هذا الإغلاق؟', 'Are you sure you want to delete this roadblock?'))) return;
     
     setIsSavingRoadblock(true);
     try {
@@ -206,7 +208,7 @@ export function LiveMapPage() {
       setEditingRoadblock(null);
     } catch (err) {
       console.error('Failed to delete roadblock:', err);
-      alert('Failed to delete roadblock');
+      alert(txt('تعذّر حذف الإغلاق.', 'Failed to delete roadblock'));
     } finally {
       setIsSavingRoadblock(false);
     }
@@ -226,14 +228,14 @@ export function LiveMapPage() {
   }, [drivers, showOnlineOnly, selectedLineId]);
 
   const formatTime = (date: Date | null) => {
-    if (!date) return 'N/A';
-    return date.toLocaleTimeString();
+    if (!date) return txt('غير متوفر', 'N/A');
+    return date.toLocaleTimeString(locale === 'ar' ? 'ar-PS' : 'en-US');
   };
 
   const formatRelativeTime = (date: Date | null) => {
-    if (!date) return 'N/A';
+    if (!date) return txt('غير متوفر', 'N/A');
     const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-    if (seconds < 5) return 'Just now';
+    if (seconds < 5) return txt('الآن', 'Just now');
     if (seconds < 60) return `${seconds}s ago`;
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `${minutes}m ago`;
@@ -241,21 +243,21 @@ export function LiveMapPage() {
   };
 
   const formatSpeed = (speed: number | null) => {
-    if (speed === null || speed <= 0) return 'Stationary';
+    if (speed === null || speed <= 0) return txt('متوقف', 'Stationary');
     return `${Math.round(speed * 3.6)} km/h`;
   };
 
   const getDriverDisplayName = (driver: DriverLiveLocation) => {
     if (driver.name) return driver.name;
-    return `Driver ${driver.driverId.slice(0, 8)}`;
+    return txt(`سائق ${driver.driverId.slice(0, 8)}`, `Driver ${driver.driverId.slice(0, 8)}`);
   };
 
   if (loading) {
     return (
       <div className="live-map-page">
-        <h2>Live Operations Map</h2>
-        <p className="subtitle">Track drivers, trip flow, and road events in realtime.</p>
-        <div className="loading">Loading driver locations...</div>
+        <h2>{txt('خريطة العمليات المباشرة', 'Live Operations Map')}</h2>
+        <p className="subtitle">{txt('تتبع السائقين وتدفق الرحلات وأحداث الطرق لحظيًا.', 'Track drivers, trip flow, and road events in realtime.')}</p>
+        <div className="loading">{txt('جاري تحميل مواقع السائقين...', 'Loading driver locations...')}</div>
       </div>
     );
   }
@@ -263,8 +265,8 @@ export function LiveMapPage() {
   if (error) {
     return (
       <div className="live-map-page">
-        <h2>Live Operations Map</h2>
-        <p className="subtitle">Track drivers, trip flow, and road events in realtime.</p>
+        <h2>{txt('خريطة العمليات المباشرة', 'Live Operations Map')}</h2>
+        <p className="subtitle">{txt('تتبع السائقين وتدفق الرحلات وأحداث الطرق لحظيًا.', 'Track drivers, trip flow, and road events in realtime.')}</p>
         <div className="error">{error}</div>
       </div>
     );
@@ -272,8 +274,8 @@ export function LiveMapPage() {
 
   return (
     <div className="live-map-page">
-      <h2>Live Operations Map</h2>
-      <p className="subtitle">Track drivers, trip flow, and road events in realtime.</p>
+      <h2>{txt('خريطة العمليات المباشرة', 'Live Operations Map')}</h2>
+      <p className="subtitle">{txt('تتبع السائقين وتدفق الرحلات وأحداث الطرق لحظيًا.', 'Track drivers, trip flow, and road events in realtime.')}</p>
       
       {/* Stats bar */}
       <div className="stats-bar">

@@ -9,7 +9,17 @@ import { useI18n } from '../src/localization';
 
 // Dev mode - use anonymous auth for testing with emulators
 const DEV_MODE = true;
-const DEV_DRIVER_UID = (process.env.EXPO_PUBLIC_DEV_DRIVER_UID || 'dev-driver-001').trim();
+
+function normalizeDriverUid(value: unknown): string {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value.trim();
+}
+
+const DEV_DRIVER_UID =
+  normalizeDriverUid(process.env.EXPO_PUBLIC_DEV_DRIVER_UID) || 'dev-driver-001';
 
 export default function Index() {
   const { t } = useI18n();
@@ -23,7 +33,7 @@ export default function Index() {
       return;
     }
 
-    const trimmedUid = (uidOverride || DEV_DRIVER_UID).trim();
+    const trimmedUid = normalizeDriverUid(uidOverride) || DEV_DRIVER_UID;
     if (!trimmedUid) {
       Alert.alert(t('auth.login_failed'), t('auth.login_generic'));
       return;

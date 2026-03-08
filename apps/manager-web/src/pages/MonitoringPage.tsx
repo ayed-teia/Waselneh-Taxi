@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useI18n } from '../localization';
 import { acknowledgeAlert } from '../services/operations.service';
 import {
   OpsAlert,
@@ -10,12 +11,13 @@ import {
 } from '../services/monitoring.service';
 import './MonitoringPage.css';
 
-function formatDate(value?: Date | null): string {
-  if (!value) return '--';
-  return value.toLocaleString();
+function formatDate(value: Date | null | undefined, locale: 'ar' | 'en'): string {
+  if (!value) return locale === 'ar' ? '--' : '--';
+  return value.toLocaleString(locale === 'ar' ? 'ar-PS' : 'en-US');
 }
 
 export function MonitoringPage() {
+  const { txt, locale } = useI18n();
   const [metrics, setMetrics] = useState<OpsMetrics | null>(null);
   const [alerts, setAlerts] = useState<OpsAlert[]>([]);
   const [errors, setErrors] = useState<OpsError[]>([]);
@@ -39,7 +41,7 @@ export function MonitoringPage() {
     try {
       await acknowledgeAlert({ alertId });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to acknowledge alert');
+      setError(err instanceof Error ? err.message : txt('تعذّر تأكيد التنبيه', 'Failed to acknowledge alert'));
     } finally {
       setBusyAlertId(null);
     }
@@ -47,57 +49,60 @@ export function MonitoringPage() {
 
   return (
     <div className="monitoring-page">
-      <h2>Monitoring & Reliability</h2>
+      <h2>{txt('المراقبة والاعتمادية', 'Monitoring & Reliability')}</h2>
       <p className="subtitle">
-        Live metrics, active alerts, and incoming client errors from mobile/web apps.
+        {txt(
+          'مؤشرات مباشرة وتنبيهات نشطة وأخطاء عميل واردة من تطبيقات الجوال والويب.',
+          'Live metrics, active alerts, and incoming client errors from mobile/web apps.'
+        )}
       </p>
 
       {error ? <div className="monitoring-error">{error}</div> : null}
 
       <section className="monitoring-metrics">
         <article className="metric-card">
-          <h3>Errors (15m)</h3>
+          <h3>{txt('الأخطاء (15 دقيقة)', 'Errors (15m)')}</h3>
           <strong>{metrics?.errors?.total ?? 0}</strong>
           <div className="metric-meta">
-            <span>fatal: {metrics?.errors?.fatal ?? 0}</span>
-            <span>error: {metrics?.errors?.error ?? 0}</span>
-            <span>warning: {metrics?.errors?.warning ?? 0}</span>
+            <span>{txt('حرج', 'fatal')}: {metrics?.errors?.fatal ?? 0}</span>
+            <span>{txt('خطأ', 'error')}: {metrics?.errors?.error ?? 0}</span>
+            <span>{txt('تحذير', 'warning')}: {metrics?.errors?.warning ?? 0}</span>
           </div>
         </article>
 
         <article className="metric-card">
-          <h3>Drivers</h3>
+          <h3>{txt('السائقون', 'Drivers')}</h3>
           <strong>{metrics?.drivers?.onlineCount ?? 0}</strong>
           <div className="metric-meta">
-            <span>online</span>
-            <span>available: {metrics?.drivers?.availableOnlineCount ?? 0}</span>
+            <span>{txt('متصل', 'online')}</span>
+            <span>{txt('متاح', 'available')}: {metrics?.drivers?.availableOnlineCount ?? 0}</span>
           </div>
         </article>
 
         <article className="metric-card">
-          <h3>Trips</h3>
+          <h3>{txt('الرحلات', 'Trips')}</h3>
           <strong>{metrics?.trips?.activeCount ?? 0}</strong>
           <div className="metric-meta">
-            <span>active</span>
-            <span>pending: {metrics?.trips?.pendingCount ?? 0}</span>
-            <span>24h completed: {metrics?.trips?.completedLast24h ?? 0}</span>
+            <span>{txt('نشطة', 'active')}</span>
+            <span>{txt('معلقة', 'pending')}: {metrics?.trips?.pendingCount ?? 0}</span>
+            <span>{txt('مكتملة خلال 24 ساعة', '24h completed')}: {metrics?.trips?.completedLast24h ?? 0}</span>
           </div>
         </article>
 
         <article className="metric-card">
-          <h3>Generated</h3>
-          <strong>{formatDate(metrics?.generatedAt)}</strong>
+          <h3>{txt('وقت التوليد', 'Generated')}</h3>
+          <strong>{formatDate(metrics?.generatedAt, locale)}</strong>
           <div className="metric-meta">
-            <span>Window: {metrics?.windows?.errorsMinutes ?? 15}m errors</span>
-            <span>{metrics?.windows?.tripsHours ?? 24}h trips</span>
+            <span>{txt('نافذة الأخطاء', 'Window')}: {metrics?.windows?.errorsMinutes ?? 15}m</span>
+            <span>{metrics?.windows?.tripsHours ?? 24}h {txt('رحلات', 'trips')}</span>
           </div>
         </article>
       </section>
 
       <section className="monitoring-section">
-        <h3>Active Alerts ({openAlerts.length})</h3>
+        <h3>{txt(`التنبيهات النشطة (${openAlerts.length})`, `Active Alerts (${openAlerts.length})`)}</h3>
         {openAlerts.length === 0 ? (
-          <p className="empty">No active alerts.</p>
+          <p className="empty">{txt('لا توجد تنبيهات نشطة.', 'No active alerts.')}</p>
         ) : (
           <div className="alerts-grid">
             {openAlerts.map((alert) => (
@@ -110,17 +115,21 @@ export function MonitoringPage() {
                   <span>{alert.severity}</span>
                 </header>
                 <p>{alert.message}</p>
-                <small>opened: {formatDate(alert.openedAt)}</small>
-                <small>updated: {formatDate(alert.updatedAt)}</small>
+                <small>{txt('فُتح', 'opened')}: {formatDate(alert.openedAt, locale)}</small>
+                <small>{txt('آخر تحديث', 'updated')}: {formatDate(alert.updatedAt, locale)}</small>
                 <small>
-                  acknowledged:{' '}
-                  {alert.acknowledgedAt ? `${formatDate(alert.acknowledgedAt)} by ${alert.acknowledgedBy ?? '--'}` : 'no'}
+                  {txt('تم التأكيد', 'acknowledged')}:{' '}
+                  {alert.acknowledgedAt
+                    ? `${formatDate(alert.acknowledgedAt, locale)} ${txt('بواسطة', 'by')} ${alert.acknowledgedBy ?? '--'}`
+                    : txt('لا', 'no')}
                 </small>
                 <button
                   onClick={() => onAcknowledge(alert.alertId)}
                   disabled={busyAlertId === alert.alertId}
                 >
-                  {busyAlertId === alert.alertId ? 'Acknowledging...' : 'Acknowledge'}
+                  {busyAlertId === alert.alertId
+                    ? txt('جارٍ التأكيد...', 'Acknowledging...')
+                    : txt('تأكيد', 'Acknowledge')}
                 </button>
               </article>
             ))}
@@ -129,25 +138,25 @@ export function MonitoringPage() {
       </section>
 
       <section className="monitoring-section">
-        <h3>Recent Client Errors</h3>
+        <h3>{txt('أخطاء العميل الأخيرة', 'Recent Client Errors')}</h3>
         {errors.length === 0 ? (
-          <p className="empty">No errors reported.</p>
+          <p className="empty">{txt('لا توجد أخطاء مبلّغ عنها.', 'No errors reported.')}</p>
         ) : (
           <div className="errors-table-wrap">
             <table className="errors-table">
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>Severity</th>
-                  <th>App</th>
-                  <th>Message</th>
-                  <th>User</th>
+                  <th>{txt('الوقت', 'Time')}</th>
+                  <th>{txt('الحدة', 'Severity')}</th>
+                  <th>{txt('التطبيق', 'App')}</th>
+                  <th>{txt('الرسالة', 'Message')}</th>
+                  <th>{txt('المستخدم', 'User')}</th>
                 </tr>
               </thead>
               <tbody>
                 {errors.slice(0, 50).map((entry) => (
                   <tr key={entry.errorId}>
-                    <td>{formatDate(entry.createdAt)}</td>
+                    <td>{formatDate(entry.createdAt, locale)}</td>
                     <td>{entry.severity}</td>
                     <td>{entry.app}</td>
                     <td>{entry.message}</td>

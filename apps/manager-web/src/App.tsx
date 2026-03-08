@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { Button, Card, Text } from './ui';
+import { Button, Card, LanguageToggle, Text } from './ui';
+import { useI18n } from './localization';
 import {
   ManagerRole,
   ManagerSession,
@@ -20,16 +21,17 @@ const ROLE_OPTIONS: ManagerRole[] = [
 ];
 
 const NAV_ITEMS = [
-  { to: '/drivers', label: 'Drivers' },
-  { to: '/operations', label: 'Operations' },
-  { to: '/monitoring', label: 'Monitoring' },
-  { to: '/live-map', label: 'Live Map' },
-  { to: '/payments', label: 'Payments' },
-  { to: '/roadblocks', label: 'Roadblocks' },
-  { to: '/settings', label: 'Settings' },
+  { to: '/drivers', labelAr: 'السائقون', labelEn: 'Drivers' },
+  { to: '/operations', labelAr: 'العمليات', labelEn: 'Operations' },
+  { to: '/monitoring', labelAr: 'المراقبة', labelEn: 'Monitoring' },
+  { to: '/live-map', labelAr: 'الخريطة المباشرة', labelEn: 'Live Map' },
+  { to: '/payments', labelAr: 'المدفوعات', labelEn: 'Payments' },
+  { to: '/roadblocks', labelAr: 'الإغلاقات', labelEn: 'Roadblocks' },
+  { to: '/settings', labelAr: 'الإعدادات', labelEn: 'Settings' },
 ];
 
 export function App() {
+  const { txt, isRTL } = useI18n();
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<ManagerRole>('admin');
   const [refreshToken, setRefreshToken] = useState(0);
@@ -51,7 +53,11 @@ export function App() {
       } catch (err) {
         if (!active) return;
         setSession(null);
-        setError(err instanceof Error ? err.message : 'Failed to authenticate manager session');
+        setError(
+          err instanceof Error
+            ? err.message
+            : txt('تعذّر توثيق جلسة المدير', 'Failed to authenticate manager session')
+        );
       } finally {
         if (active) {
           setLoading(false);
@@ -63,7 +69,7 @@ export function App() {
     return () => {
       active = false;
     };
-  }, [refreshToken, role]);
+  }, [refreshToken, role, txt]);
 
   const permissionPreview = useMemo(() => {
     if (!session) return '';
@@ -71,22 +77,25 @@ export function App() {
   }, [session]);
 
   return (
-    <div className="app">
+    <div className={`app ${isRTL ? 'app-rtl' : 'app-ltr'}`}>
       <header className="header">
         <div className="header-title-group">
-          <span className="workspace-badge">Operations Console</span>
+          <span className="workspace-badge">{txt('لوحة التشغيل', 'Operations Console')}</span>
           <Text as="h1" variant="h2">
-            Waselneh Manager
+            {txt('واصلني | لوحة الإدارة', 'Waselneh Manager')}
           </Text>
           {session ? (
             <p className="session-meta">
-              role: <strong>{session.role}</strong>
-              {' � '}
-              scope:{' '}
+              {txt('الدور', 'role')}: <strong>{session.role}</strong>
+              {' • '}
+              {txt('النطاق', 'scope')}:{' '}
               <strong>
                 {session.isGlobalScope
-                  ? 'global'
-                  : `${session.officeIds.length} offices / ${session.lineIds.length} lines`}
+                  ? txt('عام', 'global')
+                  : txt(
+                      `${session.officeIds.length} مكاتب / ${session.lineIds.length} خطوط`,
+                      `${session.officeIds.length} offices / ${session.lineIds.length} lines`
+                    )}
               </strong>
             </p>
           ) : null}
@@ -99,15 +108,16 @@ export function App() {
               className={({ isActive }) => (isActive ? 'nav-link nav-link-active' : 'nav-link')}
               to={item.to}
             >
-              {item.label}
+              {txt(item.labelAr, item.labelEn)}
             </NavLink>
           ))}
+          <LanguageToggle />
           <Button
             type="button"
             variant="primary"
             onClick={() => setRefreshToken((current) => current + 1)}
           >
-            Refresh Session
+            {txt('تحديث الجلسة', 'Refresh Session')}
           </Button>
         </nav>
       </header>
@@ -116,7 +126,8 @@ export function App() {
         <Card elevated>
           <div className="session-toolbar">
             <div className="session-toolbar-meta">
-              <strong>Environment:</strong> {emulators ? 'emulator' : 'production'}
+              <strong>{txt('البيئة', 'Environment')}:</strong>{' '}
+              {emulators ? txt('محاكي', 'emulator') : txt('إنتاج', 'production')}
             </div>
             <div className="session-actions">
               {emulators ? (
@@ -138,27 +149,30 @@ export function App() {
                   void signOutManager().finally(() => setRefreshToken((current) => current + 1));
                 }}
               >
-                Sign out
+                {txt('تسجيل الخروج', 'Sign out')}
               </Button>
             </div>
           </div>
 
-        {loading ? <p className="session-loading">Loading manager session...</p> : null}
-        {error ? <div className="session-error">{error}</div> : null}
-        {!loading && !error && session ? (
-          <div className="session-info">
-            <span>
-                <strong>User:</strong> {session.userId}
+          {loading ? (
+            <p className="session-loading">
+              {txt('جاري تحميل جلسة المدير...', 'Loading manager session...')}
+            </p>
+          ) : null}
+          {error ? <div className="session-error">{error}</div> : null}
+          {!loading && !error && session ? (
+            <div className="session-info">
+              <span>
+                <strong>{txt('المستخدم', 'User')}:</strong> {session.userId}
               </span>
               <span>
-              <strong>Permissions:</strong> {permissionPreview || 'none'}
-            </span>
-          </div>
-        ) : null}
-
-          {!loading && !error && session ? (
-            <Outlet />
+                <strong>{txt('الصلاحيات', 'Permissions')}:</strong>{' '}
+                {permissionPreview || txt('لا يوجد', 'none')}
+              </span>
+            </div>
           ) : null}
+
+          {!loading && !error && session ? <Outlet /> : null}
         </Card>
       </main>
     </div>
