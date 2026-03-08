@@ -332,7 +332,8 @@ export function DriverMapView({
         styleURL={activeStyleURL}
         onDidFinishLoadingStyle={handleStyleLoaded}
         onDidFailLoadingMap={handleMapLoadError}
-        surfaceView
+        // TextureView is more stable with layered bottom sheets on Android emulators.
+        surfaceView={false}
         logoEnabled={false}
         attributionEnabled={false}
         compassEnabled
