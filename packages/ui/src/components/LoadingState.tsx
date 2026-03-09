@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
-import { getModeColors, waselnehSpacing } from '../tokens/design-tokens';
+import { getModeColors, waselnehRadius, waselnehSpacing } from '../tokens/design-tokens';
 import { Text } from './Text';
 
 interface LoadingStateProps {
@@ -20,8 +20,10 @@ export function LoadingState({
 
   return (
     <View style={[styles.container, style]}>
-      <ActivityIndicator size="large" color={colors.primary} />
-      <Text mode={mode} style={styles.title}>
+      <View style={[styles.spinnerWrap, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+        <ActivityIndicator size="small" color={colors.primary} />
+      </View>
+      <Text variant="bodyStrong" mode={mode} style={styles.title}>
         {title}
       </Text>
       {subtitle ? (
@@ -40,13 +42,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: waselnehSpacing.lg,
   },
+  spinnerWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: waselnehRadius.pill,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   title: {
     marginTop: waselnehSpacing.md,
-    fontWeight: '600',
   },
   subtitle: {
     marginTop: waselnehSpacing.xs,
     textAlign: 'center',
   },
 });
-

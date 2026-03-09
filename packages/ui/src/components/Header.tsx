@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getModeColors, waselnehSpacing } from '../tokens/design-tokens';
+import { getModeColors, waselnehRadius, waselnehSpacing } from '../tokens/design-tokens';
 import { Text } from './Text';
 
 interface HeaderProps {
@@ -29,9 +29,9 @@ export function Header({
       style={[
         styles.container,
         {
-          backgroundColor: colors.surface,
+          backgroundColor: colors.surfaceMuted,
           borderBottomColor: colors.border,
-          paddingTop: Math.max(insets.top + waselnehSpacing.sm, waselnehSpacing.lg),
+          paddingTop: Math.max(insets.top + waselnehSpacing.xs, waselnehSpacing.lg),
         },
         style,
       ]}
@@ -66,9 +66,11 @@ const styles = StyleSheet.create({
     gap: waselnehSpacing.sm,
   },
   side: {
-    minWidth: 44,
+    minWidth: 48,
     alignItems: 'flex-start',
     justifyContent: 'center',
+    minHeight: 40,
+    borderRadius: waselnehRadius.pill,
   },
   sideRight: {
     alignItems: 'flex-end',
@@ -77,13 +79,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 28,
-    lineHeight: 34,
+    marginBottom: 1,
   },
   subtitle: {
-    marginTop: 2,
+    marginTop: 3,
     fontSize: 13,
     lineHeight: 18,
   },
 });
-

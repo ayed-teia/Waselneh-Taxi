@@ -24,14 +24,17 @@ export function ErrorState({
 }: ErrorStateProps) {
   return (
     <View style={[styles.container, style]}>
-      <Card mode={mode} elevated style={styles.card}>
-        <Text variant="h2" mode={mode} style={styles.title}>
+      <Card mode={mode} elevated muted style={[styles.card, { borderColor: '#FECACA' }]}>
+        <Text variant="overline" mode={mode} style={styles.overline}>
+          Error
+        </Text>
+        <Text variant="h3" mode={mode} style={styles.title}>
           {title}
         </Text>
         <Text mode={mode} muted style={styles.message}>
           {message}
         </Text>
-        {onRetry ? <Button title={retryLabel} onPress={onRetry} /> : null}
+        {onRetry ? <Button title={retryLabel} onPress={onRetry} variant="outline" /> : null}
       </Card>
     </View>
   );
@@ -46,12 +49,13 @@ const styles = StyleSheet.create({
   card: {
     gap: waselnehSpacing.md,
   },
+  overline: {
+    color: '#B91C1C',
+  },
   title: {
-    fontSize: 24,
-    lineHeight: 30,
+    marginTop: -2,
   },
   message: {
     lineHeight: 20,
   },
 });
-

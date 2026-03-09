@@ -28,6 +28,7 @@ export function Input({
   ...inputProps
 }: InputProps) {
   const colors = getModeColors(mode);
+  const hasError = Boolean(error);
 
   return (
     <View style={containerStyle}>
@@ -42,8 +43,8 @@ export function Input({
           styles.input,
           {
             color: colors.textPrimary,
-            borderColor: error ? '#DC2626' : colors.border,
-            backgroundColor: colors.surface,
+            borderColor: hasError ? '#DC2626' : colors.borderStrong,
+            backgroundColor: colors.surfaceMuted,
           },
           inputStyle,
         ]}
@@ -61,13 +62,14 @@ export function Input({
 const styles = StyleSheet.create({
   label: {
     marginBottom: waselnehSpacing.xs,
+    letterSpacing: 0.2,
   },
   input: {
     ...waselnehTypography.body,
-    minHeight: 48,
+    minHeight: 52,
     borderWidth: 1,
     borderRadius: waselnehRadius.md,
-    paddingHorizontal: waselnehSpacing.md,
+    paddingHorizontal: waselnehSpacing.lg,
     paddingVertical: waselnehSpacing.sm,
   },
   error: {

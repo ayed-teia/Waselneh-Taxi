@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { getModeColors, waselnehColors, waselnehRadius, waselnehSpacing, waselnehTypography } from '../tokens/design-tokens';
 
-export type UIButtonVariant = 'primary' | 'secondary' | 'destructive';
+export type UIButtonVariant = 'primary' | 'secondary' | 'destructive' | 'outline';
 
 export interface UIButtonProps extends Omit<TouchableOpacityProps, 'style'> {
   title: string;
@@ -37,19 +37,24 @@ export function Button({
   const isDisabled = disabled || loading;
   const variantStyle =
     variant === 'secondary'
-      ? { backgroundColor: colors.secondary, textColor: colors.secondaryText }
+      ? { backgroundColor: colors.secondary, textColor: colors.secondaryText, borderColor: colors.secondary }
       : variant === 'destructive'
-        ? { backgroundColor: waselnehColors.status.danger, textColor: '#FFFFFF' }
-        : { backgroundColor: colors.primary, textColor: colors.primaryText };
+        ? { backgroundColor: waselnehColors.status.danger, textColor: '#FFFFFF', borderColor: waselnehColors.status.danger }
+        : variant === 'outline'
+          ? { backgroundColor: colors.surface, textColor: colors.textPrimary, borderColor: colors.borderStrong }
+          : { backgroundColor: colors.primary, textColor: colors.primaryText, borderColor: waselnehColors.brand.taxiYellowDeep };
 
   return (
     <TouchableOpacity
-      activeOpacity={0.85}
+      activeOpacity={0.9}
       disabled={isDisabled}
       onPress={onPress}
       style={[
         styles.base,
-        { backgroundColor: variantStyle.backgroundColor },
+        {
+          backgroundColor: variantStyle.backgroundColor,
+          borderColor: variantStyle.borderColor,
+        },
         fullWidth ? styles.fullWidth : null,
         isDisabled ? styles.disabled : null,
         style,
@@ -70,9 +75,10 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 52,
+    minHeight: 54,
+    borderWidth: 1,
     borderRadius: waselnehRadius.md,
-    paddingHorizontal: waselnehSpacing.lg,
+    paddingHorizontal: waselnehSpacing.xl,
     paddingVertical: waselnehSpacing.md,
     justifyContent: 'center',
     alignItems: 'center',
@@ -86,8 +92,9 @@ const styles = StyleSheet.create({
     minHeight: 24,
   },
   title: {
-    ...waselnehTypography.body,
+    ...waselnehTypography.bodyStrong,
     fontWeight: '600',
+    letterSpacing: 0.15,
   },
   spinner: {
     position: 'absolute',

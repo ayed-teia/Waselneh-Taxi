@@ -1,4 +1,5 @@
 export * from './Badge';
+export * from './BottomSheetCard';
 export * from './Button';
 export * from './Card';
 export * from './EmptyState';
@@ -7,4 +8,6 @@ export * from './Header';
 export * from './Input';
 export * from './LoadingState';
 export * from './ScreenContainer';
+export * from './SectionHeader';
+export * from './StatusChip';
 export * from './Text';

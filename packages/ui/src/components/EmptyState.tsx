@@ -23,7 +23,10 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <View style={[styles.container, style]}>
-      <Text variant="h2" mode={mode} style={styles.title}>
+      <Text variant="overline" mode={mode} style={styles.overline}>
+        Empty
+      </Text>
+      <Text variant="h3" mode={mode} style={styles.title}>
         {title}
       </Text>
       {subtitle ? (
@@ -45,10 +48,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: waselnehSpacing.xl,
   },
+  overline: {
+    opacity: 0.7,
+    marginBottom: 4,
+  },
   title: {
     textAlign: 'center',
-    fontSize: 24,
-    lineHeight: 30,
   },
   subtitle: {
     marginTop: waselnehSpacing.xs,
@@ -60,4 +65,3 @@ const styles = StyleSheet.create({
     minWidth: 140,
   },
 });
-
