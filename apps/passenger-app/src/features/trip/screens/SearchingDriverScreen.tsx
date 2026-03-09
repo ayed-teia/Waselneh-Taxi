@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PassengerMapView } from '../../map';
 import { Button } from '../../../ui';
 import { subscribeToTripRequest } from '../../../services/realtime';
+import { useI18n } from '../../../localization';
 
 interface SearchingDriverScreenProps {
   requestId: string;
@@ -18,9 +19,6 @@ interface SearchingDriverScreenProps {
   dropoff?: { lat: number; lng: number } | null;
 }
 
-/**
- * Searching state with live map background and a responsive booking card.
- */
 export function SearchingDriverScreen({
   requestId,
   onCancel,
@@ -33,16 +31,20 @@ export function SearchingDriverScreen({
   pickup,
   dropoff,
 }: SearchingDriverScreenProps) {
+  const { isRTL } = useI18n();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const cardWidth = width >= 768 ? 560 : width;
+
   const [dots, setDots] = useState('');
   const [isMatched, setIsMatched] = useState(false);
   const [terminalStatus, setTerminalStatus] = useState<'expired' | 'cancelled' | null>(null);
+  const [cardHeight, setCardHeight] = useState(236);
+  const [pulseAnim] = useState(new Animated.Value(1));
+
   const isMatchedRef = useRef(false);
   const terminalStatusRef = useRef<'expired' | 'cancelled' | null>(null);
-  const [pulseAnim] = useState(new Animated.Value(1));
-  const [cardHeight, setCardHeight] = useState(236);
+
   const safeDistance = Number.isFinite(distanceKm) ? distanceKm : 0;
   const safeDuration = Number.isFinite(durationMin) ? durationMin : 0;
   const safePrice = Number.isFinite(priceIls) ? priceIls : 0;
@@ -81,6 +83,7 @@ export function SearchingDriverScreen({
         console.error('Error subscribing to trip request:', error);
       }
     );
+
     return () => unsubscribe();
   }, [requestId, onDriverAssigned]);
 
@@ -102,14 +105,14 @@ export function SearchingDriverScreen({
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.14,
-          duration: 850,
+          toValue: 1.12,
+          duration: 780,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 850,
+          duration: 780,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -119,13 +122,45 @@ export function SearchingDriverScreen({
     return () => pulse.stop();
   }, [pulseAnim]);
 
+  const title = isMatched
+    ? isRTL
+      ? 'تم تعيين السائق'
+      : 'Driver assigned'
+    : terminalStatus === 'expired'
+      ? isRTL
+        ? 'لم يتم العثور على سائق'
+        : 'No driver found'
+      : terminalStatus === 'cancelled'
+        ? isRTL
+          ? 'انتهى الطلب'
+          : 'Request ended'
+        : isRTL
+          ? 'جارٍ البحث عن سائق'
+          : 'Searching for driver';
+
+  const subtitle = isMatched
+    ? isRTL
+      ? 'السائق في الطريق إلى نقطة الالتقاط.'
+      : 'Your driver is heading to pickup.'
+    : terminalStatus === 'expired'
+      ? isRTL
+        ? 'لم نجد سائقاً متوافقاً ضمن المهلة المحددة.'
+        : 'We could not find a compatible driver in time.'
+      : terminalStatus === 'cancelled'
+        ? isRTL
+          ? 'الطلب لم يعد نشطاً.'
+          : 'This request is no longer active.'
+        : isRTL
+          ? 'نطابقك مع أقرب سائق متاح.'
+          : 'Matching you with the nearest available driver.';
+
   return (
     <View style={styles.container}>
       <PassengerMapView
         pickup={pickup}
         dropoff={dropoff}
         routeMode={isMatched ? 'toPickup' : 'auto'}
-        mapHeightRatio={0.5}
+        mapHeightRatio={0.64}
         overlayBottomOffset={overlayBottomOffset}
         showLegend={false}
         showControls={false}
@@ -135,12 +170,18 @@ export function SearchingDriverScreen({
         <View style={[styles.topBadge, { marginTop: topPadding }]}>
           <Text style={styles.topBadgeText}>
             {isMatched
-              ? 'Driver assigned'
+              ? isRTL
+                ? 'السائق في الطريق'
+                : 'Driver on the way'
               : terminalStatus === 'expired'
-                ? 'No compatible driver'
+                ? isRTL
+                  ? 'لم يتوفر سائق'
+                  : 'No driver available'
                 : terminalStatus === 'cancelled'
-                  ? 'Request ended'
-                  : `Searching${dots}`}
+                  ? isRTL
+                    ? 'تم إنهاء الطلب'
+                    : 'Request ended'
+                  : `${isRTL ? 'جارٍ البحث' : `Searching${dots}`}`}
           </Text>
         </View>
 
@@ -167,35 +208,19 @@ export function SearchingDriverScreen({
               </Text>
             </Animated.View>
             <View style={styles.headerText}>
-              <Text style={styles.title}>
-                {isMatched
-                  ? 'Driver is on the way'
-                  : terminalStatus === 'expired'
-                    ? 'No driver found'
-                    : terminalStatus === 'cancelled'
-                      ? 'Request cancelled'
-                      : 'Searching for a driver'}
-              </Text>
-              <Text style={styles.subtitle}>
-                {isMatched
-                  ? 'A driver accepted your trip request.'
-                  : terminalStatus === 'expired'
-                    ? 'We could not find a compatible driver in time.'
-                    : terminalStatus === 'cancelled'
-                      ? 'Your request is no longer active.'
-                      : 'We are matching you with the nearest available driver.'}
-              </Text>
+              <Text style={styles.title}>{title}</Text>
+              <Text style={styles.subtitle}>{subtitle}</Text>
             </View>
             {!isMatched && !terminalStatus ? <ActivityIndicator size="small" color="#1D4ED8" /> : null}
           </View>
 
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Distance</Text>
+              <Text style={styles.summaryLabel}>{isRTL ? 'المسافة' : 'Distance'}</Text>
               <Text style={styles.summaryValue}>{safeDistance.toFixed(1)} km</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>ETA</Text>
+              <Text style={styles.summaryLabel}>{isRTL ? 'الوقت المتوقع' : 'ETA'}</Text>
               <Text style={styles.summaryValue}>
                 {safeDuration < 60
                   ? `${Math.round(safeDuration)} min`
@@ -203,14 +228,26 @@ export function SearchingDriverScreen({
               </Text>
             </View>
             <View style={[styles.summaryRow, styles.summaryRowNoBorder]}>
-              <Text style={styles.fareLabel}>Fare</Text>
+              <Text style={styles.fareLabel}>{isRTL ? 'الأجرة' : 'Fare'}</Text>
               <Text style={styles.fareValue}>NIS {safePrice}</Text>
             </View>
           </View>
 
           {!isMatched ? (
             <Button
-              title={terminalStatus ? 'Back to Home' : cancelling ? 'Cancelling...' : 'Cancel Trip'}
+              title={
+                terminalStatus
+                  ? isRTL
+                    ? 'العودة للرئيسية'
+                    : 'Back to Home'
+                  : cancelling
+                    ? isRTL
+                      ? 'جارٍ الإلغاء...'
+                      : 'Cancelling...'
+                    : isRTL
+                      ? 'إلغاء الطلب'
+                      : 'Cancel Trip'
+              }
               variant="outline"
               onPress={onCancel}
               disabled={cancelling}
@@ -235,7 +272,7 @@ const styles = StyleSheet.create({
   },
   topBadge: {
     borderRadius: 999,
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
     paddingVertical: 8,
     paddingHorizontal: 14,
   },

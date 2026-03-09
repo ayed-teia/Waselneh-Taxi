@@ -1,28 +1,27 @@
 /**
- * Map configuration for mobile apps
- *
+ * Map configuration for mobile apps.
  * Uses Expo public environment variable for Mapbox token.
  */
 
 const MAPBOX_TOKEN = (process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? '').trim();
 
 /**
- * Check if Mapbox is configured
+ * Check if Mapbox is configured.
  */
 export function isMapboxConfigured(): boolean {
   return MAPBOX_TOKEN.length > 0;
 }
 
 /**
- * Get Mapbox access token
- * Returns empty string if not configured
+ * Get Mapbox access token.
+ * Returns empty string if not configured.
  */
 export function getMapboxToken(): string {
   return MAPBOX_TOKEN;
 }
 
 /**
- * Default map region (Addis Ababa, Ethiopia)
+ * Default map region (Nablus, Palestine).
  */
 export const DEFAULT_REGION = {
   latitude: 32.2211,
@@ -32,10 +31,31 @@ export const DEFAULT_REGION = {
 };
 
 /**
- * Navigation-focused style gives cleaner roads and less clutter.
+ * Primary style for online mode and offline-safe fallback style.
  */
 export const MAP_STYLE_URL = 'mapbox://styles/mapbox/streets-v11';
-export const MAP_FALLBACK_STYLE_URL = 'https://demotiles.maplibre.org/style.json';
+export const MAP_FALLBACK_STYLE_URL = 'waselneh://offline-fallback-style';
+export const MAP_FALLBACK_STYLE_JSON = JSON.stringify({
+  version: 8,
+  name: 'Waselneh Fallback OSM',
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [
+    {
+      id: 'osm-raster',
+      type: 'raster',
+      source: 'osm',
+      minzoom: 0,
+      maxzoom: 19,
+    },
+  ],
+});
 
 /**
  * Camera defaults tuned for urban ride-hailing UX.
@@ -47,32 +67,31 @@ export const CAMERA_DEFAULTS = {
 };
 
 /**
- * Map update throttle interval (ms)
- * Prevents excessive re-renders
+ * Map update throttle interval (ms).
  */
 export const MAP_UPDATE_THROTTLE_MS = 1000;
 
 /**
- * Marker colors for different statuses
+ * Marker colors for different statuses.
  */
 export const MARKER_COLORS = {
   driver: {
-    assigned: '#007AFF',  // Blue for assigned driver
-    online: '#34C759',    // Green for other online drivers
-    offline: '#8E8E93',   // Gray for offline
+    assigned: '#007AFF',
+    online: '#34C759',
+    offline: '#8E8E93',
   },
   roadblock: {
-    open: '#34C759',      // Green - road is open
-    closed: '#FF3B30',    // Red - road is closed
-    congested: '#FF9500', // Orange - heavy traffic
+    open: '#34C759',
+    closed: '#FF3B30',
+    congested: '#FF9500',
   },
   trip: {
-    pickup: '#007AFF',    // Blue
-    dropoff: '#34C759',   // Green
+    pickup: '#007AFF',
+    dropoff: '#34C759',
   },
 };
 
 /**
- * Log prefix for map-related operations
+ * Log prefix for map-related operations.
  */
 export const MAP_LOG_PREFIX = '[Map]';

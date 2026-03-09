@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Button, Card, ScreenContainer, Text } from '@waselneh/ui';
+import { Badge, Button, Card, ScreenContainer, Text } from '@waselneh/ui';
 import { colors } from '../../../ui/theme';
 import { useI18n } from '../../../localization';
 import { LanguageToggle } from '../../../ui';
@@ -14,7 +14,7 @@ export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
   const { isRTL } = useI18n();
   const { width, height } = useWindowDimensions();
   const isCompact = height < 760;
-  const contentWidth = Math.min(width - 32, 430);
+  const contentWidth = Math.min(width - 32, 440);
   const horizontalPadding = Math.max(16, (width - contentWidth) / 2);
 
   return (
@@ -23,37 +23,42 @@ export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
       <View style={styles.backgroundBottomBlob} />
 
       <View style={[styles.page, { paddingHorizontal: horizontalPadding }]}>
-        <View style={[styles.header, { marginTop: isCompact ? 22 : 34 }]}>
+        <View style={[styles.header, { marginTop: isCompact ? 20 : 30 }]}>
           <LanguageToggle />
-          <View style={styles.badge}>
-            <Text variant="caption" style={styles.badgeText}>
-              {isRTL ? 'تطبيق الراكب' : 'Passenger App'}
-            </Text>
-          </View>
+          <Badge
+            label={isRTL ? 'تطبيق الركّاب' : 'Passenger App'}
+            variant="info"
+            withDot
+            style={styles.badge}
+          />
           <Text variant="h1" style={styles.title}>
             Waselneh
           </Text>
           <Text muted style={styles.subtitle}>
             {isRTL
-              ? 'تنقلات مدينة سريعة وموثوقة في الضفة الغربية'
-              : 'Fast and reliable city rides across West Bank'}
+              ? 'تنقّل سريع وموثوق داخل مدن الضفة الغربية بخطوات بسيطة.'
+              : 'Fast and reliable city rides across the West Bank in a few taps.'}
           </Text>
         </View>
 
-        <View style={[styles.content, { marginTop: isCompact ? 28 : 40 }]}>
+        <View style={[styles.content, { marginTop: isCompact ? 26 : 38 }]}>
           <Card elevated style={styles.card}>
-            <Text style={styles.description}>
+            <Text variant="bodyStrong" style={styles.description}>
               {isRTL
-                ? 'احجز خلال ثوانٍ، وتتبع السائق مباشرة، واحصل على تحديثات الطريق والازدحام.'
-                : 'Book in seconds, track your driver live, and get route updates for traffic and roadblocks.'}
+                ? 'احجز خلال ثوانٍ، تتبّع السائق لحظياً، وخذ قرارك بسرعة عبر واجهة واضحة.'
+                : 'Book in seconds, track your driver live, and make decisions quickly with a clear interface.'}
             </Text>
             <View style={styles.featureRow}>
               <View style={[styles.featureDot, styles.blueDot]} />
-              <Text style={styles.featureText}>{isRTL ? 'تتبع السائق مباشرة' : 'Live driver tracking'}</Text>
+              <Text style={styles.featureText}>
+                {isRTL ? 'تتبّع مباشر لموقع السائق' : 'Live driver tracking'}
+              </Text>
             </View>
             <View style={styles.featureRow}>
               <View style={[styles.featureDot, styles.amberDot]} />
-              <Text style={styles.featureText}>{isRTL ? 'مسارات تراعي الإغلاقات' : 'Roadblock-aware routes'}</Text>
+              <Text style={styles.featureText}>
+                {isRTL ? 'مسارات تراعي الإغلاقات' : 'Roadblock-aware routes'}
+              </Text>
             </View>
           </Card>
         </View>
@@ -71,7 +76,7 @@ export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
               : 'By continuing, you agree to our Terms of Service and Privacy Policy.'}
           </Text>
           <Text variant="caption" muted style={styles.version}>
-            {isRTL ? 'تجربة الراكب الجديدة' : 'vNext rider experience'}
+            {isRTL ? 'تجربة ركّاب واصلني' : 'Waselneh rider experience'}
           </Text>
         </View>
       </View>
@@ -88,8 +93,8 @@ const styles = StyleSheet.create({
   },
   backgroundTopBlob: {
     position: 'absolute',
-    top: -80,
-    right: -40,
+    top: -74,
+    right: -32,
     width: 220,
     height: 220,
     borderRadius: 110,
@@ -99,9 +104,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -110,
     left: -70,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
     backgroundColor: '#E0E7FF',
   },
   header: {
@@ -109,39 +114,29 @@ const styles = StyleSheet.create({
   },
   badge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#1E3A8A',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    letterSpacing: 0.3,
   },
   title: {
     color: '#0F172A',
-    letterSpacing: 0.4,
+    letterSpacing: -0.4,
   },
   subtitle: {
     fontSize: 16,
     lineHeight: 24,
-    maxWidth: 320,
+    maxWidth: 340,
   },
   content: {
     flexGrow: 1,
   },
   card: {
-    borderColor: '#DBEAFE',
+    borderColor: '#DCE6F5',
     borderWidth: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 22,
     gap: 14,
+    backgroundColor: '#FFFFFF',
   },
   description: {
-    fontSize: 16,
-    lineHeight: 24,
     color: '#1E293B',
+    lineHeight: 24,
   },
   featureRow: {
     flexDirection: 'row',
@@ -162,11 +157,11 @@ const styles = StyleSheet.create({
   featureText: {
     color: '#334155',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   footer: {
     marginTop: 'auto',
-    gap: 16,
+    gap: 14,
   },
   loginButton: {
     minHeight: 56,

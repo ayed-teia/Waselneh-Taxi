@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { BottomSheetCard, StatusChip } from '@waselneh/ui';
 import { PassengerMapView } from '../PassengerMapView';
 import { createTripRequest, estimateTrip } from '../../../services/api';
 import { colors } from '../../../ui/theme';
@@ -27,34 +28,29 @@ const VEHICLE_TYPE_ORDER: VehicleType[] = [
   VEHICLE_TYPES.MINIBUS,
   VEHICLE_TYPES.PREMIUM,
 ];
+
 const BOOKING_TYPE_OPTIONS: Array<{ value: BookingType; labelEn: string; labelAr: string }> = [
   { value: BOOKING_TYPES.SEAT_ONLY, labelEn: 'One Seat', labelAr: 'مقعد واحد' },
   { value: BOOKING_TYPES.FULL_TAXI, labelEn: 'Full Taxi', labelAr: 'تكسي كامل' },
 ];
 
-/**
- * Passenger map with a polished ride-hailing style bottom sheet.
- */
 export function MapScreen() {
   const { isRTL } = useI18n();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+
   const [isCreatingTrip, setIsCreatingTrip] = useState(false);
-  const [sheetHeight, setSheetHeight] = useState(306);
+  const [sheetHeight, setSheetHeight] = useState(318);
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [selectedPlaceId, setSelectedPlaceId] = useState<SavedPlace['id']>('favorite');
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleType>(VEHICLE_TYPES.TAXI_STANDARD);
   const [bookingType, setBookingType] = useState<BookingType>(BOOKING_TYPES.SEAT_ONLY);
 
   const isCompact = height < 760;
-  const isNarrow = width < 390;
   const panelWidth = width >= 768 ? 560 : width;
   const sheetPaddingBottom = Math.max(14, insets.bottom + 8);
   const mapOverlayBottom = sheetHeight + 14;
-  const titleFontSize = isNarrow ? 34 : 40;
-  const titleLineHeight = isNarrow ? 36 : 42;
-  const subtitleFontSize = isNarrow ? 13 : 14;
 
   useEffect(() => {
     let mounted = true;
@@ -80,6 +76,11 @@ export function MapScreen() {
     () => savedPlaces.find((place) => place.id === selectedPlaceId) ?? null,
     [savedPlaces, selectedPlaceId]
   );
+
+  const destination = selectedPlace
+    ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
+    : DEFAULT_DESTINATION;
+
   const rideOptions = useMemo(
     () => ({
       bookingType,
@@ -90,10 +91,6 @@ export function MapScreen() {
     }),
     [bookingType, selectedPlace?.subtitle, selectedPlace?.title, selectedVehicleType]
   );
-
-  const destination = selectedPlace
-    ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
-    : DEFAULT_DESTINATION;
 
   const handleSheetLayout = (event: LayoutChangeEvent) => {
     const measuredHeight = event.nativeEvent.layout.height;
@@ -133,7 +130,6 @@ export function MapScreen() {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to request trip.';
-      console.error('[MapScreen] Trip request failed:', message);
       Alert.alert(isRTL ? 'تعذّر طلب الرحلة' : 'Unable to request trip', message);
     } finally {
       setIsCreatingTrip(false);
@@ -145,16 +141,9 @@ export function MapScreen() {
       [VEHICLE_TYPES.TAXI_STANDARD]: isRTL ? 'تاكسي عادي' : 'Standard',
       [VEHICLE_TYPES.FAMILY_VAN]: isRTL ? 'فان عائلي' : 'Family Van',
       [VEHICLE_TYPES.MINIBUS]: isRTL ? 'ميني باص' : 'Minibus',
-      [VEHICLE_TYPES.PREMIUM]: isRTL ? 'بريميوم' : 'Premium',
+      [VEHICLE_TYPES.PREMIUM]: isRTL ? 'مميز' : 'Premium',
     }),
     [isRTL]
-  );
-
-  const handleSelectPlace = useCallback(
-    (place: SavedPlace) => {
-      setSelectedPlaceId(place.id);
-    },
-    []
   );
 
   const quickChips = useMemo(
@@ -166,14 +155,14 @@ export function MapScreen() {
             key={item.id}
             style={[styles.quickChip, selected && styles.quickChipSelected]}
             activeOpacity={0.9}
-            onPress={() => handleSelectPlace(item)}
+            onPress={() => setSelectedPlaceId(item.id)}
           >
             <Text style={styles.quickChipTitle}>{item.title}</Text>
             <Text style={styles.quickChipSubtitle}>{item.subtitle}</Text>
           </TouchableOpacity>
         );
       }),
-    [savedPlaces, selectedPlaceId, handleSelectPlace]
+    [savedPlaces, selectedPlaceId]
   );
 
   return (
@@ -181,12 +170,12 @@ export function MapScreen() {
       <PassengerMapView
         pickup={DEFAULT_PICKUP}
         dropoff={destination}
-        mapHeightRatio={0.52}
+        mapHeightRatio={0.64}
         overlayBottomOffset={mapOverlayBottom}
       />
 
       <View style={styles.sheetLayer} pointerEvents="box-none">
-        <View
+        <BottomSheetCard
           onLayout={handleSheetLayout}
           style={[
             styles.bottomSheet,
@@ -199,8 +188,6 @@ export function MapScreen() {
             },
           ]}
         >
-          <View style={styles.handle} />
-
           <View style={[styles.topActionsRow, isRTL && styles.rowReverse]}>
             <LanguageToggle />
             <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/history')}>
@@ -215,17 +202,17 @@ export function MapScreen() {
           </View>
 
           <View style={[styles.sheetHeaderRow, isRTL && styles.rowReverse]}>
-            <View>
-              <Text style={[styles.sheetTitle, { fontSize: titleFontSize, lineHeight: titleLineHeight }]}>
-                {isRTL ? 'إلى أين؟' : 'Where to?'}
-              </Text>
-              <Text style={[styles.sheetSubtitle, { fontSize: subtitleFontSize }]}>
-                {isRTL ? 'احجز رحلتك خلال ثوانٍ.' : 'Book a ride in seconds.'}
+            <View style={styles.headerTextWrap}>
+              <Text style={styles.sheetTitle}>{isRTL ? 'إلى أين؟' : 'Where to?'}</Text>
+              <Text style={styles.sheetSubtitle}>
+                {isRTL ? 'احجز رحلتك خلال ثوانٍ.' : 'Book your ride in seconds.'}
               </Text>
             </View>
-            <View style={styles.scheduleBadge}>
-              <Text style={styles.scheduleBadgeText}>{isRTL ? 'الآن' : 'Now'}</Text>
-            </View>
+            <StatusChip
+              label={isRTL ? 'حي الآن' : 'Live now'}
+              tone="info"
+              style={styles.statusChip}
+            />
           </View>
 
           <TouchableOpacity style={[styles.searchBox, isRTL && styles.rowReverse]} activeOpacity={0.92}>
@@ -235,78 +222,78 @@ export function MapScreen() {
             </Text>
           </TouchableOpacity>
 
-          <View style={styles.rideOptionsContainer}>
-            <Text style={styles.rideOptionsTitle}>{isRTL ? 'خيارات الرحلة' : 'Ride options'}</Text>
-
-            <View style={[styles.vehicleChipsRow, isRTL && styles.rowReverse]}>
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>{isRTL ? 'خيارات الرحلة' : 'Ride options'}</Text>
+            <View style={[styles.chipsRow, isRTL && styles.rowReverse]}>
               {VEHICLE_TYPE_ORDER.map((vehicleType) => {
                 const selected = selectedVehicleType === vehicleType;
                 return (
                   <TouchableOpacity
                     key={vehicleType}
-                    style={[styles.vehicleChip, selected && styles.vehicleChipSelected]}
+                    style={[styles.optionChip, selected && styles.optionChipSelected]}
                     onPress={() => setSelectedVehicleType(vehicleType)}
-                    activeOpacity={0.88}
+                    activeOpacity={0.9}
                   >
-                    <Text style={[styles.vehicleChipText, selected && styles.vehicleChipTextSelected]}>
+                    <Text style={[styles.optionChipText, selected && styles.optionChipTextSelected]}>
                       {vehicleLabelByType[vehicleType]}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
-
-            <View style={styles.bookingTypeSection}>
-              <Text style={styles.seatOptionsLabel}>{isRTL ? 'نوع الحجز' : 'Booking type'}</Text>
-              <View style={[styles.vehicleChipsRow, isRTL && styles.rowReverse]}>
-                {BOOKING_TYPE_OPTIONS.map((option) => {
-                  const selected = bookingType === option.value;
-                  return (
-                    <TouchableOpacity
-                      key={option.value}
-                      style={[styles.vehicleChip, selected && styles.vehicleChipSelected]}
-                      onPress={() => setBookingType(option.value)}
-                      activeOpacity={0.88}
-                    >
-                      <Text style={[styles.vehicleChipText, selected && styles.vehicleChipTextSelected]}>
-                        {isRTL ? option.labelAr : option.labelEn}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <Text style={styles.bookingTypeHint}>
-                {bookingType === BOOKING_TYPES.FULL_TAXI
-                  ? isRTL
-                    ? 'حجز التكسي الكامل يحجز كل المقاعد ويخفي السائق عن الطلبات الجديدة.'
-                    : 'Full taxi reserves all seats and hides this driver from new matches.'
-                  : isRTL
-                    ? 'سيتم حجز مقعد واحد فقط.'
-                    : 'Only one seat will be reserved.'}
-              </Text>
-            </View>
           </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>{isRTL ? 'نوع الحجز' : 'Booking type'}</Text>
+            <View style={[styles.chipsRow, isRTL && styles.rowReverse]}>
+              {BOOKING_TYPE_OPTIONS.map((option) => {
+                const selected = bookingType === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[styles.optionChip, selected && styles.optionChipSelected]}
+                    onPress={() => setBookingType(option.value)}
+                    activeOpacity={0.9}
+                  >
+                    <Text style={[styles.optionChipText, selected && styles.optionChipTextSelected]}>
+                      {isRTL ? option.labelAr : option.labelEn}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.bookingTypeHint}>
+              {bookingType === BOOKING_TYPES.FULL_TAXI
+                ? isRTL
+                  ? 'حجز التكسي الكامل يخصص كل المقاعد لك.'
+                  : 'Full taxi reserves all seats for your trip.'
+                : isRTL
+                  ? 'سيتم حجز مقعد واحد فقط.'
+                  : 'Only one seat will be reserved.'}
+            </Text>
+          </View>
+
           <View style={[styles.quickChipsRow, isRTL && styles.rowReverse]}>{quickChips}</View>
 
           <TouchableOpacity
             style={[styles.requestButton, isCreatingTrip && styles.requestButtonDisabled]}
             onPress={handleRequestTrip}
             disabled={isCreatingTrip}
-            activeOpacity={0.9}
+            activeOpacity={0.92}
           >
             {isCreatingTrip ? (
               <>
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color="#0F172A" />
                 <Text style={styles.requestButtonText}>{isRTL ? 'جاري مطابقة سائق...' : 'Matching driver...'}</Text>
               </>
             ) : (
               <>
                 <View style={styles.requestButtonIndicator} />
-                <Text style={styles.requestButtonText}>{isRTL ? 'اطلب رحلة' : 'Request Ride'}</Text>
+                <Text style={styles.requestButtonText}>{isRTL ? 'اطلب رحلة الآن' : 'Request ride now'}</Text>
               </>
             )}
           </TouchableOpacity>
-        </View>
+        </BottomSheetCard>
       </View>
     </View>
   );
@@ -325,24 +312,7 @@ const styles = StyleSheet.create({
   },
   bottomSheet: {
     alignSelf: 'stretch',
-    backgroundColor: 'rgba(248, 250, 252, 0.98)',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: 1,
-    borderColor: '#DDE3F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 14,
-    elevation: 10,
-    gap: 14,
-  },
-  handle: {
-    width: 44,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: '#CBD5E1',
-    alignSelf: 'center',
+    gap: 12,
   },
   topActionsRow: {
     flexDirection: 'row',
@@ -367,12 +337,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
+  headerTextWrap: {
+    flex: 1,
+  },
   sheetTitle: {
-    fontSize: 40,
-    lineHeight: 42,
+    fontSize: 36,
+    lineHeight: 40,
     fontWeight: '800',
     color: '#0F172A',
-    letterSpacing: -0.8,
+    letterSpacing: -0.7,
   },
   sheetSubtitle: {
     marginTop: 2,
@@ -380,16 +353,8 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontWeight: '500',
   },
-  scheduleBadge: {
-    backgroundColor: '#E2E8F0',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  scheduleBadgeText: {
-    color: '#334155',
-    fontWeight: '700',
-    fontSize: 13,
+  statusChip: {
+    marginTop: 6,
   },
   searchBox: {
     minHeight: 54,
@@ -409,29 +374,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   searchPlaceholder: {
-    color: '#475569',
+    color: '#334155',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  rideOptionsContainer: {
-    borderRadius: 12,
+  section: {
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#DDE3F0',
     backgroundColor: '#FFFFFF',
     padding: 10,
     gap: 10,
   },
-  rideOptionsTitle: {
+  sectionLabel: {
     fontSize: 13,
     fontWeight: '700',
     color: '#334155',
   },
-  vehicleChipsRow: {
+  chipsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  vehicleChip: {
+  optionChip: {
     borderWidth: 1,
     borderColor: '#DDE3F0',
     borderRadius: 999,
@@ -439,29 +404,21 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: '#F8FAFC',
   },
-  vehicleChipSelected: {
-    borderColor: '#2563EB',
+  optionChipSelected: {
+    borderColor: '#1D4ED8',
     backgroundColor: '#EFF6FF',
   },
-  vehicleChipText: {
+  optionChipText: {
     fontSize: 12,
     color: '#334155',
-    fontWeight: '600',
-  },
-  vehicleChipTextSelected: {
-    color: '#1D4ED8',
-  },
-  bookingTypeSection: {
-    gap: 8,
-  },
-  seatOptionsLabel: {
-    fontSize: 13,
     fontWeight: '700',
-    color: '#334155',
+  },
+  optionChipTextSelected: {
+    color: '#1D4ED8',
   },
   bookingTypeHint: {
     fontSize: 12,
-    lineHeight: 18,
+    lineHeight: 17,
     color: '#64748B',
     fontWeight: '500',
   },
@@ -480,7 +437,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   quickChipSelected: {
-    borderColor: '#2563EB',
+    borderColor: '#1D4ED8',
     backgroundColor: '#EFF6FF',
   },
   quickChipTitle: {
@@ -495,30 +452,29 @@ const styles = StyleSheet.create({
   requestButton: {
     minHeight: 56,
     borderRadius: 15,
-    backgroundColor: colors.primary,
+    backgroundColor: '#F5C518',
+    borderWidth: 1,
+    borderColor: '#D89C05',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   requestButtonDisabled: {
-    backgroundColor: '#64748B',
+    opacity: 0.72,
   },
   requestButtonIndicator: {
     width: 8,
     height: 8,
     borderRadius: 999,
-    backgroundColor: '#93C5FD',
+    backgroundColor: '#1D4ED8',
   },
   requestButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: '#0F172A',
+    fontWeight: '800',
     fontSize: 18,
   },
   rowReverse: {
     flexDirection: 'row-reverse',
   },
 });
-
-
-

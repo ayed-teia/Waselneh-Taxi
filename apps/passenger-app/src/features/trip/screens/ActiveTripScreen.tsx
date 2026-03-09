@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TripStatus } from '@taxi-line/shared';
+import { StatusChip } from '@waselneh/ui';
 import { PassengerMapView } from '../../map';
 import { Button } from '../../../ui';
 import { DriverLocation, DriverProfile, TripChatMessage } from '../../../services/realtime';
@@ -100,19 +101,6 @@ function getStatusMeta(status: TripStatus, isRTL: boolean): {
   }
 }
 
-function toneColor(tone: 'neutral' | 'info' | 'success' | 'warning'): string {
-  switch (tone) {
-    case 'info':
-      return '#2563EB';
-    case 'success':
-      return '#16A34A';
-    case 'warning':
-      return '#F59E0B';
-    default:
-      return '#334155';
-  }
-}
-
 /**
  * Passenger active trip screen with live map and responsive bottom details sheet.
  */
@@ -162,11 +150,10 @@ export function ActiveTripScreen({
     status === 'cancelled_by_system' ||
     status === 'no_driver_available';
 
-  const tone = toneColor(meta.tone);
   const mappedPickup = pickup ?? DEFAULT_PICKUP;
   const topPadding = Math.max(74, insets.top + 52);
   const safeEstimatedFare = Number.isFinite(estimatedPriceIls ?? NaN) ? estimatedPriceIls : 0;
-  const mapHeightRatio = isNarrow ? 0.5 : 0.52;
+  const mapHeightRatio = isNarrow ? 0.6 : 0.64;
   const hasDriverCoordinates =
     Boolean(driverLocation) &&
     Number.isFinite(driverLocation?.lat) &&
@@ -239,10 +226,7 @@ export function ActiveTripScreen({
       />
 
       <View style={styles.overlay} pointerEvents="box-none">
-        <View style={[styles.statusPill, { borderColor: `${tone}33`, marginTop: topPadding }]}>
-          <View style={[styles.statusDot, { backgroundColor: tone }]} />
-          <Text style={styles.statusPillText}>{meta.title}</Text>
-        </View>
+        <StatusChip label={meta.title} tone={meta.tone === 'neutral' ? 'neutral' : meta.tone} style={[styles.statusChip, { marginTop: topPadding }]} />
 
         <View
           onLayout={(event) => {
@@ -401,6 +385,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     gap: 8,
+  },
+  statusChip: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   statusDot: {
     width: 8,
