@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { BottomSheetCard, StatusChip } from '@waselneh/ui';
 import { DriverMapView } from '../../map';
 import { useDriverStore } from '../../../store';
 import { useTripRequestStore } from '../../../store/trip-request.store';
@@ -18,9 +19,6 @@ interface HomeScreenProps {
   onToggleStatus: (goOnline: boolean) => void;
 }
 
-/**
- * Driver home with responsive bottom control panel.
- */
 export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
   const { isRTL } = useI18n();
   const router = useRouter();
@@ -36,17 +34,20 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
     ? { latitude: currentLocation.lat, longitude: currentLocation.lng }
     : null;
 
+  const statusTone =
+    status === 'online' ? 'success' : status === 'busy' ? 'warning' : 'neutral';
+
   return (
     <View style={styles.container}>
       <DriverMapView
         driverLocation={driverLocation}
         followUser
-        mapHeightRatio={0.52}
+        mapHeightRatio={0.64}
         overlayBottomOffset={16}
       />
 
       <View style={styles.panelLayer} pointerEvents="box-none">
-        <View
+        <BottomSheetCard
           style={[
             styles.bottomPanel,
             {
@@ -57,12 +58,29 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
             },
           ]}
         >
-          <View style={styles.handle} />
+          <View style={[styles.statusRow, isRTL && styles.rowReverse]}>
+            <StatusChip
+              label={
+                status === 'online'
+                  ? isRTL
+                    ? 'متصل'
+                    : 'Online'
+                  : status === 'busy'
+                    ? isRTL
+                      ? 'مشغول'
+                      : 'Busy'
+                    : isRTL
+                      ? 'غير متصل'
+                      : 'Offline'
+              }
+              tone={statusTone}
+            />
+            <LanguageToggle />
+          </View>
 
           <StatusToggle status={status} isLoading={isUpdatingStatus} onToggle={onToggleStatus} />
 
           <View style={[styles.quickRow, isRTL && styles.rowReverse]}>
-            <LanguageToggle />
             <TouchableOpacity style={styles.quickChip} onPress={() => router.push('/history')} activeOpacity={0.9}>
               <Text style={styles.quickChipText}>{isRTL ? 'السجل' : 'History'}</Text>
             </TouchableOpacity>
@@ -76,13 +94,19 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
 
           {status === 'online' ? (
             <View style={styles.requestsSection}>
-              <Text style={styles.sectionTitle}>{isRTL ? 'رحلات قادمة' : 'Incoming trips'}</Text>
-              <TouchableOpacity style={[styles.inboxButton, isRTL && styles.rowReverse]} onPress={() => router.push('/inbox')} activeOpacity={0.9}>
+              <Text style={styles.sectionTitle}>{isRTL ? 'الطلبات القريبة' : 'Nearby requests'}</Text>
+              <TouchableOpacity style={[styles.inboxButton, isRTL && styles.rowReverse]} onPress={() => router.push('/inbox')} activeOpacity={0.92}>
                 <View style={styles.inboxIcon} />
                 <View style={styles.inboxBody}>
-                  <Text style={styles.inboxTitle}>{isRTL ? 'فتح صندوق الطلبات' : 'Open Request Inbox'}</Text>
+                  <Text style={styles.inboxTitle}>{isRTL ? 'افتح صندوق الطلبات' : 'Open request inbox'}</Text>
                   <Text style={styles.inboxSubtitle}>
-                    {isRTL ? 'راجع واقبل الطلبات المعلقة بسرعة.' : (pendingRequest ? 'You have a pending request now. Open inbox to accept.' : 'Review and accept pending trips quickly.')}
+                    {isRTL
+                      ? pendingRequest
+                        ? 'يوجد طلب جديد بانتظارك الآن.'
+                        : 'راجع الطلبات الواردة واقبلها بسرعة.'
+                      : pendingRequest
+                        ? 'You have a pending request now.'
+                        : 'Review incoming requests and accept quickly.'}
                   </Text>
                 </View>
                 <Text style={styles.inboxArrow}>{isRTL ? '<' : '>'}</Text>
@@ -93,12 +117,12 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
               <Text style={styles.offlineTitle}>{isRTL ? 'أنت غير متصل' : 'You are offline'}</Text>
               <Text style={styles.offlineText}>
                 {isRTL
-                  ? 'حوّل إلى متصل عندما تصبح جاهزاً لاستقبال طلبات قريبة.'
-                  : 'Switch online when ready to receive nearby trip requests.'}
+                  ? 'فعّل وضع متصل عندما تصبح جاهزاً لاستقبال طلبات قريبة.'
+                  : 'Switch online when you are ready to receive nearby trip requests.'}
               </Text>
             </View>
           )}
-        </View>
+        </BottomSheetCard>
       </View>
     </View>
   );
@@ -117,24 +141,12 @@ const styles = StyleSheet.create({
   },
   bottomPanel: {
     alignSelf: 'stretch',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: 1,
-    borderColor: '#DDE3F0',
-    backgroundColor: 'rgba(248, 250, 252, 0.98)',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 10,
     gap: 12,
   },
-  handle: {
-    width: 44,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: '#CBD5E1',
-    alignSelf: 'center',
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   quickRow: {
     flexDirection: 'row',
@@ -223,5 +235,3 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
   },
 });
-
-

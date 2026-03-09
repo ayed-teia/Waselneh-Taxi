@@ -17,9 +17,9 @@ export function StatusToggle({ status, isLoading, onToggle }: StatusToggleProps)
   const getStatusText = () => {
     switch (status) {
       case 'online':
-        return isRTL ? 'متصل وجاهز للطلبات' : 'Online and ready for requests';
+        return isRTL ? 'متصل وجاهز لاستقبال الطلبات' : 'Online and ready for requests';
       case 'busy':
-        return isRTL ? 'مشغول برحلة نشطة' : 'Busy on an active trip';
+        return isRTL ? 'مشغول برحلة نشطة حالياً' : 'Busy on an active trip';
       case 'offline':
       default:
         return isRTL ? 'غير متصل' : 'Offline';
@@ -29,12 +29,12 @@ export function StatusToggle({ status, isLoading, onToggle }: StatusToggleProps)
   const getStatusColor = () => {
     switch (status) {
       case 'online':
-        return '#34C759';
+        return '#22C55E';
       case 'busy':
-        return '#FF9500';
+        return '#F59E0B';
       case 'offline':
       default:
-        return '#8E8E93';
+        return '#94A3B8';
     }
   };
 
@@ -65,21 +65,23 @@ export function StatusToggle({ status, isLoading, onToggle }: StatusToggleProps)
       </View>
 
       <View style={[styles.toggleRow, isRTL && styles.rowReverse]}>
-        <Text style={styles.toggleLabel}>{isOnline ? (isRTL ? 'انتقل إلى غير متصل' : 'Go offline') : isRTL ? 'انتقل إلى متصل' : 'Go online'}</Text>
+        <Text style={styles.toggleLabel}>
+          {isOnline ? (isRTL ? 'انتقل إلى غير متصل' : 'Go offline') : isRTL ? 'انتقل إلى متصل' : 'Go online'}
+        </Text>
         <Switch
           value={isOnline}
           onValueChange={(value: boolean) => onToggle(value)}
           disabled={isLoading || isBusy}
-          trackColor={{ false: '#E5E5EA', true: '#34C759' }}
+          trackColor={{ false: '#E2E8F0', true: '#22C55E' }}
           thumbColor="#FFFFFF"
         />
       </View>
 
-      {isBusy && (
+      {isBusy ? (
         <Text style={styles.busyNote}>
-          {isRTL ? 'أكمل رحلتك الحالية قبل التحويل إلى غير متصل' : 'Complete your current trip to go offline'}
+          {isRTL ? 'أكمل رحلتك الحالية قبل التحويل إلى غير متصل.' : 'Complete your current trip before going offline.'}
         </Text>
-      )}
+      ) : null}
     </View>
   );
 }

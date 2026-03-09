@@ -1,7 +1,8 @@
-import React, { useCallback } from 'react';
+﻿import React, { useCallback } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TripStatus } from '@taxi-line/shared';
+import { BottomSheetCard, StatusChip } from '@waselneh/ui';
 import { Button } from '../../../ui';
 import { completeTrip, driverArrived, startTrip } from '../../../services/api';
 import { DriverMapView } from '../../map';
@@ -49,50 +50,55 @@ interface ActiveTripScreenProps {
 
 function getStatusMeta(
   status: TripStatus,
-  isRTL: boolean
-): { title: string; description: string; tone: string; action: string | null } {
+  isRTL: boolean,
+): { title: string; description: string; tone: 'neutral' | 'info' | 'success' | 'warning'; action: string | null } {
   switch (status) {
     case 'accepted':
       return {
-        title: isRTL ? 'متجه إلى الالتقاط' : 'Heading to pickup',
-        description: isRTL ? 'اتجه إلى موقع التقاط الراكب.' : 'Drive to passenger pickup location.',
-        tone: '#2563EB',
+        title: isRTL ? 'متجه إلى نقطة الالتقاط' : 'Heading to pickup',
+        description: isRTL
+          ? 'اتجه إلى موقع الراكب لتأكيد الوصول.'
+          : 'Drive to the pickup point and confirm arrival.',
+        tone: 'info',
         action: isRTL ? 'وصلت إلى الالتقاط' : 'Arrived at Pickup',
       };
     case 'driver_arrived':
       return {
         title: isRTL ? 'بانتظار الراكب' : 'Waiting for passenger',
-        description: isRTL ? 'الراكب متوقع عند نقطة الالتقاط.' : 'Passenger is expected at pickup.',
-        tone: '#16A34A',
+        description: isRTL
+          ? 'الراكب على نقطة الالتقاط. ابدأ الرحلة عند الصعود.'
+          : 'Passenger is at pickup. Start the trip once boarded.',
+        tone: 'success',
         action: isRTL ? 'ابدأ الرحلة' : 'Start Trip',
       };
     case 'in_progress':
       return {
         title: isRTL ? 'الرحلة قيد التنفيذ' : 'Trip in progress',
-        description: isRTL ? 'اتبع المسار نحو الوجهة.' : 'Follow route to destination.',
-        tone: '#2563EB',
+        description: isRTL
+          ? 'تابع المسار نحو الوجهة ثم أنهِ الرحلة.'
+          : 'Follow the route to destination and complete the trip.',
+        tone: 'info',
         action: isRTL ? 'إنهاء الرحلة' : 'Complete Trip',
       };
     case 'completed':
       return {
         title: isRTL ? 'اكتملت الرحلة' : 'Trip completed',
-        description: isRTL ? 'استلم الدفعة وأغلق الرحلة.' : 'Collect payment and close trip.',
-        tone: '#16A34A',
+        description: isRTL
+          ? 'تحقق من الدفعة النهائية ثم انتقل للطلب التالي.'
+          : 'Review the final fare and proceed to the next request.',
+        tone: 'success',
         action: null,
       };
     default:
       return {
         title: isRTL ? 'تحديث الرحلة' : 'Trip update',
-        description: isRTL ? 'تم تغيير الحالة.' : 'Status changed.',
-        tone: '#334155',
+        description: isRTL ? 'تم تغيير حالة الرحلة.' : 'Trip status changed.',
+        tone: 'neutral',
         action: null,
       };
   }
 }
 
-/**
- * Driver active trip screen with live map + professional action sheet.
- */
 export function ActiveTripScreen({
   tripId,
   status,
@@ -126,17 +132,20 @@ export function ActiveTripScreen({
   const { isRTL } = useI18n();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isNarrow = width < 390;
+  const isNarrow = width < 400;
   const { currentLocation } = useDriverStore();
   const [isUpdating, setIsUpdating] = React.useState(false);
 
-  const cardWidth = width >= 768 ? 560 : width;
   const statusMeta = getStatusMeta(status, isRTL);
-  const hasAction = statusMeta.action != null && (status === 'accepted' || status === 'driver_arrived' || status === 'in_progress');
+  const cardWidth = width >= 768 ? 560 : width;
   const topPadding = Math.max(74, insets.top + 52);
-  const mapHeightRatio = isNarrow ? 0.5 : 0.52;
+  const mapHeightRatio = isNarrow ? 0.6 : 0.64;
   const safeEstimatedFare = Number.isFinite(estimatedPriceIls ?? NaN) ? estimatedPriceIls : 0;
   const safeFareAmount = Number.isFinite(fareAmount ?? NaN) ? fareAmount : safeEstimatedFare;
+  const hasAction =
+    statusMeta.action != null &&
+    (status === 'accepted' || status === 'driver_arrived' || status === 'in_progress');
+
   const routeMode =
     status === 'in_progress'
       ? 'toDropoff'
@@ -153,18 +162,21 @@ export function ActiveTripScreen({
         await startTrip(tripId);
       } else if (status === 'in_progress') {
         const result = await completeTrip(tripId);
-        Alert.alert(isRTL ? 'اكتملت الرحلة' : 'Trip completed', `${isRTL ? 'الأجرة النهائية' : 'Final fare'}: ${isRTL ? '₪' : 'NIS '} ${result.finalPriceIls}`, [
-          { text: isRTL ? 'حسناً' : 'OK', onPress: onTripCompleted },
-        ]);
+        Alert.alert(
+          isRTL ? 'اكتملت الرحلة' : 'Trip completed',
+          `${isRTL ? 'الأجرة النهائية' : 'Final fare'}: ${isRTL ? '₪' : 'NIS '} ${result.finalPriceIls}`,
+          [{ text: isRTL ? 'حسنًا' : 'OK', onPress: onTripCompleted }],
+        );
         return;
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : isRTL ? 'تعذر تحديث الرحلة' : 'Failed to update trip';
+      const message =
+        error instanceof Error ? error.message : isRTL ? 'تعذر تحديث الرحلة' : 'Failed to update trip';
       Alert.alert(isRTL ? 'خطأ' : 'Error', message);
     } finally {
       setIsUpdating(false);
     }
-  }, [isRTL, status, tripId, onTripCompleted]);
+  }, [isRTL, onTripCompleted, status, tripId]);
 
   const driverLocation = currentLocation
     ? { latitude: currentLocation.lat, longitude: currentLocation.lng }
@@ -173,7 +185,12 @@ export function ActiveTripScreen({
   const showPassengerRating =
     status === 'completed' &&
     !passengerRatingSubmitted &&
-    Boolean(onPassengerRatingChange && onPassengerRatingCommentChange && onPassengerLowRatingReasonSelect && onSubmitPassengerRating);
+    Boolean(
+      onPassengerRatingChange &&
+        onPassengerRatingCommentChange &&
+        onPassengerLowRatingReasonSelect &&
+        onSubmitPassengerRating,
+    );
 
   return (
     <View style={styles.container}>
@@ -190,13 +207,21 @@ export function ActiveTripScreen({
       />
 
       <View style={styles.overlay} pointerEvents="box-none">
-        <View style={[styles.statusPill, { borderColor: `${statusMeta.tone}33`, marginTop: topPadding }]}>
-          <View style={[styles.statusDot, { backgroundColor: statusMeta.tone }]} />
-          <Text style={styles.statusPillText}>{statusMeta.title}</Text>
-        </View>
+        <StatusChip
+          label={statusMeta.title}
+          tone={statusMeta.tone}
+          style={[styles.statusChip, { marginTop: topPadding }]}
+        />
 
-        <View style={[styles.bottomCard, { width: cardWidth, paddingBottom: Math.max(14, insets.bottom + 8) }]}>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <BottomSheetCard
+          withHandle
+          style={[styles.bottomCard, { width: cardWidth, paddingBottom: Math.max(14, insets.bottom + 8) }]}
+        >
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{statusMeta.title}</Text>
             <Text style={styles.description}>{statusMeta.description}</Text>
 
@@ -212,6 +237,7 @@ export function ActiveTripScreen({
               etaToDestinationMin={etaToDropoffMin}
               updatedAt={etaUpdatedAt}
             />
+
             <TripTimeline status={status} />
 
             {estimatedPriceIls != null ? (
@@ -222,10 +248,14 @@ export function ActiveTripScreen({
             ) : null}
 
             {pickup ? (
-              <Text style={styles.metaHint}>{isRTL ? 'الالتقاط' : 'Pickup'}: {pickup.lat.toFixed(4)}, {pickup.lng.toFixed(4)}</Text>
+              <Text style={styles.metaHint}>
+                {isRTL ? 'الالتقاط' : 'Pickup'}: {pickup.lat.toFixed(4)}, {pickup.lng.toFixed(4)}
+              </Text>
             ) : null}
             {dropoff ? (
-              <Text style={styles.metaHint}>{isRTL ? 'الوصول' : 'Dropoff'}: {dropoff.lat.toFixed(4)}, {dropoff.lng.toFixed(4)}</Text>
+              <Text style={styles.metaHint}>
+                {isRTL ? 'الوصول' : 'Dropoff'}: {dropoff.lat.toFixed(4)}, {dropoff.lng.toFixed(4)}
+              </Text>
             ) : null}
 
             {retryQueueCount > 0 ? (
@@ -235,7 +265,9 @@ export function ActiveTripScreen({
                     ? `تم اكتشاف مشكلة شبكة. هناك ${retryQueueCount} إجراء بانتظار إعادة المحاولة.`
                     : `Network issue detected. ${retryQueueCount} action(s) waiting to retry.`}
                 </Text>
-                {onRetryQueue ? <Button title={isRTL ? 'إعادة الآن' : 'Retry now'} onPress={onRetryQueue} /> : null}
+                {onRetryQueue ? (
+                  <Button title={isRTL ? 'إعادة الآن' : 'Retry now'} onPress={onRetryQueue} />
+                ) : null}
               </View>
             ) : null}
 
@@ -282,12 +314,14 @@ export function ActiveTripScreen({
 
             {status === 'completed' && paymentStatus === 'pending' ? (
               <View style={styles.paymentBox}>
-                <Text style={styles.paymentTitle}>{isRTL ? 'استلم النقد من الراكب' : 'Collect cash from passenger'}</Text>
+                <Text style={styles.paymentTitle}>
+                  {isRTL ? 'استلم النقد من الراكب' : 'Collect cash from passenger'}
+                </Text>
                 <Text style={styles.paymentAmount}>{isRTL ? '₪' : 'NIS '} {safeFareAmount}</Text>
               </View>
             ) : null}
           </ScrollView>
-        </View>
+        </BottomSheetCard>
       </View>
     </View>
   );
@@ -296,49 +330,22 @@ export function ActiveTripScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E8EEF8',
+    backgroundColor: '#DDE7F7',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
-    borderWidth: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-  },
-  statusPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-    letterSpacing: 0.2,
+  statusChip: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   bottomCard: {
     alignSelf: 'stretch',
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    borderWidth: 1,
-    borderColor: '#DDE3F0',
-    backgroundColor: 'rgba(248, 250, 252, 0.98)',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 14,
-    elevation: 10,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     maxHeight: '66%',
+    gap: 10,
   },
   scroll: {
     width: '100%',
@@ -401,9 +408,9 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   retryBanner: {
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#F59E0B',
+    borderColor: '#FCD34D',
     backgroundColor: '#FFFBEB',
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -415,7 +422,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   actions: {
-    marginTop: 4,
+    marginTop: 2,
     gap: 10,
   },
   paymentBox: {

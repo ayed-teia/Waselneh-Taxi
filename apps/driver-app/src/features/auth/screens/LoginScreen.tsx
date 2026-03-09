@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Button, Card, ScreenContainer, Text } from '@waselneh/ui';
+import { Badge, Button, Card, ScreenContainer, Text } from '@waselneh/ui';
 import { colors } from '../../../ui/theme';
 import { useI18n } from '../../../localization';
 import { LanguageToggle } from '../../../ui';
@@ -14,7 +14,7 @@ export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
   const { isRTL } = useI18n();
   const { width, height } = useWindowDimensions();
   const isCompact = height < 760;
-  const contentWidth = Math.min(width - 32, 430);
+  const contentWidth = Math.min(width - 32, 440);
   const horizontalPadding = Math.max(16, (width - contentWidth) / 2);
 
   return (
@@ -23,55 +23,60 @@ export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
       <View style={styles.backgroundBottomBlob} />
 
       <View style={[styles.page, { paddingHorizontal: horizontalPadding }]}>
-        <View style={[styles.header, { marginTop: isCompact ? 22 : 34 }]}>
+        <View style={[styles.header, { marginTop: isCompact ? 20 : 30 }]}>
           <LanguageToggle />
-          <View style={styles.badge}>
-            <Text variant="caption" style={styles.badgeText}>
-              {isRTL ? 'Driver Console' : 'Driver Console'}
-            </Text>
-          </View>
+          <Badge
+            label={isRTL ? 'وحدة السائق' : 'Driver Console'}
+            variant="default"
+            withDot
+            style={styles.badge}
+          />
           <Text variant="h1" style={styles.title}>
-            {isRTL ? 'Waselneh Driver' : 'Waselneh Driver'}
+            {isRTL ? 'سائق واصلني' : 'Waselneh Driver'}
           </Text>
           <Text muted style={styles.subtitle}>
             {isRTL
-              ? 'Go online, accept nearby trips, and track route conditions in real time.'
-              : 'Go online, accept nearby trips, and track route conditions in real time.'}
+              ? 'تحكّم احترافي في الطلبات المباشرة، الملاحة، وحالة التشغيل.'
+              : 'Professional control for live requests, navigation, and shift status.'}
           </Text>
         </View>
 
-        <View style={[styles.content, { marginTop: isCompact ? 28 : 40 }]}>
+        <View style={[styles.content, { marginTop: isCompact ? 26 : 38 }]}>
           <Card elevated style={styles.card}>
-            <Text style={styles.description}>
+            <Text variant="bodyStrong" style={styles.description}>
               {isRTL
-                ? 'Built for route-line drivers with fast trip actions, live requests, and safer dispatch visibility.'
-                : 'Built for route-line drivers with fast trip actions, live requests, and safer dispatch visibility.'}
+                ? 'ادخل لوضع التشغيل، استقبل الرحلات بسرعة، وتابع حالة الطريق مباشرة.'
+                : 'Go online, accept rides quickly, and monitor road conditions live.'}
             </Text>
             <View style={styles.featureRow}>
               <View style={[styles.featureDot, styles.greenDot]} />
-              <Text style={styles.featureText}>Instant trip request inbox</Text>
+              <Text style={styles.featureText}>
+                {isRTL ? 'صندوق طلبات فوري' : 'Instant request inbox'}
+              </Text>
             </View>
             <View style={styles.featureRow}>
               <View style={[styles.featureDot, styles.yellowDot]} />
-              <Text style={styles.featureText}>Roadblock-aware driving map</Text>
+              <Text style={styles.featureText}>
+                {isRTL ? 'خريطة ملاحة تراعي الإغلاقات' : 'Roadblock-aware navigation'}
+              </Text>
             </View>
           </Card>
         </View>
 
         <View style={[styles.footer, { paddingBottom: isCompact ? 10 : 18 }]}>
           <Button
-            title={isRTL ? 'Continue with Phone' : 'Continue with Phone'}
+            title={isRTL ? 'المتابعة برقم الهاتف' : 'Continue with Phone'}
             onPress={onLogin}
             loading={loading}
             style={styles.loginButton}
           />
           <Text variant="caption" muted style={styles.terms}>
             {isRTL
-              ? 'By continuing, you agree to our Terms of Service and Driver Agreement.'
+              ? 'بالمتابعة، أنت توافق على شروط الخدمة واتفاقية السائق.'
               : 'By continuing, you agree to our Terms of Service and Driver Agreement.'}
           </Text>
           <Text variant="caption" muted style={styles.version}>
-            {isRTL ? 'Operations mode' : 'Operations mode'}
+            {isRTL ? 'وضع التشغيل' : 'Operations mode'}
           </Text>
         </View>
       </View>
@@ -109,33 +114,25 @@ const styles = StyleSheet.create({
   },
   badge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#0F172A',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    letterSpacing: 0.3,
   },
   title: {
     color: '#0F172A',
-    letterSpacing: 0.2,
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 16,
     lineHeight: 24,
-    maxWidth: 330,
+    maxWidth: 340,
   },
   content: {
     flexGrow: 1,
   },
   card: {
-    borderRadius: 20,
-    borderColor: '#E2E8F0',
+    borderRadius: 22,
+    borderColor: '#DCE6F5',
     borderWidth: 1,
     gap: 14,
+    backgroundColor: '#FFFFFF',
   },
   description: {
     fontSize: 16,
@@ -161,11 +158,11 @@ const styles = StyleSheet.create({
   featureText: {
     color: '#334155',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   footer: {
     marginTop: 'auto',
-    gap: 16,
+    gap: 14,
   },
   loginButton: {
     minHeight: 56,

@@ -22,6 +22,7 @@ import { RoadblockData, getRoadblockStatusDisplay, subscribeToAllRoadblocks } fr
 import {
   CAMERA_DEFAULTS,
   DEFAULT_REGION,
+  MAP_FALLBACK_STYLE_JSON,
   MAP_FALLBACK_STYLE_URL,
   MAP_LOG_PREFIX,
   MAP_STYLE_URL,
@@ -29,6 +30,7 @@ import {
   MARKER_COLORS,
   getMapboxToken,
 } from '../../config/map.config';
+import { useI18n } from '../../localization';
 
 const MAPBOX_TOKEN = getMapboxToken();
 const STREET_STYLE_URL = Mapbox.StyleURL?.Street ?? MAP_STYLE_URL;
@@ -69,6 +71,7 @@ export function DriverMapView({
   showLegend = true,
   showControls = true,
 }: DriverMapViewProps) {
+  const { isRTL } = useI18n();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isNarrow = width < 390;
@@ -95,7 +98,9 @@ export function DriverMapView({
       },
       (err) => {
         console.error(`${MAP_LOG_PREFIX} Error:`, err);
-        setError('Could not load live road conditions.');
+        setError(
+          isRTL ? 'تعذر تحميل حالة الطرق المباشرة.' : 'Could not load live road conditions.'
+        );
         setLoading(false);
       }
     );
@@ -104,7 +109,7 @@ export function DriverMapView({
       console.log(`${MAP_LOG_PREFIX} Unsubscribing from roadblocks`);
       unsubscribe();
     };
-  }, []);
+  }, [isRTL]);
 
   const animateToLocation = useCallback(
     (latitude: number, longitude: number) => {
@@ -260,12 +265,18 @@ export function DriverMapView({
       if (!styleLoaded) {
         console.warn(`${MAP_LOG_PREFIX} Mapbox style timeout. Switching to fallback style.`);
         setActiveStyleURL(MAP_FALLBACK_STYLE_URL);
-        setError((current) => current ?? 'Mapbox style timed out. Using fallback style.');
+        setError(
+          (current) =>
+            current ??
+            (isRTL
+              ? 'تأخر تحميل نمط الخريطة. تم التحويل إلى النمط البديل.'
+              : 'Mapbox style timed out. Using fallback style.')
+        );
       }
     }, 6000);
 
     return () => clearTimeout(timeout);
-  }, [activeStyleURL, styleLoaded]);
+  }, [activeStyleURL, isRTL, styleLoaded]);
 
   const routeLineGeoJSON =
     routeCoordinates && routeCoordinates.length > 1
@@ -283,17 +294,33 @@ export function DriverMapView({
     if (activeStyleURL !== MAP_FALLBACK_STYLE_URL) {
       console.warn(`${MAP_LOG_PREFIX} Mapbox style failed. Switching to fallback style.`, event);
       setActiveStyleURL(MAP_FALLBACK_STYLE_URL);
-      setError((current) => current ?? 'Mapbox style failed. Using fallback style.');
+      setError(
+        (current) =>
+          current ??
+          (isRTL
+            ? 'فشل تحميل نمط الخريطة. تم التحويل إلى النمط البديل.'
+            : 'Mapbox style failed. Using fallback style.')
+      );
       return;
     }
 
-    setError((current) => current ?? 'Map failed to load. Please check network or map token.');
+    setError(
+      (current) =>
+        current ??
+        (isRTL
+          ? 'بلاطات الخريطة غير متاحة. تحقق من اتصال الإنترنت.'
+          : 'Map tiles unavailable. Check network for full map tiles.')
+    );
     console.error(`${MAP_LOG_PREFIX} Map style failed to load`, event);
   };
 
   const handleStyleLoaded = () => {
     setStyleLoaded(true);
-    setError((current) => (current?.includes('fallback') ? null : current));
+    if (activeStyleURL === MAP_FALLBACK_STYLE_URL) {
+      setError((current) => current ?? (isRTL ? 'يتم استخدام نمط خريطة مبسط.' : 'Using simplified map mode.'));
+    } else {
+      setError(null);
+    }
     console.log(`${MAP_LOG_PREFIX} Style loaded:`, activeStyleURL);
   };
 
@@ -315,12 +342,14 @@ export function DriverMapView({
   const minBottomWithInset = (isNarrow ? 232 : 218) + insets.bottom;
   const resolvedWindowHeight = height > 0 ? height : Dimensions.get('window').height;
   const mapHeight = mapHeightRatio ? Math.round(resolvedWindowHeight * mapHeightRatio) : null;
+  const useFallbackStyleJSON = activeStyleURL === MAP_FALLBACK_STYLE_URL;
+  const usingFallbackStyle = useFallbackStyleJSON;
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={styles.loadingText}>Loading map...</Text>
+        <Text style={styles.loadingText}>{isRTL ? 'جاري تحميل الخريطة...' : 'Loading map...'}</Text>
       </View>
     );
   }
@@ -329,11 +358,10 @@ export function DriverMapView({
     <View style={[styles.container, mapHeight ? { height: mapHeight, flexGrow: 0 } : null]}>
       <MapView
         style={styles.map}
-        styleURL={activeStyleURL}
+        styleURL={useFallbackStyleJSON ? undefined : activeStyleURL}
+        styleJSON={useFallbackStyleJSON ? MAP_FALLBACK_STYLE_JSON : undefined}
         onDidFinishLoadingStyle={handleStyleLoaded}
         onDidFailLoadingMap={handleMapLoadError}
-        // TextureView is more stable with layered bottom sheets on Android emulators.
-        surfaceView={false}
         logoEnabled={false}
         attributionEnabled={false}
         compassEnabled
@@ -427,7 +455,7 @@ export function DriverMapView({
       <View style={[styles.topOverlay, { top: topOverlayOffset }]} pointerEvents="none">
         <View style={styles.liveBadge}>
           <View style={styles.liveDot} />
-          <Text style={styles.liveText}>Driver navigation map</Text>
+          <Text style={styles.liveText}>{isRTL ? 'خريطة تنقل السائق' : 'Driver navigation map'}</Text>
         </View>
       </View>
 
@@ -441,15 +469,15 @@ export function DriverMapView({
         >
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.open }]} />
-            <Text style={styles.legendText}>Open</Text>
+            <Text style={styles.legendText}>{isRTL ? 'مفتوح' : 'Open'}</Text>
           </View>
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.congested }]} />
-            <Text style={styles.legendText}>Congested</Text>
+            <Text style={styles.legendText}>{isRTL ? 'مزدحم' : 'Congested'}</Text>
           </View>
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.closed }]} />
-            <Text style={styles.legendText}>Closed</Text>
+            <Text style={styles.legendText}>{isRTL ? 'مغلق' : 'Closed'}</Text>
           </View>
         </View>
       ) : null}
@@ -457,7 +485,7 @@ export function DriverMapView({
       {showControls ? (
         <View style={[styles.controls, { bottom: Math.max(overlayBottomOffset + 4, 220 + insets.bottom) }]}>
           <Pressable style={styles.controlButton} onPress={recenter}>
-            <Text style={styles.controlButtonText}>Center</Text>
+            <Text style={styles.controlButtonText}>{isRTL ? 'توسيط' : 'Center'}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -465,6 +493,12 @@ export function DriverMapView({
       {error ? (
         <View style={[styles.errorBanner, { top: topOverlayOffset + 46 }]}>
           <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+
+      {usingFallbackStyle ? (
+        <View style={[styles.noticeBanner, { top: topOverlayOffset + 88 }]}>
+          <Text style={styles.noticeText}>{isRTL ? 'يتم استخدام نمط خريطة مبسط' : 'Using simplified map mode'}</Text>
         </View>
       ) : null}
     </View>
@@ -603,5 +637,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
     fontWeight: '600',
+  },
+  noticeBanner: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    borderRadius: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  noticeText: {
+    color: '#111827',
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '700',
   },
 });

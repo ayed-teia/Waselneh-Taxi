@@ -1,11 +1,12 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import {
-  Card,
+  BottomSheetCard,
   EmptyState,
   ErrorState,
   Header,
   LoadingState,
+  StatusChip,
   Text as UIText,
   getModeColors,
   waselnehRadius,
@@ -13,11 +14,14 @@ import {
   waselnehSpacing,
 } from '@waselneh/ui';
 import { RoadblockData, getRoadblockStatusDisplay, subscribeToAllRoadblocks } from '../../services/realtime';
+import { useI18n } from '../../localization';
 
 /**
- * Read-only roadblocks screen for drivers.
+ * Driver-facing road conditions screen.
+ * Read-only list with operational emphasis and clear status hierarchy.
  */
 export function RoadblocksList() {
+  const { isRTL } = useI18n();
   const [roadblocks, setRoadblocks] = useState<RoadblockData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,47 +35,65 @@ export function RoadblocksList() {
       },
       (subscriptionError) => {
         console.error('[RoadblocksList] Subscription error:', subscriptionError);
-        setError('Failed to load roadblocks');
+        setError(isRTL ? 'تعذر تحميل الإغلاقات' : 'Failed to load roadblocks');
         setLoading(false);
-      }
+      },
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [isRTL]);
+
+  const activeCount = useMemo(
+    () => roadblocks.filter((item) => item.status !== 'open').length,
+    [roadblocks],
+  );
 
   const renderRoadblock = ({ item }: { item: RoadblockData }) => {
     const statusDisplay = getRoadblockStatusDisplay(item.status);
+    const tone =
+      item.status === 'open'
+        ? 'success'
+        : item.status === 'congested'
+          ? 'warning'
+          : 'danger';
 
     return (
-      <Card elevated style={[styles.card, { borderLeftColor: statusDisplay.color }]}>
+      <BottomSheetCard withHandle={false} style={styles.card}>
         <View style={styles.cardHeader}>
-          <UIText style={styles.statusEmoji}>{statusDisplay.emoji}</UIText>
           <View style={styles.nameContainer}>
-            <UIText style={styles.name}>{item.name}</UIText>
-            {item.area ? <UIText muted style={styles.area}>({item.area})</UIText> : null}
+            <UIText style={styles.statusEmoji}>{statusDisplay.emoji}</UIText>
+            <View style={styles.titleWrap}>
+              <UIText style={styles.name}>{item.name}</UIText>
+              {item.area ? <UIText muted style={styles.area}>{item.area}</UIText> : null}
+            </View>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusDisplay.bgColor }]}>
-            <UIText style={[styles.statusText, { color: statusDisplay.color }]}>{statusDisplay.label}</UIText>
-          </View>
+          <StatusChip label={statusDisplay.label} tone={tone} />
+        </View>
+
+        <View style={styles.metaRow}>
+          <UIText muted style={styles.metaLabel}>{isRTL ? 'الموقع' : 'Location'}</UIText>
+          <UIText style={styles.metaValue}>
+            {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
+          </UIText>
         </View>
 
         {item.note ? <UIText style={styles.note}>{item.note}</UIText> : null}
-      </Card>
+      </BottomSheetCard>
     );
   };
 
   return (
     <View style={styles.container}>
       <Header
-        title="Roadblocks"
-        subtitle={`${roadblocks.filter((r) => r.status !== 'open').length} active`}
+        title={isRTL ? 'إغلاقات الطريق' : 'Roadblocks'}
+        subtitle={isRTL ? `${activeCount} حالة نشطة` : `${activeCount} active condition${activeCount !== 1 ? 's' : ''}`}
       />
 
       {loading ? (
-        <LoadingState title="Loading roadblocks..." />
+        <LoadingState title={isRTL ? 'جارٍ تحميل حالة الطريق...' : 'Loading road conditions...'} />
       ) : error ? (
         <ErrorState
-          title="Roadblocks error"
+          title={isRTL ? 'خطأ في الإغلاقات' : 'Roadblocks error'}
           message={error}
           onRetry={() => {
             setLoading(true);
@@ -79,7 +101,10 @@ export function RoadblocksList() {
           }}
         />
       ) : roadblocks.length === 0 ? (
-        <EmptyState title="No roadblocks" subtitle="All roads are currently clear." />
+        <EmptyState
+          title={isRTL ? 'لا توجد إغلاقات' : 'No roadblocks'}
+          subtitle={isRTL ? 'جميع الطرق سالكة حاليًا.' : 'All roads are currently clear.'}
+        />
       ) : (
         <FlatList
           data={roadblocks}
@@ -100,49 +125,65 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: waselnehSpacing.lg,
+    gap: waselnehSpacing.sm,
   },
   card: {
-    marginBottom: waselnehSpacing.md,
-    borderLeftWidth: 4,
-    borderRadius: waselnehRadius.lg,
+    borderRadius: waselnehRadius.xl,
+    borderColor: '#DDE3F0',
+    borderWidth: 1,
     ...waselnehShadows.sm,
+    gap: waselnehSpacing.sm,
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusEmoji: {
-    marginRight: waselnehSpacing.sm,
-    fontSize: 20,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: waselnehSpacing.sm,
   },
   nameContainer: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  titleWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  statusEmoji: {
+    fontSize: 20,
+    lineHeight: 24,
   },
   name: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   area: {
-    fontSize: 14,
+    fontSize: 13,
   },
-  statusBadge: {
-    borderRadius: waselnehRadius.md,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 2,
   },
-  statusText: {
+  metaLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  metaValue: {
     fontSize: 12,
     fontWeight: '600',
-    textTransform: 'uppercase',
   },
   note: {
-    marginTop: waselnehSpacing.sm,
-    borderRadius: waselnehRadius.sm,
-    backgroundColor: getModeColors('light').background,
+    borderRadius: waselnehRadius.md,
+    backgroundColor: getModeColors('light').surfaceMuted,
+    borderWidth: 1,
+    borderColor: getModeColors('light').border,
     padding: waselnehSpacing.sm,
     fontSize: 14,
+    lineHeight: 20,
   },
 });

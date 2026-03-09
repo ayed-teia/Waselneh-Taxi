@@ -15,6 +15,7 @@ import {
   ErrorState,
   Header,
   LoadingState,
+  StatusChip,
   Text as UIText,
   getModeColors,
   waselnehRadius,
@@ -24,14 +25,13 @@ import {
 import { useAuthStore } from '../../../store';
 import { InboxItem, subscribeToInbox } from '../../../services/realtime';
 import { acceptTripRequest } from '../../../services/api';
+import { useI18n } from '../../../localization';
 
-/**
- * Driver inbox for pending trip requests.
- */
 export function InboxScreen() {
   const router = useRouter();
   const colors = getModeColors('light');
   const { user } = useAuthStore();
+  const { isRTL } = useI18n();
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
@@ -40,17 +40,17 @@ export function InboxScreen() {
   const formatVehicleType = (vehicleType: string | null | undefined): string => {
     if (!vehicleType) return '--';
     const labels: Record<string, string> = {
-      taxi_standard: 'Standard',
-      family_van: 'Family Van',
-      minibus: 'Minibus',
-      premium: 'Premium',
+      taxi_standard: isRTL ? 'تاكسي عادي' : 'Standard',
+      family_van: isRTL ? 'فان عائلي' : 'Family Van',
+      minibus: isRTL ? 'ميني باص' : 'Minibus',
+      premium: isRTL ? 'مميز' : 'Premium',
     };
     return labels[vehicleType] ?? vehicleType;
   };
 
   const formatBookingType = (bookingType: InboxItem['bookingType']): string => {
-    if (bookingType === 'full_taxi') return 'Full Taxi';
-    if (bookingType === 'seat_only') return 'Seat Only';
+    if (bookingType === 'full_taxi') return isRTL ? 'تكسي كامل' : 'Full Taxi';
+    if (bookingType === 'seat_only') return isRTL ? 'مقعد واحد' : 'One Seat';
     return '--';
   };
 
@@ -67,13 +67,13 @@ export function InboxScreen() {
       },
       (err) => {
         console.error('Inbox subscription error:', err);
-        setError('Failed to load trip requests');
+        setError(isRTL ? 'تعذّر تحميل طلبات الرحلات' : 'Failed to load trip requests');
         setIsLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [user?.uid]);
+  }, [isRTL, user?.uid]);
 
   const handleAccept = useCallback(
     async (requestId: string) => {
@@ -85,13 +85,13 @@ export function InboxScreen() {
           params: { tripId: result.tripId },
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to accept trip';
-        Alert.alert('Error', message);
+        const message = err instanceof Error ? err.message : isRTL ? 'تعذّر قبول الطلب' : 'Failed to accept trip';
+        Alert.alert(isRTL ? 'خطأ' : 'Error', message);
       } finally {
         setAcceptingId(null);
       }
     },
-    [router]
+    [isRTL, router]
   );
 
   const handleBack = useCallback(() => {
@@ -117,75 +117,84 @@ export function InboxScreen() {
       return (
         <Card elevated style={styles.card}>
           <View style={styles.cardHeader}>
-            <UIText style={styles.priceText}>NIS {item.estimatedPriceIls ?? 0}</UIText>
-            <UIText muted style={styles.distanceText}>
-              {estimatedDistanceKm !== null ? `${estimatedDistanceKm.toFixed(1)} km` : '-- km'}
-            </UIText>
+            <View style={styles.headerMeta}>
+              <UIText style={styles.priceText}>NIS {item.estimatedPriceIls ?? 0}</UIText>
+              <UIText muted style={styles.distanceText}>
+                {estimatedDistanceKm !== null ? `${estimatedDistanceKm.toFixed(1)} km` : '-- km'}
+              </UIText>
+            </View>
+            <StatusChip label={isRTL ? 'طلب جديد' : 'New request'} tone="warning" />
           </View>
 
           <View style={styles.cardBody}>
-            <UIText muted style={styles.coordLabel}>Pickup</UIText>
-            <UIText style={styles.coordValue}>
-              {item.pickup.lat.toFixed(4)}, {item.pickup.lng.toFixed(4)}
-            </UIText>
-
-            <UIText muted style={[styles.coordLabel, styles.coordLabelSpacer]}>
-              Dropoff
-            </UIText>
-            <UIText style={styles.coordValue}>
-              {item.dropoff.lat.toFixed(4)}, {item.dropoff.lng.toFixed(4)}
-            </UIText>
-          </View>
-
-          <View style={styles.cardFooter}>
-            <View style={styles.metaBlock}>
-              <UIText muted style={styles.durationText}>
-                {estimatedDurationMin !== null ? `~${Math.round(estimatedDurationMin)} min` : '--'}
+            <View style={styles.coordRow}>
+              <UIText muted style={styles.coordLabel}>{isRTL ? 'الالتقاط' : 'Pickup'}</UIText>
+              <UIText style={styles.coordValue}>
+                {item.pickup.lat.toFixed(4)}, {item.pickup.lng.toFixed(4)}
               </UIText>
-              <UIText muted style={styles.metaLine}>
-                {`Booking: ${formatBookingType(item.bookingType)} | Seats: ${
-                  item.requestedSeats ?? item.requiredSeats ?? '--'
-                } | Vehicle: ${formatVehicleType(item.requestedVehicleType)}`}
-              </UIText>
-              {(item.destinationLabel || item.destinationCity) && (
-                <UIText muted style={styles.metaLine}>
-                  {`Destination: ${item.destinationLabel ?? '--'}${
-                    item.destinationCity ? ` | ${item.destinationCity}` : ''
-                  }`}
-                </UIText>
-              )}
             </View>
-            <Button
-              title={isAccepting ? 'Accepting...' : 'Accept'}
-              onPress={() => handleAccept(item.requestId)}
-              disabled={isAccepting || acceptingId !== null}
-              loading={isAccepting}
-              style={styles.acceptButton}
-            />
+            <View style={styles.coordRow}>
+              <UIText muted style={styles.coordLabel}>{isRTL ? 'الوجهة' : 'Dropoff'}</UIText>
+              <UIText style={styles.coordValue}>
+                {item.dropoff.lat.toFixed(4)}, {item.dropoff.lng.toFixed(4)}
+              </UIText>
+            </View>
           </View>
+
+          <View style={styles.metaBlock}>
+            <UIText muted style={styles.durationText}>
+              {estimatedDurationMin !== null
+                ? isRTL
+                  ? `حوالي ${Math.round(estimatedDurationMin)} دقيقة`
+                  : `~${Math.round(estimatedDurationMin)} min`
+                : '--'}
+            </UIText>
+            <UIText muted style={styles.metaLine}>
+              {isRTL ? 'نوع الحجز' : 'Booking'}: {formatBookingType(item.bookingType)}
+              {'  |  '}
+              {isRTL ? 'المقاعد' : 'Seats'}: {item.requestedSeats ?? item.requiredSeats ?? '--'}
+            </UIText>
+            <UIText muted style={styles.metaLine}>
+              {isRTL ? 'نوع المركبة' : 'Vehicle'}: {formatVehicleType(item.requestedVehicleType)}
+            </UIText>
+            {(item.destinationLabel || item.destinationCity) ? (
+              <UIText muted style={styles.metaLine}>
+                {isRTL ? 'معلومة الوجهة' : 'Destination'}: {item.destinationLabel ?? '--'}
+                {item.destinationCity ? ` | ${item.destinationCity}` : ''}
+              </UIText>
+            ) : null}
+          </View>
+
+          <Button
+            title={isAccepting ? (isRTL ? 'جارٍ القبول...' : 'Accepting...') : isRTL ? 'قبول الطلب' : 'Accept request'}
+            onPress={() => handleAccept(item.requestId)}
+            disabled={isAccepting || acceptingId !== null}
+            loading={isAccepting}
+            style={styles.acceptButton}
+          />
         </Card>
       );
     },
-    [acceptingId, handleAccept]
+    [acceptingId, handleAccept, isRTL]
   );
 
   return (
     <View style={styles.container}>
       <Header
-        title="Trip Requests"
-        subtitle={`${inboxItems.length} pending request${inboxItems.length !== 1 ? 's' : ''}`}
+        title={isRTL ? 'صندوق الطلبات' : 'Trip Requests'}
+        subtitle={isRTL ? `${inboxItems.length} طلب بانتظارك` : `${inboxItems.length} pending request${inboxItems.length !== 1 ? 's' : ''}`}
         leftAction={
           <TouchableOpacity onPress={handleBack} style={styles.headerAction} activeOpacity={0.85}>
-            <UIText style={styles.headerActionText}>{'< Back'}</UIText>
+            <UIText style={styles.headerActionText}>{isRTL ? 'عودة' : '< Back'}</UIText>
           </TouchableOpacity>
         }
       />
 
       {isLoading ? (
-        <LoadingState title="Loading inbox..." />
+        <LoadingState title={isRTL ? 'جارٍ تحميل الطلبات...' : 'Loading inbox...'} />
       ) : error ? (
         <ErrorState
-          title="Inbox error"
+          title={isRTL ? 'خطأ في الصندوق' : 'Inbox error'}
           message={error}
           onRetry={() => {
             setIsLoading(true);
@@ -200,8 +209,8 @@ export function InboxScreen() {
           renderItem={renderItem}
           ListEmptyComponent={
             <EmptyState
-              title="No trip requests"
-              subtitle="New requests will appear here when passengers request rides."
+              title={isRTL ? 'لا توجد طلبات حالياً' : 'No trip requests'}
+              subtitle={isRTL ? 'ستظهر الطلبات الجديدة هنا فور وصولها.' : 'New requests will appear here as soon as they arrive.'}
               style={styles.emptyState}
             />
           }
@@ -237,7 +246,8 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: waselnehSpacing.lg,
-    paddingBottom: waselnehSpacing.xl,
+    paddingBottom: waselnehSpacing.xxl,
+    gap: waselnehSpacing.sm,
   },
   emptyList: {
     flexGrow: 1,
@@ -248,18 +258,21 @@ const styles = StyleSheet.create({
     marginTop: -waselnehSpacing.xl,
   },
   card: {
-    marginBottom: waselnehSpacing.md,
-    borderRadius: waselnehRadius.lg,
+    borderRadius: waselnehRadius.xl,
     ...waselnehShadows.sm,
+    gap: waselnehSpacing.sm,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: waselnehSpacing.sm,
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  headerMeta: {
+    gap: 2,
   },
   priceText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
     color: '#16A34A',
   },
@@ -271,9 +284,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: getModeColors('light').border,
     borderRadius: waselnehRadius.md,
-    backgroundColor: getModeColors('light').background,
+    backgroundColor: getModeColors('light').surfaceMuted,
     paddingVertical: waselnehSpacing.sm,
     paddingHorizontal: waselnehSpacing.md,
+    gap: 10,
+  },
+  coordRow: {
+    gap: 3,
   },
   coordLabel: {
     fontSize: 11,
@@ -281,34 +298,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  coordLabelSpacer: {
-    marginTop: waselnehSpacing.md,
-  },
   coordValue: {
-    marginTop: 2,
     fontSize: 14,
     fontWeight: '600',
   },
-  cardFooter: {
-    marginTop: waselnehSpacing.md,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: waselnehSpacing.md,
-  },
   metaBlock: {
-    flex: 1,
-    gap: 2,
+    gap: 3,
   },
   durationText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   metaLine: {
     fontSize: 12,
     fontWeight: '500',
   },
   acceptButton: {
-    minWidth: 138,
+    marginTop: 2,
   },
 });
