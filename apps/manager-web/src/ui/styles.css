@@ -24,38 +24,55 @@
 }
 
 .ws-button {
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--ws-radius-md);
-  padding: var(--ws-space-md) var(--ws-space-lg);
+  padding: 0 var(--ws-space-xl);
   min-height: 44px;
   min-width: 120px;
-  font: var(--ws-font-body);
-  font-weight: 600;
+  font: var(--ws-font-body-strong);
+  letter-spacing: 0.01em;
   cursor: pointer;
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
 }
 
 .ws-button:disabled {
-  opacity: 0.6;
+  opacity: 0.62;
   cursor: not-allowed;
+}
+
+.ws-button:not(:disabled):hover {
+  transform: translateY(-1px);
 }
 
 .ws-button-primary {
   background: var(--ws-primary);
   color: var(--ws-primary-text);
+  border-color: var(--ws-color-brand-yellow-deep);
+  box-shadow: var(--ws-shadow-sm);
+}
+
+.ws-button-primary:not(:disabled):hover {
+  box-shadow: var(--ws-shadow-md);
 }
 
 .ws-button-secondary {
   background: var(--ws-secondary);
   color: var(--ws-secondary-text);
+  border-color: var(--ws-secondary);
 }
 
 .ws-button-destructive {
   background: var(--ws-color-danger);
   color: #ffffff;
+  border-color: #be123c;
 }
 
 .ws-button-label-hidden {
@@ -81,8 +98,8 @@
 .ws-card {
   background: var(--ws-surface);
   border: 1px solid var(--ws-border);
-  border-radius: var(--ws-radius-lg);
-  padding: var(--ws-space-lg);
+  border-radius: var(--ws-radius-xl);
+  padding: var(--ws-space-xl);
 }
 
 .ws-card-elevated {

@@ -1,11 +1,49 @@
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { useI18n } from '../localization';
-import { subscribeToAllDriverLocations, DriverLiveLocation, getUniqueLineIds } from '../services/driver-location.service';
-import { subscribeToActiveTrips, subscribeToPendingTrips, subscribeToCompletedTrips, TripData, getTripStatusDisplay, getPaymentStatusDisplay } from '../services/trips.service';
-import { subscribeToRoadblocks, createRoadblock, updateRoadblock, deleteRoadblock, RoadblockData, getRoadblockStatusDisplay } from '../services/roadblocks.service';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DriverMap } from '../components/DriverMap';
 import '../components/DriverMap.css';
+import { useI18n } from '../localization';
+import {
+  DriverLiveLocation,
+  getUniqueLineIds,
+  subscribeToAllDriverLocations,
+} from '../services/driver-location.service';
+import { RoadblockData, createRoadblock, deleteRoadblock, subscribeToRoadblocks, updateRoadblock } from '../services/roadblocks.service';
+import { TripData, subscribeToActiveTrips, subscribeToCompletedTrips, subscribeToPendingTrips } from '../services/trips.service';
 import './LiveMapPage.css';
+
+type RoadblockStatus = 'open' | 'closed' | 'congested';
+
+const TRIP_STATUS_META: Record<
+  string,
+  { ar: string; en: string; color: string }
+> = {
+  pending: { ar: 'بانتظار سائق', en: 'Waiting for driver', color: '#D97706' },
+  accepted: { ar: 'تم التعيين', en: 'Assigned', color: '#2563EB' },
+  driver_arrived: { ar: 'السائق وصل', en: 'Driver arrived', color: '#7C3AED' },
+  in_progress: { ar: 'الرحلة جارية', en: 'In progress', color: '#16A34A' },
+  completed: { ar: 'مكتملة', en: 'Completed', color: '#475569' },
+  no_driver_available: { ar: 'لا يوجد سائق', en: 'No driver available', color: '#DC2626' },
+  cancelled_by_passenger: { ar: 'ألغاه الراكب', en: 'Cancelled by passenger', color: '#DC2626' },
+  cancelled_by_driver: { ar: 'ألغاه السائق', en: 'Cancelled by driver', color: '#DC2626' },
+};
+
+const PAYMENT_STATUS_META: Record<string, { ar: string; en: string; color: string }> = {
+  pending: { ar: 'غير مدفوع', en: 'Unpaid', color: '#D97706' },
+  paid: { ar: 'مدفوع', en: 'Paid', color: '#16A34A' },
+};
+
+const ROADBLOCK_STATUS_META: Record<RoadblockStatus, { ar: string; en: string; color: string }> = {
+  open: { ar: 'مفتوح', en: 'Open', color: '#16A34A' },
+  congested: { ar: 'مزدحم', en: 'Congested', color: '#D97706' },
+  closed: { ar: 'مغلق', en: 'Closed', color: '#DC2626' },
+};
+
+function statusMeta(
+  status: string,
+  map: Record<string, { ar: string; en: string; color: string }>
+) {
+  return map[status] ?? { ar: status, en: status, color: '#64748B' };
+}
 
 export function LiveMapPage() {
   const { txt, locale } = useI18n();
@@ -16,49 +54,47 @@ export function LiveMapPage() {
   const [roadblocks, setRoadblocks] = useState<RoadblockData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Filter state
+
   const [showOnlineOnly, setShowOnlineOnly] = useState(true);
   const [selectedLineId, setSelectedLineId] = useState<string>('all');
   const [showUnpaidOnly, setShowUnpaidOnly] = useState(false);
 
-  // Roadblock modal state
   const [showRoadblockModal, setShowRoadblockModal] = useState(false);
   const [editingRoadblock, setEditingRoadblock] = useState<RoadblockData | null>(null);
   const [newRoadblockLocation, setNewRoadblockLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [roadblockForm, setRoadblockForm] = useState({
     name: '',
-    status: 'closed' as 'open' | 'closed' | 'congested',
+    status: 'closed' as RoadblockStatus,
     radiusMeters: 100,
     note: '',
   });
   const [isSavingRoadblock, setIsSavingRoadblock] = useState(false);
 
-  // Track if component is mounted to prevent memory leaks
   const isMounted = useRef(true);
 
   useEffect(() => {
     isMounted.current = true;
 
-    // Subscribe to driver locations
     const unsubDrivers = subscribeToAllDriverLocations(
       (driverLocations) => {
-        if (isMounted.current) {
-          setDrivers(driverLocations);
-          setLoading(false);
-          setError(null);
-        }
+        if (!isMounted.current) return;
+        setDrivers(driverLocations);
+        setLoading(false);
+        setError(null);
       },
       (err) => {
-        if (isMounted.current) {
-          console.error('Error subscribing to driver locations:', err);
-          setError(txt('تعذّر تحميل مواقع السائقين. يرجى التحقق من الاتصال.', 'Failed to load driver locations. Please check your connection.'));
-          setLoading(false);
-        }
+        if (!isMounted.current) return;
+        console.error('Error subscribing to driver locations:', err);
+        setError(
+          txt(
+            'تعذّر تحميل مواقع السائقين. يرجى التحقق من الاتصال.',
+            'Failed to load driver locations. Please check your connection.'
+          )
+        );
+        setLoading(false);
       }
     );
 
-    // Subscribe to active trips
     const unsubActiveTrips = subscribeToActiveTrips(
       (trips) => {
         if (isMounted.current) {
@@ -70,7 +106,6 @@ export function LiveMapPage() {
       }
     );
 
-    // Subscribe to pending trips
     const unsubPendingTrips = subscribeToPendingTrips(
       (trips) => {
         if (isMounted.current) {
@@ -82,7 +117,6 @@ export function LiveMapPage() {
       }
     );
 
-    // Subscribe to completed trips
     const unsubCompletedTrips = subscribeToCompletedTrips(
       (trips) => {
         if (isMounted.current) {
@@ -94,7 +128,6 @@ export function LiveMapPage() {
       }
     );
 
-    // Subscribe to roadblocks
     const unsubRoadblocks = subscribeToRoadblocks(
       (data) => {
         if (isMounted.current) {
@@ -106,7 +139,6 @@ export function LiveMapPage() {
       }
     );
 
-    // Cleanup: unsubscribe and mark as unmounted
     return () => {
       isMounted.current = false;
       unsubDrivers();
@@ -117,36 +149,42 @@ export function LiveMapPage() {
     };
   }, [txt]);
 
-  // Get unique line IDs for filter dropdown
   const lineIds = useMemo(() => getUniqueLineIds(drivers), [drivers]);
 
-  // Count drivers by availability
   const driverStats = useMemo(() => {
-    const online = drivers.filter(d => d.isOnline).length;
-    const available = drivers.filter(d => d.isOnline && d.isAvailable).length;
-    const busy = drivers.filter(d => d.isOnline && !d.isAvailable).length;
+    const online = drivers.filter((d) => d.isOnline).length;
+    const available = drivers.filter((d) => d.isOnline && d.isAvailable).length;
+    const busy = drivers.filter((d) => d.isOnline && !d.isAvailable).length;
     return { online, available, busy };
   }, [drivers]);
 
-  // Count unpaid completed trips
-  const unpaidTripsCount = useMemo(() => {
-    return completedTrips.filter(t => t.paymentStatus === 'pending').length;
-  }, [completedTrips]);
+  const unpaidTripsCount = useMemo(
+    () => completedTrips.filter((trip) => trip.paymentStatus === 'pending').length,
+    [completedTrips]
+  );
 
-  // Filter completed trips based on unpaid filter
   const filteredCompletedTrips = useMemo(() => {
     if (showUnpaidOnly) {
-      return completedTrips.filter(t => t.paymentStatus === 'pending');
+      return completedTrips.filter((trip) => trip.paymentStatus === 'pending');
     }
     return completedTrips;
   }, [completedTrips, showUnpaidOnly]);
 
-  // Count active roadblocks
-  const activeRoadblocksCount = useMemo(() => {
-    return roadblocks.filter(r => r.status !== 'open').length;
-  }, [roadblocks]);
+  const activeRoadblocksCount = useMemo(
+    () => roadblocks.filter((roadblock) => roadblock.status !== 'open').length,
+    [roadblocks]
+  );
 
-  // Roadblock handlers
+  const filteredDrivers = useMemo(
+    () =>
+      drivers.filter((driver) => {
+        if (showOnlineOnly && !driver.isOnline) return false;
+        if (selectedLineId !== 'all' && driver.lineId !== selectedLineId) return false;
+        return true;
+      }),
+    [drivers, selectedLineId, showOnlineOnly]
+  );
+
   const handleMapClick = useCallback((lat: number, lng: number) => {
     setNewRoadblockLocation({ lat, lng });
     setEditingRoadblock(null);
@@ -167,19 +205,16 @@ export function LiveMapPage() {
   }, []);
 
   const handleSaveRoadblock = async () => {
-    // Validate name is provided
     if (!roadblockForm.name.trim()) {
-      alert(txt('يرجى إدخال اسم للإغلاق.', 'Please enter a name for the roadblock'));
+      window.alert(txt('يرجى إدخال اسم للإغلاق.', 'Please enter a name for the roadblock.'));
       return;
     }
-    
+
     setIsSavingRoadblock(true);
     try {
       if (editingRoadblock) {
-        // Update existing
         await updateRoadblock(editingRoadblock.id, roadblockForm);
       } else if (newRoadblockLocation) {
-        // Create new
         await createRoadblock({
           lat: newRoadblockLocation.lat,
           lng: newRoadblockLocation.lng,
@@ -191,7 +226,7 @@ export function LiveMapPage() {
       setNewRoadblockLocation(null);
     } catch (err) {
       console.error('Failed to save roadblock:', err);
-      alert(txt('تعذّر حفظ الإغلاق.', 'Failed to save roadblock'));
+      window.alert(txt('تعذّر حفظ الإغلاق.', 'Failed to save roadblock.'));
     } finally {
       setIsSavingRoadblock(false);
     }
@@ -199,8 +234,14 @@ export function LiveMapPage() {
 
   const handleDeleteRoadblock = async () => {
     if (!editingRoadblock) return;
-    if (!confirm(txt('هل أنت متأكد من حذف هذا الإغلاق؟', 'Are you sure you want to delete this roadblock?'))) return;
-    
+    if (
+      !window.confirm(
+        txt('هل أنت متأكد من حذف هذا الإغلاق؟', 'Are you sure you want to delete this roadblock?')
+      )
+    ) {
+      return;
+    }
+
     setIsSavingRoadblock(true);
     try {
       await deleteRoadblock(editingRoadblock.id);
@@ -208,24 +249,11 @@ export function LiveMapPage() {
       setEditingRoadblock(null);
     } catch (err) {
       console.error('Failed to delete roadblock:', err);
-      alert(txt('تعذّر حذف الإغلاق.', 'Failed to delete roadblock'));
+      window.alert(txt('تعذّر حذف الإغلاق.', 'Failed to delete roadblock.'));
     } finally {
       setIsSavingRoadblock(false);
     }
   };
-
-  // Apply filters
-  const filteredDrivers = useMemo(() => {
-    return drivers.filter(driver => {
-      // Online filter (all drivers in driverLive are online, but keeping for future)
-      if (showOnlineOnly && !driver.isOnline) return false;
-      
-      // Line ID filter
-      if (selectedLineId !== 'all' && driver.lineId !== selectedLineId) return false;
-      
-      return true;
-    });
-  }, [drivers, showOnlineOnly, selectedLineId]);
 
   const formatTime = (date: Date | null) => {
     if (!date) return txt('غير متوفر', 'N/A');
@@ -236,9 +264,9 @@ export function LiveMapPage() {
     if (!date) return txt('غير متوفر', 'N/A');
     const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
     if (seconds < 5) return txt('الآن', 'Just now');
-    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 60) return `${seconds}s`;
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
+    if (minutes < 60) return `${minutes}m`;
     return formatTime(date);
   };
 
@@ -256,7 +284,12 @@ export function LiveMapPage() {
     return (
       <div className="live-map-page">
         <h2>{txt('خريطة العمليات المباشرة', 'Live Operations Map')}</h2>
-        <p className="subtitle">{txt('تتبع السائقين وتدفق الرحلات وأحداث الطرق لحظيًا.', 'Track drivers, trip flow, and road events in realtime.')}</p>
+        <p className="subtitle">
+          {txt(
+            'متابعة السائقين وتدفق الرحلات وحالة الطرق بشكل لحظي.',
+            'Track drivers, trip flow, and road conditions in realtime.'
+          )}
+        </p>
         <div className="loading">{txt('جاري تحميل مواقع السائقين...', 'Loading driver locations...')}</div>
       </div>
     );
@@ -266,7 +299,12 @@ export function LiveMapPage() {
     return (
       <div className="live-map-page">
         <h2>{txt('خريطة العمليات المباشرة', 'Live Operations Map')}</h2>
-        <p className="subtitle">{txt('تتبع السائقين وتدفق الرحلات وأحداث الطرق لحظيًا.', 'Track drivers, trip flow, and road events in realtime.')}</p>
+        <p className="subtitle">
+          {txt(
+            'متابعة السائقين وتدفق الرحلات وحالة الطرق بشكل لحظي.',
+            'Track drivers, trip flow, and road conditions in realtime.'
+          )}
+        </p>
         <div className="error">{error}</div>
       </div>
     );
@@ -275,202 +313,201 @@ export function LiveMapPage() {
   return (
     <div className="live-map-page">
       <h2>{txt('خريطة العمليات المباشرة', 'Live Operations Map')}</h2>
-      <p className="subtitle">{txt('تتبع السائقين وتدفق الرحلات وأحداث الطرق لحظيًا.', 'Track drivers, trip flow, and road events in realtime.')}</p>
-      
-      {/* Stats bar */}
+      <p className="subtitle">
+        {txt(
+          'متابعة السائقين وتدفق الرحلات وحالة الطرق بشكل لحظي.',
+          'Track drivers, trip flow, and road conditions in realtime.'
+        )}
+      </p>
+
       <div className="stats-bar">
         <div className="stat">
           <span className="stat-value">{driverStats.online}</span>
-          <span className="stat-label">🟢 Online</span>
+          <span className="stat-label">{txt('سائقون متصلون', 'Online drivers')}</span>
         </div>
         <div className="stat available">
           <span className="stat-value">{driverStats.available}</span>
-          <span className="stat-label">✅ Available</span>
+          <span className="stat-label">{txt('متاحون الآن', 'Available now')}</span>
         </div>
         <div className="stat busy">
           <span className="stat-value">{driverStats.busy}</span>
-          <span className="stat-label">🚗 Busy</span>
+          <span className="stat-label">{txt('قيد رحلة', 'Busy')}</span>
         </div>
         <div className="stat trips">
           <span className="stat-value">{activeTrips.length}</span>
-          <span className="stat-label">🛣️ Active Trips</span>
+          <span className="stat-label">{txt('رحلات نشطة', 'Active trips')}</span>
         </div>
-        {pendingTrips.length > 0 && (
+        {pendingTrips.length > 0 ? (
           <div className="stat pending">
             <span className="stat-value">{pendingTrips.length}</span>
-            <span className="stat-label">⏳ Pending</span>
+            <span className="stat-label">{txt('طلبات معلقة', 'Pending requests')}</span>
           </div>
-        )}
-        {unpaidTripsCount > 0 && (
+        ) : null}
+        {unpaidTripsCount > 0 ? (
           <div className="stat unpaid">
             <span className="stat-value">{unpaidTripsCount}</span>
-            <span className="stat-label">💰 Unpaid</span>
+            <span className="stat-label">{txt('رحلات غير مدفوعة', 'Unpaid trips')}</span>
           </div>
-        )}
+        ) : null}
         <div className="stat roadblocks">
           <span className="stat-value">{activeRoadblocksCount}</span>
-          <span className="stat-label">🚧 Roadblocks</span>
+          <span className="stat-label">{txt('إغلاقات فعالة', 'Active roadblocks')}</span>
         </div>
       </div>
 
-      {/* Filters */}
       <div className="filters-bar">
         <div className="filter-group">
           <label className="filter-checkbox">
             <input
               type="checkbox"
               checked={showOnlineOnly}
-              onChange={(e) => setShowOnlineOnly(e.target.checked)}
+              onChange={(event) => setShowOnlineOnly(event.target.checked)}
             />
-            <span>Online Only</span>
+            <span>{txt('إظهار المتصلين فقط', 'Online only')}</span>
           </label>
         </div>
 
-        {lineIds.length > 0 && (
+        {lineIds.length > 0 ? (
           <div className="filter-group">
             <label>
-              <span className="filter-label">Line:</span>
+              <span className="filter-label">{txt('الخط', 'Line')}:</span>
               <select
                 value={selectedLineId}
-                onChange={(e) => setSelectedLineId(e.target.value)}
+                onChange={(event) => setSelectedLineId(event.target.value)}
                 className="filter-select"
               >
-                <option value="all">All Lines</option>
-                {lineIds.map(lineId => (
-                  <option key={lineId} value={lineId}>{lineId}</option>
+                <option value="all">{txt('كل الخطوط', 'All lines')}</option>
+                {lineIds.map((lineId) => (
+                  <option key={lineId} value={lineId}>
+                    {lineId}
+                  </option>
                 ))}
               </select>
             </label>
           </div>
-        )}
+        ) : null}
 
         <div className="filter-group">
           <label className="filter-checkbox">
             <input
               type="checkbox"
               checked={showUnpaidOnly}
-              onChange={(e) => setShowUnpaidOnly(e.target.checked)}
+              onChange={(event) => setShowUnpaidOnly(event.target.checked)}
             />
-            <span>💰 Unpaid Trips Only</span>
+            <span>{txt('غير المدفوع فقط', 'Unpaid only')}</span>
           </label>
         </div>
       </div>
 
       {filteredDrivers.length === 0 ? (
         <div className="empty-state">
-          <span className="empty-icon">🚗</span>
-          <p>No drivers match current filters</p>
-          {drivers.length > 0 && (
-            <button 
+          <p>{txt('لا يوجد سائقون مطابقون للفلاتر الحالية.', 'No drivers match current filters.')}</p>
+          {drivers.length > 0 ? (
+            <button
               className="reset-filters-btn"
               onClick={() => {
                 setShowOnlineOnly(true);
                 setSelectedLineId('all');
               }}
             >
-              Reset Filters
+              {txt('إعادة ضبط الفلاتر', 'Reset filters')}
             </button>
-          )}
+          ) : null}
         </div>
       ) : (
         <>
-          {/* Live Map with Driver Markers, Trips, and Roadblocks */}
           <div className="map-container">
-            <div className="map-hint">💡 Click on map to add roadblock</div>
-            <DriverMap 
-              drivers={filteredDrivers} 
+            <div className="map-hint">{txt('انقر على الخريطة لإضافة إغلاق.', 'Click on map to add roadblock.')}</div>
+            <DriverMap
+              drivers={filteredDrivers}
               trips={[...activeTrips, ...pendingTrips]}
               roadblocks={roadblocks}
               onMapClick={handleMapClick}
               onRoadblockClick={handleRoadblockClick}
             />
-            {/* Map Legend */}
+
             <div className="map-legend">
-              <div className="legend-title">Legend</div>
+              <div className="legend-title">{txt('الدليل', 'Legend')}</div>
               <div className="legend-section">
-                <div className="legend-subtitle">Drivers</div>
+                <div className="legend-subtitle">{txt('السائقون', 'Drivers')}</div>
                 <div className="legend-item">
-                  <span className="legend-marker driver-available"></span>
-                  <span>Available</span>
+                  <span className="legend-marker driver-available" />
+                  <span>{txt('متاح', 'Available')}</span>
                 </div>
                 <div className="legend-item">
-                  <span className="legend-marker driver-busy"></span>
-                  <span>Busy / In Trip</span>
+                  <span className="legend-marker driver-busy" />
+                  <span>{txt('مشغول', 'Busy')}</span>
                 </div>
                 <div className="legend-item">
-                  <span className="legend-marker driver-offline"></span>
-                  <span>Offline</span>
+                  <span className="legend-marker driver-offline" />
+                  <span>{txt('غير متصل', 'Offline')}</span>
                 </div>
               </div>
               <div className="legend-section">
-                <div className="legend-subtitle">Roadblocks</div>
+                <div className="legend-subtitle">{txt('الطرق', 'Roadblocks')}</div>
                 <div className="legend-item">
-                  <span className="legend-marker roadblock-open"></span>
-                  <span>Open</span>
+                  <span className="legend-marker roadblock-open" />
+                  <span>{txt('مفتوح', 'Open')}</span>
                 </div>
                 <div className="legend-item">
-                  <span className="legend-marker roadblock-congested"></span>
-                  <span>Congested</span>
+                  <span className="legend-marker roadblock-congested" />
+                  <span>{txt('مزدحم', 'Congested')}</span>
                 </div>
                 <div className="legend-item">
-                  <span className="legend-marker roadblock-closed"></span>
-                  <span>Closed</span>
+                  <span className="legend-marker roadblock-closed" />
+                  <span>{txt('مغلق', 'Closed')}</span>
                 </div>
               </div>
               <div className="legend-section">
-                <div className="legend-subtitle">Trips</div>
+                <div className="legend-subtitle">{txt('الرحلات', 'Trips')}</div>
                 <div className="legend-item">
-                  <span className="legend-icon">📍</span>
-                  <span>Pickup</span>
+                  <span className="legend-icon">P</span>
+                  <span>{txt('نقطة الالتقاط', 'Pickup')}</span>
                 </div>
                 <div className="legend-item">
-                  <span className="legend-icon">🎯</span>
-                  <span>Dropoff</span>
+                  <span className="legend-icon">D</span>
+                  <span>{txt('الوجهة', 'Dropoff')}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Driver list */}
           <div className="driver-list">
-            <h3>Driver Details ({filteredDrivers.length})</h3>
+            <h3>
+              {txt('تفاصيل السائقين', 'Driver details')} ({filteredDrivers.length})
+            </h3>
             <table>
               <thead>
                 <tr>
-                  <th>Driver</th>
-                  <th>Line</th>
-                  <th>Status</th>
-                  <th>Availability</th>
-                  <th>Location</th>
-                  <th>Speed</th>
-                  <th>Last Update</th>
+                  <th>{txt('السائق', 'Driver')}</th>
+                  <th>{txt('الخط', 'Line')}</th>
+                  <th>{txt('الحالة', 'Status')}</th>
+                  <th>{txt('التوفر', 'Availability')}</th>
+                  <th>{txt('الموقع', 'Location')}</th>
+                  <th>{txt('السرعة', 'Speed')}</th>
+                  <th>{txt('آخر تحديث', 'Last update')}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredDrivers.map((driver) => (
                   <tr key={driver.driverId}>
                     <td className="driver-name">
-                      <span className="driver-avatar">🚗</span>
                       <div className="driver-info">
                         <span className="name">{getDriverDisplayName(driver)}</span>
                         <span className="driver-id-small">{driver.driverId.slice(0, 8)}</span>
                       </div>
                     </td>
                     <td>
-                      {driver.lineId ? (
-                        <span className="line-badge">{driver.lineId}</span>
-                      ) : (
-                        <span className="no-line">—</span>
-                      )}
+                      {driver.lineId ? <span className="line-badge">{driver.lineId}</span> : <span className="no-line">—</span>}
                     </td>
                     <td>
                       <span className={`status-badge ${driver.isOnline ? 'online' : 'offline'}`}>
-                        {driver.isOnline ? '● Online' : '○ Offline'}
+                        {driver.isOnline ? txt('متصل', 'Online') : txt('غير متصل', 'Offline')}
                       </span>
                     </td>
                     <td>
                       <span className={`status-badge ${driver.isAvailable ? 'available' : 'busy'}`}>
-                        {driver.isAvailable ? '✅ Available' : '🚗 Busy'}
+                        {driver.isAvailable ? txt('متاح', 'Available') : txt('مشغول', 'Busy')}
                       </span>
                     </td>
                     <td className="coordinates">
@@ -487,30 +524,31 @@ export function LiveMapPage() {
             </table>
           </div>
 
-          {/* Active Trips */}
-          {activeTrips.length > 0 && (
+          {activeTrips.length > 0 ? (
             <div className="trips-list">
-              <h3>🛣️ Active Trips ({activeTrips.length})</h3>
+              <h3>
+                {txt('الرحلات النشطة', 'Active trips')} ({activeTrips.length})
+              </h3>
               <table>
                 <thead>
                   <tr>
-                    <th>Trip ID</th>
-                    <th>Status</th>
-                    <th>Driver</th>
-                    <th>Price</th>
-                    <th>Distance</th>
-                    <th>Created</th>
+                    <th>{txt('الرحلة', 'Trip')}</th>
+                    <th>{txt('الحالة', 'Status')}</th>
+                    <th>{txt('السائق', 'Driver')}</th>
+                    <th>{txt('السعر', 'Fare')}</th>
+                    <th>{txt('المسافة', 'Distance')}</th>
+                    <th>{txt('الإنشاء', 'Created')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {activeTrips.map((trip) => {
-                    const statusDisplay = getTripStatusDisplay(trip.status);
+                    const meta = statusMeta(trip.status, TRIP_STATUS_META);
                     return (
                       <tr key={trip.tripId}>
                         <td className="trip-id">{trip.tripId.slice(0, 8)}...</td>
                         <td>
-                          <span className="trip-status" style={{ color: statusDisplay.color }}>
-                            {statusDisplay.emoji} {statusDisplay.label}
+                          <span className="trip-status" style={{ color: meta.color }}>
+                            {txt(meta.ar, meta.en)}
                           </span>
                         </td>
                         <td>{trip.driverId?.slice(0, 8) ?? '—'}</td>
@@ -523,31 +561,32 @@ export function LiveMapPage() {
                 </tbody>
               </table>
             </div>
-          )}
+          ) : null}
 
-          {/* Pending/Unmatched Trips */}
-          {pendingTrips.length > 0 && (
+          {pendingTrips.length > 0 ? (
             <div className="trips-list pending-trips">
-              <h3>⏳ Pending Requests ({pendingTrips.length})</h3>
+              <h3>
+                {txt('الطلبات المعلقة', 'Pending requests')} ({pendingTrips.length})
+              </h3>
               <table>
                 <thead>
                   <tr>
-                    <th>Trip ID</th>
-                    <th>Status</th>
-                    <th>Assigned Driver</th>
-                    <th>Price</th>
-                    <th>Waiting Since</th>
+                    <th>{txt('الرحلة', 'Trip')}</th>
+                    <th>{txt('الحالة', 'Status')}</th>
+                    <th>{txt('السائق المعين', 'Assigned driver')}</th>
+                    <th>{txt('السعر', 'Fare')}</th>
+                    <th>{txt('زمن الانتظار', 'Waiting')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pendingTrips.map((trip) => {
-                    const statusDisplay = getTripStatusDisplay(trip.status);
+                    const meta = statusMeta(trip.status, TRIP_STATUS_META);
                     return (
                       <tr key={trip.tripId}>
                         <td className="trip-id">{trip.tripId.slice(0, 8)}...</td>
                         <td>
-                          <span className="trip-status" style={{ color: statusDisplay.color }}>
-                            {statusDisplay.emoji} {statusDisplay.label}
+                          <span className="trip-status" style={{ color: meta.color }}>
+                            {txt(meta.ar, meta.en)}
                           </span>
                         </td>
                         <td>{trip.driverId?.slice(0, 8) ?? '—'}</td>
@@ -559,37 +598,41 @@ export function LiveMapPage() {
                 </tbody>
               </table>
             </div>
-          )}
+          ) : null}
 
-          {/* Completed Trips (with payment status) */}
-          {filteredCompletedTrips.length > 0 && (
+          {filteredCompletedTrips.length > 0 ? (
             <div className="trips-list completed-trips">
               <h3>
-                ✅ Completed Trips ({filteredCompletedTrips.length})
-                {showUnpaidOnly && <span className="filter-active"> — Unpaid Only</span>}
+                {txt('الرحلات المكتملة', 'Completed trips')} ({filteredCompletedTrips.length})
+                {showUnpaidOnly ? (
+                  <span className="filter-active">
+                    {' '}
+                    — {txt('غير المدفوعة فقط', 'Unpaid only')}
+                  </span>
+                ) : null}
               </h3>
               <table>
                 <thead>
                   <tr>
-                    <th>Trip ID</th>
-                    <th>Driver</th>
-                    <th>Fare</th>
-                    <th>Payment</th>
-                    <th>Completed</th>
-                    <th>Paid At</th>
+                    <th>{txt('الرحلة', 'Trip')}</th>
+                    <th>{txt('السائق', 'Driver')}</th>
+                    <th>{txt('الأجرة', 'Fare')}</th>
+                    <th>{txt('الدفع', 'Payment')}</th>
+                    <th>{txt('وقت الإكمال', 'Completed')}</th>
+                    <th>{txt('وقت الدفع', 'Paid at')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredCompletedTrips.map((trip) => {
-                    const paymentDisplay = getPaymentStatusDisplay(trip.paymentStatus);
+                    const paymentMeta = statusMeta(trip.paymentStatus, PAYMENT_STATUS_META);
                     return (
                       <tr key={trip.tripId} className={trip.paymentStatus === 'pending' ? 'unpaid-row' : ''}>
                         <td className="trip-id">{trip.tripId.slice(0, 8)}...</td>
                         <td>{trip.driverId?.slice(0, 8) ?? '—'}</td>
                         <td className="fare-amount">₪{trip.fareAmount}</td>
                         <td>
-                          <span className="payment-status" style={{ color: paymentDisplay.color }}>
-                            {paymentDisplay.emoji} {paymentDisplay.label}
+                          <span className="payment-status" style={{ color: paymentMeta.color }}>
+                            {txt(paymentMeta.ar, paymentMeta.en)}
                           </span>
                         </td>
                         <td>{formatRelativeTime(trip.completedAt)}</td>
@@ -600,31 +643,32 @@ export function LiveMapPage() {
                 </tbody>
               </table>
             </div>
-          )}
+          ) : null}
 
-          {/* Roadblocks List */}
-          {roadblocks.length > 0 && (
+          {roadblocks.length > 0 ? (
             <div className="roadblocks-list">
-              <h3>🚧 Roadblocks ({roadblocks.length})</h3>
+              <h3>
+                {txt('الإغلاقات', 'Roadblocks')} ({roadblocks.length})
+              </h3>
               <table>
                 <thead>
                   <tr>
-                    <th>Status</th>
-                    <th>Location</th>
-                    <th>Radius</th>
-                    <th>Note</th>
-                    <th>Updated</th>
-                    <th>Actions</th>
+                    <th>{txt('الحالة', 'Status')}</th>
+                    <th>{txt('الموقع', 'Location')}</th>
+                    <th>{txt('النطاق', 'Radius')}</th>
+                    <th>{txt('ملاحظة', 'Note')}</th>
+                    <th>{txt('التحديث', 'Updated')}</th>
+                    <th>{txt('إجراءات', 'Actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {roadblocks.map((roadblock) => {
-                    const statusDisplay = getRoadblockStatusDisplay(roadblock.status);
+                    const meta = statusMeta(roadblock.status, ROADBLOCK_STATUS_META);
                     return (
                       <tr key={roadblock.id} className={`roadblock-row ${roadblock.status}`}>
                         <td>
-                          <span className="roadblock-status" style={{ color: statusDisplay.color }}>
-                            {statusDisplay.emoji} {statusDisplay.label}
+                          <span className="roadblock-status" style={{ color: meta.color }}>
+                            {txt(meta.ar, meta.en)}
                           </span>
                         </td>
                         <td className="coordinates">
@@ -634,11 +678,8 @@ export function LiveMapPage() {
                         <td className="note-cell">{roadblock.note || '—'}</td>
                         <td>{formatRelativeTime(roadblock.updatedAt)}</td>
                         <td>
-                          <button 
-                            className="action-btn edit"
-                            onClick={() => handleRoadblockClick(roadblock)}
-                          >
-                            ✏️
+                          <button className="action-btn edit" onClick={() => handleRoadblockClick(roadblock)}>
+                            {txt('تعديل', 'Edit')}
                           </button>
                         </td>
                       </tr>
@@ -647,98 +688,99 @@ export function LiveMapPage() {
                 </tbody>
               </table>
             </div>
-          )}
+          ) : null}
         </>
       )}
 
-      {/* Roadblock Modal */}
-      {showRoadblockModal && (
+      {showRoadblockModal ? (
         <div className="modal-overlay" onClick={() => setShowRoadblockModal(false)}>
-          <div className="modal-content roadblock-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{editingRoadblock ? '✏️ Edit Roadblock' : '🚧 Add Roadblock'}</h3>
-            
+          <div className="modal-content roadblock-modal" onClick={(event) => event.stopPropagation()}>
+            <h3>{editingRoadblock ? txt('تعديل إغلاق', 'Edit roadblock') : txt('إضافة إغلاق', 'Add roadblock')}</h3>
+
             <div className="form-group">
-              <label>Name</label>
+              <label>{txt('الاسم', 'Name')}</label>
               <input
                 type="text"
                 value={roadblockForm.name}
-                onChange={(e) => setRoadblockForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g., Qalandia Checkpoint"
+                onChange={(event) => setRoadblockForm((current) => ({ ...current, name: event.target.value }))}
+                placeholder={txt('مثال: حاجز قلنديا', 'Example: Qalandia checkpoint')}
                 required
               />
             </div>
 
             <div className="form-group">
-              <label>Status</label>
+              <label>{txt('الحالة', 'Status')}</label>
               <select
                 value={roadblockForm.status}
-                onChange={(e) => setRoadblockForm(f => ({ ...f, status: e.target.value as 'open' | 'closed' | 'congested' }))}
+                onChange={(event) =>
+                  setRoadblockForm((current) => ({
+                    ...current,
+                    status: event.target.value as RoadblockStatus,
+                  }))
+                }
               >
-                <option value="closed">🚫 Closed</option>
-                <option value="congested">⚠️ Congested</option>
-                <option value="open">✅ Open (Cleared)</option>
+                <option value="closed">{txt('مغلق', 'Closed')}</option>
+                <option value="congested">{txt('مزدحم', 'Congested')}</option>
+                <option value="open">{txt('مفتوح', 'Open')}</option>
               </select>
             </div>
 
             <div className="form-group">
-              <label>Radius (meters)</label>
+              <label>{txt('النطاق (متر)', 'Radius (meters)')}</label>
               <input
                 type="number"
                 value={roadblockForm.radiusMeters}
-                onChange={(e) => setRoadblockForm(f => ({ ...f, radiusMeters: parseInt(e.target.value) || 100 }))}
+                onChange={(event) =>
+                  setRoadblockForm((current) => ({
+                    ...current,
+                    radiusMeters: Number.parseInt(event.target.value, 10) || 100,
+                  }))
+                }
                 min={10}
                 max={1000}
               />
             </div>
 
             <div className="form-group">
-              <label>Note</label>
+              <label>{txt('ملاحظة', 'Note')}</label>
               <textarea
                 value={roadblockForm.note}
-                onChange={(e) => setRoadblockForm(f => ({ ...f, note: e.target.value }))}
-                placeholder="Optional description..."
+                onChange={(event) => setRoadblockForm((current) => ({ ...current, note: event.target.value }))}
+                placeholder={txt('وصف اختياري لفرق التشغيل...', 'Optional note for operations...')}
                 rows={3}
               />
             </div>
 
-            {(editingRoadblock || newRoadblockLocation) && (
+            {(editingRoadblock || newRoadblockLocation) ? (
               <div className="form-group location-display">
-                <label>Location</label>
+                <label>{txt('الموقع', 'Location')}</label>
                 <span className="location-coords">
-                  {(editingRoadblock?.lat ?? newRoadblockLocation?.lat)?.toFixed(5)}, 
+                  {(editingRoadblock?.lat ?? newRoadblockLocation?.lat)?.toFixed(5)},{' '}
                   {(editingRoadblock?.lng ?? newRoadblockLocation?.lng)?.toFixed(5)}
                 </span>
               </div>
-            )}
+            ) : null}
 
             <div className="modal-actions">
-              {editingRoadblock && (
-                <button 
-                  className="btn-delete"
-                  onClick={handleDeleteRoadblock}
-                  disabled={isSavingRoadblock}
-                >
-                  🗑️ Delete
+              {editingRoadblock ? (
+                <button className="btn-delete" onClick={handleDeleteRoadblock} disabled={isSavingRoadblock}>
+                  {txt('حذف', 'Delete')}
                 </button>
-              )}
-              <button 
+              ) : null}
+              <button
                 className="btn-cancel"
                 onClick={() => setShowRoadblockModal(false)}
                 disabled={isSavingRoadblock}
               >
-                Cancel
+                {txt('إلغاء', 'Cancel')}
               </button>
-              <button 
-                className="btn-save"
-                onClick={handleSaveRoadblock}
-                disabled={isSavingRoadblock}
-              >
-                {isSavingRoadblock ? 'Saving...' : 'Save'}
+              <button className="btn-save" onClick={handleSaveRoadblock} disabled={isSavingRoadblock}>
+                {isSavingRoadblock ? txt('جارٍ الحفظ...', 'Saving...') : txt('حفظ', 'Save')}
               </button>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
