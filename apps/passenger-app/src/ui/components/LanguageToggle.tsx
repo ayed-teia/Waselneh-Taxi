@@ -10,22 +10,22 @@ export function LanguageToggle() {
     <View style={[styles.container, isRTL ? styles.rtl : styles.ltr]}>
       <Pressable
         onPress={() => {
+          void setLocale('ar');
+        }}
+        style={[styles.chip, locale === 'ar' && styles.active]}
+      >
+        <Text variant="caption" style={[styles.label, locale === 'ar' && styles.activeLabel]}>
+          عربي
+        </Text>
+      </Pressable>
+      <Pressable
+        onPress={() => {
           void setLocale('en');
         }}
         style={[styles.chip, locale === 'en' && styles.active]}
       >
         <Text variant="caption" style={[styles.label, locale === 'en' && styles.activeLabel]}>
           EN
-        </Text>
-      </Pressable>
-      <Pressable
-        onPress={() => {
-          void setLocale('ar');
-        }}
-        style={[styles.chip, locale === 'ar' && styles.active]}
-      >
-        <Text variant="caption" style={[styles.label, locale === 'ar' && styles.activeLabel]}>
-          AR
         </Text>
       </Pressable>
     </View>
@@ -64,4 +64,3 @@ const styles = StyleSheet.create({
     color: '#1D4ED8',
   },
 });
-

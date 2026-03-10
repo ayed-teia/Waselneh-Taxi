@@ -1,6 +1,6 @@
 module.exports = {
   expo: {
-    name: 'Waselneh Driver',
+    name: 'وصلني سائق',
     slug: 'waselneh-driver',
     version: '1.0.0-pilot',
     orientation: 'portrait',
@@ -52,7 +52,7 @@ module.exports = {
         'expo-location',
         {
           locationAlwaysAndWhenInUsePermission:
-            'Allow Waselneh Driver to use your location to match you with passengers.',
+            'Allow وصلني سائق to use your location to match you with passengers.',
         },
       ],
       [

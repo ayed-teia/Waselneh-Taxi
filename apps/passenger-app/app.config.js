@@ -1,6 +1,6 @@
 module.exports = {
   expo: {
-    name: 'Waselneh',
+    name: 'وصلني',
     slug: 'waselneh',
     version: '1.0.0-pilot',
     orientation: 'portrait',
@@ -44,7 +44,7 @@ module.exports = {
         'expo-location',
         {
           locationWhenInUsePermission:
-            'Allow Waselneh to use your location to find nearby pickup stations.',
+            'Allow وصلني to use your location to find nearby pickup stations.',
         },
       ],
       [

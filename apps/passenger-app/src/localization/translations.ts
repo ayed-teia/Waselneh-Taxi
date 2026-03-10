@@ -40,7 +40,7 @@ export const PASSENGER_TRANSLATIONS: Record<AppLocale, Record<string, string>> =
   },
   ar: {
     'language.label': 'اللغة',
-    'language.english': 'English',
+    'language.english': 'الإنجليزية',
     'language.arabic': 'العربية',
 
     'common.ok': 'حسناً',
@@ -76,4 +76,3 @@ export const PASSENGER_TRANSLATIONS: Record<AppLocale, Record<string, string>> =
     'auth.starting': 'جاري تشغيل وصلني...',
   },
 };
-

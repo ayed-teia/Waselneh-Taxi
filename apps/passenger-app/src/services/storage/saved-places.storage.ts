@@ -13,22 +13,22 @@ const STORAGE_KEY = 'waselneh_saved_places_v1';
 const defaultPlaces: SavedPlace[] = [
   {
     id: 'home',
-    title: 'Nablus Center',
-    subtitle: 'Nablus',
+    title: 'مركز نابلس',
+    subtitle: 'نابلس',
     lat: 32.2211,
     lng: 35.2544,
   },
   {
     id: 'work',
-    title: 'Ramallah Center',
-    subtitle: 'Ramallah',
+    title: 'مركز رام الله',
+    subtitle: 'رام الله',
     lat: 31.9038,
     lng: 35.2034,
   },
   {
     id: 'favorite',
-    title: 'Jenin Center',
-    subtitle: 'Jenin',
+    title: 'مركز جنين',
+    subtitle: 'جنين',
     lat: 32.4637,
     lng: 35.3042,
   },
@@ -38,6 +38,12 @@ const defaultById: Record<SavedPlace['id'], SavedPlace> = {
   home: defaultPlaces[0]!,
   work: defaultPlaces[1]!,
   favorite: defaultPlaces[2]!,
+};
+
+const legacyEnglishById: Record<SavedPlace['id'], { title: string; subtitle: string }> = {
+  home: { title: 'Nablus Center', subtitle: 'Nablus' },
+  work: { title: 'Ramallah Center', subtitle: 'Ramallah' },
+  favorite: { title: 'Jenin Center', subtitle: 'Jenin' },
 };
 
 const genericSubtitles = new Set([
@@ -67,16 +73,21 @@ function normalizeSavedPlace(raw: unknown): SavedPlace | null {
   const normalizedSubtitleRaw = normalizeText(data.subtitle);
   const normalizedTitleLower = normalizedTitleRaw.toLowerCase();
   const normalizedSubtitleLower = normalizedSubtitleRaw.toLowerCase();
+  const legacyTitleLower = legacyEnglishById[data.id].title.toLowerCase();
+  const legacySubtitleLower = legacyEnglishById[data.id].subtitle.toLowerCase();
 
   const isGenericTitle =
     normalizedTitleLower.length === 0 ||
     normalizedTitleLower === data.id ||
     (data.id === 'home' && normalizedTitleLower === 'home') ||
     (data.id === 'work' && normalizedTitleLower === 'work') ||
-    (data.id === 'favorite' && normalizedTitleLower === 'favorite');
+    (data.id === 'favorite' && normalizedTitleLower === 'favorite') ||
+    normalizedTitleLower === legacyTitleLower;
 
   const isGenericSubtitle =
-    normalizedSubtitleLower.length === 0 || genericSubtitles.has(normalizedSubtitleLower);
+    normalizedSubtitleLower.length === 0 ||
+    genericSubtitles.has(normalizedSubtitleLower) ||
+    normalizedSubtitleLower === legacySubtitleLower;
 
   return {
     id: data.id,

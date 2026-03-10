@@ -32,7 +32,7 @@ export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
             style={styles.badge}
           />
           <Text variant="h1" style={styles.title}>
-            Waselneh
+            {isRTL ? 'وصلني' : 'Waselneh'}
           </Text>
           <Text muted style={styles.subtitle}>
             {isRTL
@@ -76,7 +76,7 @@ export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
               : 'By continuing, you agree to our Terms of Service and Privacy Policy.'}
           </Text>
           <Text variant="caption" muted style={styles.version}>
-            {isRTL ? 'تجربة ركّاب واصلني' : 'Waselneh rider experience'}
+            {isRTL ? 'تجربة ركّاب وصلني' : 'Waselneh rider experience'}
           </Text>
         </View>
       </View>

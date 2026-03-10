@@ -32,7 +32,7 @@ export function LoginScreen({ onLogin, loading = false }: LoginScreenProps) {
             style={styles.badge}
           />
           <Text variant="h1" style={styles.title}>
-            {isRTL ? 'سائق واصلني' : 'Waselneh Driver'}
+            {isRTL ? 'سائق وصلني' : 'Waselneh Driver'}
           </Text>
           <Text muted style={styles.subtitle}>
             {isRTL

@@ -20,6 +20,29 @@ const ROLE_OPTIONS: ManagerRole[] = [
   'support',
 ];
 
+const ROLE_LABELS: Record<ManagerRole, { ar: string; en: string }> = {
+  admin: { ar: 'مدير عام', en: 'Admin' },
+  manager: { ar: 'مدير', en: 'Manager' },
+  operations_manager: { ar: 'مدير عمليات', en: 'Operations Manager' },
+  dispatcher: { ar: 'موجّه رحلات', en: 'Dispatcher' },
+  support: { ar: 'الدعم', en: 'Support' },
+};
+
+const PERMISSION_LABELS: Record<string, { ar: string; en: string }> = {
+  view_dashboard: { ar: 'عرض اللوحة', en: 'View dashboard' },
+  manage_system_flags: { ar: 'إدارة إعدادات النظام', en: 'Manage system flags' },
+  manage_drivers: { ar: 'إدارة السائقين', en: 'Manage drivers' },
+  manage_offices: { ar: 'إدارة المكاتب', en: 'Manage offices' },
+  manage_lines: { ar: 'إدارة الخطوط', en: 'Manage lines' },
+  manage_licenses: { ar: 'إدارة التراخيص', en: 'Manage licenses' },
+  manage_vehicles: { ar: 'إدارة المركبات', en: 'Manage vehicles' },
+  manage_pricing: { ar: 'إدارة التسعير', en: 'Manage pricing' },
+  view_monitoring: { ar: 'عرض المراقبة', en: 'View monitoring' },
+  manage_alerts: { ar: 'إدارة التنبيهات', en: 'Manage alerts' },
+  force_cancel_trip: { ar: 'إلغاء رحلة إجباريًا', en: 'Force cancel trip' },
+  manage_rbac: { ar: 'إدارة الصلاحيات', en: 'Manage RBAC' },
+};
+
 const NAV_ITEMS = [
   { to: '/drivers', labelAr: 'السائقون', labelEn: 'Drivers' },
   { to: '/operations', labelAr: 'العمليات', labelEn: 'Operations' },
@@ -71,10 +94,28 @@ export function App() {
     };
   }, [refreshToken, role, txt]);
 
+  const roleLabel = useMemo(() => {
+    const labels = ROLE_LABELS[role];
+    return txt(labels.ar, labels.en);
+  }, [role, txt]);
+
+  const sessionRoleLabel = useMemo(() => {
+    if (!session) return '';
+    const labels = ROLE_LABELS[session.role];
+    return txt(labels.ar, labels.en);
+  }, [session, txt]);
+
   const permissionPreview = useMemo(() => {
     if (!session) return '';
-    return session.permissions.slice(0, 4).join(', ');
-  }, [session]);
+    return session.permissions
+      .slice(0, 4)
+      .map((permission) => {
+        const labels = PERMISSION_LABELS[permission];
+        if (!labels) return permission;
+        return txt(labels.ar, labels.en);
+      })
+      .join('، ');
+  }, [session, txt]);
 
   return (
     <div className={`app ${isRTL ? 'app-rtl' : 'app-ltr'}`}>
@@ -82,11 +123,11 @@ export function App() {
         <div className="header-title-group">
           <span className="workspace-badge">{txt('لوحة التشغيل', 'Operations Console')}</span>
           <Text as="h1" variant="h2">
-            {txt('واصلني | لوحة الإدارة', 'Waselneh Manager')}
+            {txt('وصلني | لوحة الإدارة', 'Waselneh Manager')}
           </Text>
           {session ? (
             <p className="session-meta">
-              {txt('الدور', 'role')}: <strong>{session.role}</strong>
+              {txt('الدور', 'role')}: <strong>{sessionRoleLabel || roleLabel}</strong>
               {' • '}
               {txt('النطاق', 'scope')}:{' '}
               <strong>
@@ -137,7 +178,7 @@ export function App() {
                 >
                   {ROLE_OPTIONS.map((option) => (
                     <option key={option} value={option}>
-                      {option}
+                      {txt(ROLE_LABELS[option].ar, ROLE_LABELS[option].en)}
                     </option>
                   ))}
                 </select>

@@ -157,12 +157,12 @@ export function MapScreen() {
             activeOpacity={0.9}
             onPress={() => setSelectedPlaceId(item.id)}
           >
-            <Text style={styles.quickChipTitle}>{item.title}</Text>
-            <Text style={styles.quickChipSubtitle}>{item.subtitle}</Text>
+            <Text style={[styles.quickChipTitle, isRTL && styles.textRight]}>{item.title}</Text>
+            <Text style={[styles.quickChipSubtitle, isRTL && styles.textRight]}>{item.subtitle}</Text>
           </TouchableOpacity>
         );
       }),
-    [savedPlaces, selectedPlaceId]
+    [isRTL, savedPlaces, selectedPlaceId]
   );
 
   return (
@@ -217,7 +217,7 @@ export function MapScreen() {
 
           <TouchableOpacity style={[styles.searchBox, isRTL && styles.rowReverse]} activeOpacity={0.92}>
             <View style={styles.searchDot} />
-            <Text style={styles.searchPlaceholder}>
+            <Text style={[styles.searchPlaceholder, isRTL && styles.textRight]}>
               {isRTL ? 'الوجهة' : 'Destination'}: {selectedPlace?.title ?? (isRTL ? 'اختر وجهة' : 'Choose destination')}
             </Text>
           </TouchableOpacity>
@@ -476,5 +476,8 @@ const styles = StyleSheet.create({
   },
   rowReverse: {
     flexDirection: 'row-reverse',
+  },
+  textRight: {
+    textAlign: 'right',
   },
 });

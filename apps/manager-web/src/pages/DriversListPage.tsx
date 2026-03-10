@@ -106,9 +106,13 @@ function formatRelativeTime(
     const ageSec = Math.floor(ageMs / 1000);
 
     if (ageSec < 0) return txt('الآن', 'just now');
-    if (ageSec < 60) return `${ageSec}s ago`;
-    if (ageSec < 3600) return `${Math.floor(ageSec / 60)}m ago`;
-    return `${Math.floor(ageSec / 3600)}h ago`;
+    if (ageSec < 60) return txt(`قبل ${ageSec} ثانية`, `${ageSec}s ago`);
+    if (ageSec < 3600) {
+      const minutes = Math.floor(ageSec / 60);
+      return txt(`قبل ${minutes} دقيقة`, `${minutes}m ago`);
+    }
+    const hours = Math.floor(ageSec / 3600);
+    return txt(`قبل ${hours} ساعة`, `${hours}h ago`);
   } catch {
     return txt('غير متوفر', 'N/A');
   }
@@ -160,6 +164,24 @@ function computeEligibilityFromDraft(draft: DriverDraft): {
     reasons.push('fullName, nationalId, phone, lineNumber, routePath/routeName are required');
   }
   return { isEligible: reasons.length === 0, reasons };
+}
+
+function localizeEligibilityReason(
+  reason: string,
+  txt: (ar: string, en: string) => string
+): string {
+  switch (reason) {
+    case 'driverType must be licensed_line_owner':
+      return txt('نوع السائق يجب أن يكون مالك خط مرخّص', reason);
+    case 'verificationStatus must be approved':
+      return txt('حالة التحقق يجب أن تكون مقبول', reason);
+    case 'lineId or licenseId is required':
+      return txt('مطلوب lineId أو licenseId', reason);
+    case 'fullName, nationalId, phone, lineNumber, routePath/routeName are required':
+      return txt('الاسم والهوية والهاتف ورقم الخط و routePath/routeName مطلوبة', reason);
+    default:
+      return reason;
+  }
 }
 
 function createInitialDraft(driver: DriverDocument): DriverDraft {
@@ -405,21 +427,21 @@ export function DriversListPage() {
                           value={draft.officeId}
                           onChange={(e) => setDraftField(driver.id, 'officeId', e.target.value)}
                           disabled={isSaving}
-                          placeholder="officeId"
+                          placeholder={txt('معرف المكتب officeId', 'officeId')}
                         />
                         <input
                           className="table-input"
                           value={draft.lineId}
                           onChange={(e) => setDraftField(driver.id, 'lineId', e.target.value)}
                           disabled={isSaving}
-                          placeholder="lineId"
+                          placeholder={txt('معرف الخط lineId', 'lineId')}
                         />
                         <input
                           className="table-input"
                           value={draft.licenseId}
                           onChange={(e) => setDraftField(driver.id, 'licenseId', e.target.value)}
                           disabled={isSaving}
-                          placeholder="licenseId"
+                          placeholder={txt('معرف الترخيص licenseId', 'licenseId')}
                         />
                       </div>
                     </td>
@@ -431,28 +453,28 @@ export function DriversListPage() {
                           value={draft.fullName}
                           onChange={(e) => setDraftField(driver.id, 'fullName', e.target.value)}
                           disabled={isSaving}
-                          placeholder="Full name"
+                          placeholder={txt('الاسم الكامل', 'Full name')}
                         />
                         <input
                           className="table-input"
                           value={draft.nationalId}
                           onChange={(e) => setDraftField(driver.id, 'nationalId', e.target.value)}
                           disabled={isSaving}
-                          placeholder="National ID"
+                          placeholder={txt('رقم الهوية', 'National ID')}
                         />
                         <input
                           className="table-input"
                           value={draft.phone}
                           onChange={(e) => setDraftField(driver.id, 'phone', e.target.value)}
                           disabled={isSaving}
-                          placeholder="Phone"
+                          placeholder={txt('رقم الهاتف', 'Phone')}
                         />
                         <input
                           className="table-input"
                           value={draft.photoUrl}
                           onChange={(e) => setDraftField(driver.id, 'photoUrl', e.target.value)}
                           disabled={isSaving}
-                          placeholder="Photo URL (optional)"
+                          placeholder={txt('رابط الصورة (اختياري)', 'Photo URL (optional)')}
                         />
                       </div>
                     </td>
@@ -464,28 +486,28 @@ export function DriversListPage() {
                           value={draft.lineNumber}
                           onChange={(e) => setDraftField(driver.id, 'lineNumber', e.target.value)}
                           disabled={isSaving}
-                          placeholder="Line number"
+                          placeholder={txt('رقم الخط', 'Line number')}
                         />
                         <input
                           className="table-input"
                           value={draft.routePath}
                           onChange={(e) => setDraftField(driver.id, 'routePath', e.target.value)}
                           disabled={isSaving}
-                          placeholder="Route path (Nablus ↔ Ramallah)"
+                          placeholder={txt('مسار الخط (نابلس ↔ رام الله)', 'Route path (Nablus ↔ Ramallah)')}
                         />
                         <input
                           className="table-input"
                           value={draft.routeName}
                           onChange={(e) => setDraftField(driver.id, 'routeName', e.target.value)}
                           disabled={isSaving}
-                          placeholder="Route name (optional)"
+                          placeholder={txt('اسم المسار (اختياري)', 'Route name (optional)')}
                         />
                         <input
                           className="table-input"
                           value={draft.routeCities}
                           onChange={(e) => setDraftField(driver.id, 'routeCities', e.target.value)}
                           disabled={isSaving}
-                          placeholder="Route cities CSV (Nablus,Ramallah)"
+                          placeholder={txt('المدن (CSV) مثل: نابلس,رام الله', 'Route cities CSV (Nablus,Ramallah)')}
                         />
                       </div>
                     </td>
@@ -530,7 +552,7 @@ export function DriversListPage() {
                           value={draft.driverType}
                           onChange={(e) => setDraftField(driver.id, 'driverType', e.target.value)}
                           disabled={isSaving}
-                          placeholder="licensed_line_owner"
+                          placeholder={txt('نوع السائق (licensed_line_owner)', 'licensed_line_owner')}
                         />
                         <select
                           className="table-select"
@@ -557,7 +579,11 @@ export function DriversListPage() {
                             : txt('غير مؤهل', 'Blocked')}
                         </span>
                         {!eligibility.isEligible ? (
-                          <div className="eligibility-reasons">{eligibility.reasons.join(', ')}</div>
+                          <div className="eligibility-reasons">
+                            {eligibility.reasons
+                              .map((reason) => localizeEligibilityReason(reason, txt))
+                              .join('، ')}
+                          </div>
                         ) : null}
                       </div>
                     </td>
