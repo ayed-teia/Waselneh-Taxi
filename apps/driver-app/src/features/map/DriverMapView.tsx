@@ -22,6 +22,7 @@ import { RoadblockData, getRoadblockStatusDisplay, subscribeToAllRoadblocks } fr
 import {
   CAMERA_DEFAULTS,
   DEFAULT_REGION,
+  MAP_ALT_STYLE_URL,
   MAP_FALLBACK_STYLE_JSON,
   MAP_FALLBACK_STYLE_URL,
   MAP_LOG_PREFIX,
@@ -34,6 +35,8 @@ import { useI18n } from '../../localization';
 
 const MAPBOX_TOKEN = getMapboxToken();
 const STREET_STYLE_URL = Mapbox.StyleURL?.Street ?? MAP_STYLE_URL;
+type MapStyleStage = 'primary' | 'alternate' | 'local-fallback';
+const INITIAL_STYLE_STAGE: MapStyleStage = MAPBOX_TOKEN ? 'primary' : 'alternate';
 
 if (__DEV__ && !Mapbox.StyleURL?.Street) {
   console.warn('[Mapbox] Mapbox.StyleURL.Street unavailable in driver app; using MAP_STYLE_URL fallback.');
@@ -84,8 +87,17 @@ export function DriverMapView({
   const [routeCoordinates, setRouteCoordinates] = useState<[number, number][] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeStyleURL, setActiveStyleURL] = useState<string>(STREET_STYLE_URL);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [styleStage, setStyleStage] = useState<MapStyleStage>(INITIAL_STYLE_STAGE);
   const [styleLoaded, setStyleLoaded] = useState(false);
+  const activeStyleURL =
+    styleStage === 'primary'
+      ? STREET_STYLE_URL
+      : styleStage === 'alternate'
+        ? MAP_ALT_STYLE_URL
+        : MAP_FALLBACK_STYLE_URL;
+  const useFallbackStyleJSON = styleStage === 'local-fallback';
+  const usingFallbackStyle = styleStage !== 'primary';
 
   useEffect(() => {
     const unsubscribe = subscribeToAllRoadblocks(
@@ -258,25 +270,55 @@ export function DriverMapView({
     return () => controller.abort();
   }, [driverLocation, pickup, dropoff, routeMode, straightLineFallback]);
 
-  useEffect(() => {
-    if (styleLoaded || activeStyleURL === MAP_FALLBACK_STYLE_URL) return;
+  const promoteStyleStage = useCallback(
+    (reason: 'timeout' | 'error') => {
+      if (styleStage === 'primary') {
+        console.warn(`${MAP_LOG_PREFIX} Primary style ${reason}; switching to alternate style.`);
+        setStyleStage('alternate');
+        setStyleLoaded(false);
+        setError(null);
+        setNotice(
+          isRTL
+            ? 'تعذر تحميل نمط الخريطة الأساسي، يتم التحويل إلى نمط بديل.'
+            : 'Primary style unavailable, switching to alternate style.'
+        );
+        return;
+      }
 
+      if (styleStage === 'alternate') {
+        console.warn(`${MAP_LOG_PREFIX} Alternate style ${reason}; switching to simplified style.`);
+        setStyleStage('local-fallback');
+        setStyleLoaded(false);
+        setError(null);
+        setNotice(
+          isRTL ? 'يتم استخدام نمط خريطة مبسط بسبب بطء الاتصال.' : 'Using simplified map mode due to slow network.'
+        );
+        return;
+      }
+
+      console.error(`${MAP_LOG_PREFIX} Simplified style ${reason}; map unavailable.`);
+      setNotice(null);
+      setError(
+        isRTL
+          ? 'تعذر تحميل الخريطة حالياً. تحقق من اتصال الإنترنت ثم أعد المحاولة.'
+          : 'Map is currently unavailable. Check your network and try again.'
+      );
+    },
+    [isRTL, styleStage]
+  );
+
+  useEffect(() => {
+    if (styleLoaded) return;
+
+    const timeoutMs = styleStage === 'primary' ? 18000 : styleStage === 'alternate' ? 12000 : 9000;
     const timeout = setTimeout(() => {
       if (!styleLoaded) {
-        console.warn(`${MAP_LOG_PREFIX} Mapbox style timeout. Switching to fallback style.`);
-        setActiveStyleURL(MAP_FALLBACK_STYLE_URL);
-        setError(
-          (current) =>
-            current ??
-            (isRTL
-              ? 'تأخر تحميل نمط الخريطة. تم التحويل إلى النمط البديل.'
-              : 'Mapbox style timed out. Using fallback style.')
-        );
+        promoteStyleStage('timeout');
       }
-    }, 6000);
+    }, timeoutMs);
 
     return () => clearTimeout(timeout);
-  }, [activeStyleURL, isRTL, styleLoaded]);
+  }, [promoteStyleStage, styleLoaded, styleStage]);
 
   const routeLineGeoJSON =
     routeCoordinates && routeCoordinates.length > 1
@@ -291,36 +333,33 @@ export function DriverMapView({
       : null;
 
   const handleMapLoadError = (event?: unknown) => {
-    if (activeStyleURL !== MAP_FALLBACK_STYLE_URL) {
-      console.warn(`${MAP_LOG_PREFIX} Mapbox style failed. Switching to fallback style.`, event);
-      setActiveStyleURL(MAP_FALLBACK_STYLE_URL);
-      setError(
-        (current) =>
-          current ??
-          (isRTL
-            ? 'فشل تحميل نمط الخريطة. تم التحويل إلى النمط البديل.'
-            : 'Mapbox style failed. Using fallback style.')
-      );
+    console.warn(`${MAP_LOG_PREFIX} Map style load error on stage ${styleStage}.`, event);
+    if (!styleLoaded) {
+      promoteStyleStage('error');
       return;
     }
 
-    setError(
-      (current) =>
-        current ??
-        (isRTL
-          ? 'بلاطات الخريطة غير متاحة. تحقق من اتصال الإنترنت.'
-          : 'Map tiles unavailable. Check network for full map tiles.')
-    );
-    console.error(`${MAP_LOG_PREFIX} Map style failed to load`, event);
+    if (styleStage === 'local-fallback') {
+      setNotice(
+        isRTL
+          ? 'تم تحميل النمط المبسط، لكن بعض البلاطات قد تتأخر حسب الشبكة.'
+          : 'Simplified map loaded, but some tiles may load slowly.'
+      );
+    }
   };
 
   const handleStyleLoaded = () => {
     setStyleLoaded(true);
-    if (activeStyleURL === MAP_FALLBACK_STYLE_URL) {
-      setError((current) => current ?? (isRTL ? 'يتم استخدام نمط خريطة مبسط.' : 'Using simplified map mode.'));
+    setError(null);
+
+    if (styleStage === 'primary') {
+      setNotice(null);
+    } else if (styleStage === 'alternate') {
+      setNotice(isRTL ? 'يتم استخدام نمط خريطة بديل.' : 'Using alternate map style.');
     } else {
-      setError(null);
+      setNotice(isRTL ? 'يتم استخدام نمط خريطة مبسط.' : 'Using simplified map mode.');
     }
+
     console.log(`${MAP_LOG_PREFIX} Style loaded:`, activeStyleURL);
   };
 
@@ -342,8 +381,6 @@ export function DriverMapView({
   const minBottomWithInset = (isNarrow ? 232 : 218) + insets.bottom;
   const resolvedWindowHeight = height > 0 ? height : Dimensions.get('window').height;
   const mapHeight = mapHeightRatio ? Math.round(resolvedWindowHeight * mapHeightRatio) : null;
-  const useFallbackStyleJSON = activeStyleURL === MAP_FALLBACK_STYLE_URL;
-  const usingFallbackStyle = useFallbackStyleJSON;
 
   if (loading) {
     return (
@@ -496,9 +533,17 @@ export function DriverMapView({
         </View>
       ) : null}
 
-      {usingFallbackStyle ? (
-        <View style={[styles.noticeBanner, { top: topOverlayOffset + 88 }]}>
-          <Text style={styles.noticeText}>{isRTL ? 'يتم استخدام نمط خريطة مبسط' : 'Using simplified map mode'}</Text>
+      {notice ? (
+        <View
+          style={[
+            styles.noticeBanner,
+            { top: topOverlayOffset + 88 },
+            usingFallbackStyle ? styles.noticeBannerWarning : styles.noticeBannerInfo,
+          ]}
+        >
+          <Text style={[styles.noticeText, usingFallbackStyle ? styles.noticeTextWarning : styles.noticeTextInfo]}>
+            {notice}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -643,14 +688,25 @@ const styles = StyleSheet.create({
     left: 14,
     right: 14,
     borderRadius: 10,
-    backgroundColor: 'rgba(245, 158, 11, 0.95)',
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
+  noticeBannerInfo: {
+    backgroundColor: 'rgba(37, 99, 235, 0.94)',
+  },
+  noticeBannerWarning: {
+    backgroundColor: 'rgba(245, 158, 11, 0.95)',
+  },
   noticeText: {
-    color: '#111827',
     fontSize: 12,
     textAlign: 'center',
     fontWeight: '700',
   },
+  noticeTextInfo: {
+    color: '#F8FAFC',
+  },
+  noticeTextWarning: {
+    color: '#111827',
+  },
 });
+

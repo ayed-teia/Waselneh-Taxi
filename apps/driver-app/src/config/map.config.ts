@@ -31,9 +31,10 @@ export const DEFAULT_REGION = {
 };
 
 /**
- * Primary style for online mode and offline-safe fallback style.
+ * Primary and secondary remote styles before offline-safe local fallback.
  */
-export const MAP_STYLE_URL = 'mapbox://styles/mapbox/streets-v11';
+export const MAP_STYLE_URL = 'mapbox://styles/mapbox/streets-v12';
+export const MAP_ALT_STYLE_URL = 'https://demotiles.maplibre.org/style.json';
 export const MAP_FALLBACK_STYLE_URL = 'waselneh://offline-fallback-style';
 export const MAP_FALLBACK_STYLE_JSON = JSON.stringify({
   version: 8,
@@ -41,18 +42,35 @@ export const MAP_FALLBACK_STYLE_JSON = JSON.stringify({
   sources: {
     osm: {
       type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tiles: [
+        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      ],
       tileSize: 256,
       attribution: '© OpenStreetMap contributors',
+      scheme: 'xyz',
     },
   },
   layers: [
+    {
+      id: 'fallback-background',
+      type: 'background',
+      paint: {
+        'background-color': '#e7eef8',
+      },
+    },
     {
       id: 'osm-raster',
       type: 'raster',
       source: 'osm',
       minzoom: 0,
       maxzoom: 19,
+      paint: {
+        'raster-opacity': 0.95,
+      },
     },
   ],
 });
