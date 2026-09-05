@@ -1,8 +1,9 @@
-import React from 'react';
-import { Redirect } from 'expo-router';
 import { ScreenContainer } from '@waselneh/ui';
-import { useAuthStore } from '../src/store';
+import { Redirect } from 'expo-router';
+import React from 'react';
+
 import { InboxScreen } from '../src/features/inbox';
+import { useAuthStore } from '../src/store';
 
 export default function Inbox() {
   const { isAuthenticated } = useAuthStore();

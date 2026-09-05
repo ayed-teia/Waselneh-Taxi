@@ -1,6 +1,8 @@
 import React from 'react';
 import { ActivityIndicator, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+
 import { getModeColors, waselnehRadius, waselnehSpacing } from '../tokens/design-tokens';
+
 import { Text } from './Text';
 
 interface LoadingStateProps {

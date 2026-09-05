@@ -14,11 +14,14 @@
     "prettier"
   ],
   "settings": {
+    "//": "The `typescript` resolver requires eslint-import-resolver-typescript, which is NOT a dependency of this repo. Declaring it made every import unresolvable ('invalid interface loaded as resolver') and produced ~1800 false errors. Until that package is added, resolve with the bundled node resolver and disable the rules that need real TS path resolution.",
     "import/resolver": {
-      "typescript": {
-        "alwaysTryTypes": true,
-        "project": ["./tsconfig.json", "./apps/*/tsconfig.json", "./packages/*/tsconfig.json", "./backend/*/tsconfig.json"]
+      "node": {
+        "extensions": [".js", ".jsx", ".ts", ".tsx", ".json"]
       }
+    },
+    "import/parsers": {
+      "@typescript-eslint/parser": [".ts", ".tsx"]
     }
   },
   "rules": {
@@ -26,6 +29,12 @@
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/explicit-module-boundary-types": "off",
     "@typescript-eslint/no-explicit-any": "warn",
+    "import/no-unresolved": "off",
+    "import/namespace": "off",
+    "import/default": "off",
+    "import/export": "off",
+    "import/no-named-as-default": "off",
+    "import/no-named-as-default-member": "off",
     "import/order": [
       "error",
       {

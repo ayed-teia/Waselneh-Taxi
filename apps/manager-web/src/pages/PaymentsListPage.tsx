@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+
 import { useI18n } from '../localization';
 import { PaymentDocument, subscribeToPayments } from '../services/payments.service';
 import './PaymentsListPage.css';

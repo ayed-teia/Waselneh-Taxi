@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { TripStatus } from '../../../types/shared';
+
 import { useI18n } from '../../../localization';
+import { TripStatus } from '../../../types/shared';
 
 interface TripTimelineProps {
   status: TripStatus;

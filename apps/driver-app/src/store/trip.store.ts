@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+
 import { TripStatus } from '../types/shared';
 
 interface TripState {

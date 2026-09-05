@@ -1,3 +1,5 @@
+import { LatLng } from '@taxi-line/shared';
+import { useRouter } from 'expo-router';
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -8,10 +10,10 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Button } from '../../../ui';
+
 import { estimateTrip, createTripRequest, EstimateTripResponse } from '../../../services/api';
-import { LatLng } from '@taxi-line/shared';
+import { Button } from '../../../ui';
+
 
 // Sample locations in the West Bank for testing
 const SAMPLE_LOCATIONS = {

@@ -1,6 +1,7 @@
+import { Text } from '@waselneh/ui';
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '@waselneh/ui';
+
 import { useI18n } from '../../localization';
 
 export function LanguageToggle() {

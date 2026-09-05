@@ -1,7 +1,9 @@
 import React from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { getModeColors, waselnehRadius, waselnehSpacing } from '../tokens/design-tokens';
+
 import { Text } from './Text';
 
 interface HeaderProps {

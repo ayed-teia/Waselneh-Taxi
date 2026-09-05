@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+
 import { useI18n } from '../localization';
 import {
   FeatureFlag,

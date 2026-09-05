@@ -1,6 +1,8 @@
 import React from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+
 import { waselnehSpacing } from '../tokens/design-tokens';
+
 import { Text } from './Text';
 
 export interface SectionHeaderProps {

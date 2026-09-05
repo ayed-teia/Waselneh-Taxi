@@ -1,3 +1,6 @@
+import { BOOKING_TYPES, BookingType, VehicleType, VEHICLE_TYPES } from '@taxi-line/shared';
+import { BottomSheetCard, StatusChip } from '@waselneh/ui';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,15 +13,14 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { BottomSheetCard, StatusChip } from '@waselneh/ui';
-import { PassengerMapView } from '../PassengerMapView';
-import { createTripRequest, estimateTrip } from '../../../services/api';
-import { colors } from '../../../ui/theme';
-import { SavedPlace, loadSavedPlaces } from '../../../services';
+
 import { useI18n } from '../../../localization';
+import { SavedPlace, loadSavedPlaces } from '../../../services';
+import { createTripRequest, estimateTrip } from '../../../services/api';
 import { LanguageToggle } from '../../../ui';
-import { BOOKING_TYPES, BookingType, VehicleType, VEHICLE_TYPES } from '@taxi-line/shared';
+import { colors } from '../../../ui/theme';
+import { PassengerMapView } from '../PassengerMapView';
+
 
 const DEFAULT_PICKUP = { lat: 32.2211, lng: 35.2544 };
 const DEFAULT_DESTINATION = { lat: 31.9038, lng: 35.2034 };

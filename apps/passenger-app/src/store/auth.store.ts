@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+
 import type { User } from '../services/firebase';
 
 interface AuthState {

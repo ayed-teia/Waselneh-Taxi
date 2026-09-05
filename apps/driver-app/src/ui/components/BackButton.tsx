@@ -1,7 +1,7 @@
-import React from 'react';
-import { Pressable, StyleProp, StyleSheet, Text, ViewStyle } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import React from 'react';
+import { Pressable, StyleProp, StyleSheet, Text, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface BackButtonProps {

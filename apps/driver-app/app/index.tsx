@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
 import { Redirect } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
+
+import { LoginScreen } from '../src/features/auth';
+import { useI18n } from '../src/localization';
+import { signInWithDriverUidForDev } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
 import { LoadingScreen } from '../src/ui';
-import { LoginScreen } from '../src/features/auth';
-import { signInWithDriverUidForDev } from '../src/services/firebase';
-import { useI18n } from '../src/localization';
 
 // Dev mode - use anonymous auth for testing with emulators
 const DEV_MODE = true;

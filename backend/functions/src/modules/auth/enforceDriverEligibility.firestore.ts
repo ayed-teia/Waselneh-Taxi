@@ -13,7 +13,7 @@ export const enforceDriverEligibility = onDocumentWritten(
     timeoutSeconds: 60,
   },
   async (event) => {
-    const driverId = event.params.driverId as string;
+    const driverId = event.params.driverId;
     const after = event.data?.after;
 
     if (!after?.exists) {

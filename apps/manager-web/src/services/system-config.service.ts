@@ -7,8 +7,9 @@
  * Manages system-wide configuration including feature flags.
  */
 
-import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+
 import { getFirestoreDb, getFunctionsInstance } from './firebase';
 
 /**

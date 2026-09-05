@@ -1,16 +1,17 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+
 import { App } from './App';
-import { LiveMapPage } from './pages/LiveMapPage';
+import { I18nProvider } from './localization';
 import { DriversListPage } from './pages/DriversListPage';
+import { LiveMapPage } from './pages/LiveMapPage';
+import { MonitoringPage } from './pages/MonitoringPage';
+import { OperationsPage } from './pages/OperationsPage';
 import { PaymentsListPage } from './pages/PaymentsListPage';
 import { RoadblocksPage } from './pages/RoadblocksPage';
 import { SystemSettingsPage } from './pages/SystemSettingsPage';
-import { OperationsPage } from './pages/OperationsPage';
-import { MonitoringPage } from './pages/MonitoringPage';
 import { installWebErrorTracking } from './services/error-tracking.service';
-import { I18nProvider } from './localization';
 import '@waselneh/ui/tokens.css';
 import './ui/styles.css';
 import './index.css';

@@ -409,7 +409,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
 
       const db = getFirestore();
       let requestedOfficeId = normalizedRideOptions.officeId;
-      let requestedLineId = normalizedRideOptions.lineId;
+      const requestedLineId = normalizedRideOptions.lineId;
 
       if (requestedLineId) {
         const lineDoc = await db.collection('lines').doc(requestedLineId).get();

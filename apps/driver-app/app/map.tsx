@@ -1,9 +1,10 @@
-import React from 'react';
-import { Redirect } from 'expo-router';
 import { ScreenContainer } from '@waselneh/ui';
+import { Redirect } from 'expo-router';
+import React from 'react';
+
+import { DriverMapView } from '../src/features/map';
 import { useAuthStore } from '../src/store';
 import { useDriverStore } from '../src/store/driver.store';
-import { DriverMapView } from '../src/features/map';
 import { BackButton } from '../src/ui';
 
 export default function MapScreen() {

@@ -1,8 +1,9 @@
+import { Button, Card, ScreenContainer, Text } from '@waselneh/ui';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button, Card, ScreenContainer, Text } from '@waselneh/ui';
-import { DriverEligibilityState, DriverEligibilityReason } from '../../../services/realtime';
+
 import { useI18n } from '../../../localization';
+import { DriverEligibilityState, DriverEligibilityReason } from '../../../services/realtime';
 
 interface DriverAccessDeniedScreenProps {
   eligibility: DriverEligibilityState;

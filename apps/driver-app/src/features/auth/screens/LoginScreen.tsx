@@ -1,9 +1,10 @@
+import { Badge, Button, Card, ScreenContainer, Text } from '@waselneh/ui';
 import React from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Badge, Button, Card, ScreenContainer, Text } from '@waselneh/ui';
-import { colors } from '../../../ui/theme';
+
 import { useI18n } from '../../../localization';
 import { LanguageToggle } from '../../../ui';
+import { colors } from '../../../ui/theme';
 
 interface LoginScreenProps {
   onLogin: () => void;

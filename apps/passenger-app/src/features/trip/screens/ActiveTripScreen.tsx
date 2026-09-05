@@ -1,13 +1,14 @@
+import { TripStatus } from '@taxi-line/shared';
+import { StatusChip } from '@waselneh/ui';
 import React, { useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TripStatus } from '@taxi-line/shared';
-import { StatusChip } from '@waselneh/ui';
-import { PassengerMapView } from '../../map';
-import { Button } from '../../../ui';
-import { DriverLocation, DriverProfile, TripChatMessage } from '../../../services/realtime';
-import { LiveEtaCard, SafetyToolsCard, TripChatPanel, TripTimeline } from '../components';
+
 import { useI18n } from '../../../localization';
+import { DriverLocation, DriverProfile, TripChatMessage } from '../../../services/realtime';
+import { Button } from '../../../ui';
+import { PassengerMapView } from '../../map';
+import { LiveEtaCard, SafetyToolsCard, TripChatPanel, TripTimeline } from '../components';
 
 interface LocationCoords {
   lat: number;

@@ -1,5 +1,5 @@
-﻿import React from 'react';
-import { LoadingState, ScreenContainer } from '@waselneh/ui';
+﻿import { LoadingState, ScreenContainer } from '@waselneh/ui';
+import React from 'react';
 
 interface LoadingScreenProps {
   message?: string;

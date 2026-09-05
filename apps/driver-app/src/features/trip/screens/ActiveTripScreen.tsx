@@ -1,13 +1,15 @@
-﻿import React, { useCallback } from 'react';
+﻿import { TripStatus } from '@taxi-line/shared';
+import { BottomSheetCard, StatusChip } from '@waselneh/ui';
+import React, { useCallback } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TripStatus } from '@taxi-line/shared';
-import { BottomSheetCard, StatusChip } from '@waselneh/ui';
-import { Button } from '../../../ui';
+
+import { useI18n } from '../../../localization';
 import { completeTrip, driverArrived, startTrip } from '../../../services/api';
-import { DriverMapView } from '../../map';
-import { useDriverStore } from '../../../store';
 import { TripChatMessage } from '../../../services/realtime';
+import { useDriverStore } from '../../../store';
+import { Button } from '../../../ui';
+import { DriverMapView } from '../../map';
 import {
   LiveEtaCard,
   PassengerRatingCard,
@@ -15,7 +17,6 @@ import {
   TripChatPanel,
   TripTimeline,
 } from '../components';
-import { useI18n } from '../../../localization';
 
 interface ActiveTripScreenProps {
   tripId: string;

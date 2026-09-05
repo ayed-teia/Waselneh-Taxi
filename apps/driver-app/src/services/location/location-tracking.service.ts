@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+
 import { updateDriverLocation, removeDriverLocation, LocationUpdate } from './driver-location.service';
 
 /**

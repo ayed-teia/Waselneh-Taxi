@@ -1,10 +1,11 @@
+import { Button, Header, ScreenContainer, Text } from '@waselneh/ui';
+import { Redirect, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { Redirect, useRouter } from 'expo-router';
-import { Button, Header, ScreenContainer, Text } from '@waselneh/ui';
+
+import { useI18n } from '../src/localization';
 import { createSupportTicket } from '../src/services/api';
 import { useAuthStore } from '../src/store';
-import { useI18n } from '../src/localization';
 
 export default function Support() {
   const { isRTL } = useI18n();

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+
 import { VEHICLE_MAX_CAPACITY, VEHICLE_TYPE_VALUES } from '../config/vehicle.config';
 
 /**

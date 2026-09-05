@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { LoadingState, ScreenContainer } from '@waselneh/ui';
+import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
-import * as Notifications from 'expo-notifications';
-import { LoadingState, ScreenContainer } from '@waselneh/ui';
+
+import { I18nProvider, useI18n } from '../src/localization';
 import {
   markUserNotificationRead,
   registerNotificationDevice,
@@ -11,7 +13,6 @@ import {
 } from '../src/services';
 import { onAuthStateChanged, type User } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
-import { I18nProvider, useI18n } from '../src/localization';
 import '../src/config/mapbox.init';
 
 Notifications.setNotificationHandler({

@@ -1,9 +1,10 @@
-import React from 'react';
-import { Redirect } from 'expo-router';
 import { ScreenContainer } from '@waselneh/ui';
-import { BackButton } from '../src/ui';
-import { useAuthStore } from '../src/store';
+import { Redirect } from 'expo-router';
+import React from 'react';
+
 import { EstimateTripScreen } from '../src/features/estimate';
+import { useAuthStore } from '../src/store';
+import { BackButton } from '../src/ui';
 
 export default function Estimate() {
   const { isAuthenticated } = useAuthStore();

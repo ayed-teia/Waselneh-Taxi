@@ -1,11 +1,12 @@
-import React from 'react';
-import { useLocalSearchParams, useRouter, Redirect } from 'expo-router';
-import { Alert } from 'react-native';
 import { ScreenContainer } from '@waselneh/ui';
-import { useAuthStore } from '../src/store';
+import { useLocalSearchParams, useRouter, Redirect } from 'expo-router';
+import React from 'react';
+import { Alert } from 'react-native';
+
 import { SearchingDriverScreen } from '../src/features/trip';
-import { BackButton } from '../src/ui';
 import { cancelTripRequest } from '../src/services/api';
+import { useAuthStore } from '../src/store';
+import { BackButton } from '../src/ui';
 
 export default function Searching() {
   const router = useRouter();

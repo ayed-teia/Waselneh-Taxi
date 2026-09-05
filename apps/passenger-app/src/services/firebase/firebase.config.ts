@@ -3,10 +3,11 @@
  * Using @react-native-firebase (Native SDK) for better reliability
  */
 import firebaseAuth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import Constants from 'expo-constants';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import type { Firestore } from 'firebase/firestore';
 import type { Functions } from 'firebase/functions';
-import Constants from 'expo-constants';
+
 import { getEmulatorHost } from '../../utils/emulator-host';
 
 // Re-export types

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+
 import { BOOKING_TYPE_VALUES, BookingType } from '../config/booking.config';
 import { VehicleType, VEHICLE_MAX_CAPACITY, VEHICLE_TYPE_VALUES } from '../config/vehicle.config';
 

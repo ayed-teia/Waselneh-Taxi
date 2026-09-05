@@ -1,8 +1,9 @@
 import { z } from 'zod';
+
 import { BOOKING_TYPE_VALUES, BookingType } from '../config/booking.config';
+import { VEHICLE_MAX_CAPACITY, VEHICLE_TYPE_VALUES } from '../config/vehicle.config';
 import { PaymentMethod, PaymentStatus } from '../enums/payment-status.enum';
 import { TripStatusSchema } from '../enums/trip-status.enum';
-import { VEHICLE_MAX_CAPACITY, VEHICLE_TYPE_VALUES } from '../config/vehicle.config';
 
 /**
  * ============================================================================

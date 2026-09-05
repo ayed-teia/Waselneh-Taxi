@@ -1,10 +1,11 @@
+import { Card, Header, LoadingState, ScreenContainer, Text } from '@waselneh/ui';
+import { Redirect, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Redirect, useRouter } from 'expo-router';
-import { Card, Header, LoadingState, ScreenContainer, Text } from '@waselneh/ui';
+
+import { useI18n } from '../src/localization';
 import { getDriverEarningsSummary, DriverEarningsSummaryResponse } from '../src/services/api';
 import { useAuthStore } from '../src/store';
-import { useI18n } from '../src/localization';
 
 function formatHours(minutes: number): string {
   const hours = minutes / 60;
