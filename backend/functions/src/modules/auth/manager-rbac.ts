@@ -71,38 +71,49 @@ function hasScopeAccess(profile: ManagerProfile, scope?: ScopeCheckInput): boole
   return true;
 }
 
+/**
+ * Resolve a manager's role, permissions and scope.
+ *
+ * SECURITY (R1): `managerRoles/{uid}` is the ONLY source of truth for RBAC.
+ *
+ * This previously fell back to `users/{uid}`.`role` / `.permissions` / `.officeIds` /
+ * `.lineIds` when the managerRoles document was missing a field. Because Firestore rules
+ * let a user write their own `users/{uid}` document, any authenticated user could set
+ * `role: 'admin'` on themselves and be granted full manager permissions here - a direct
+ * privilege escalation. Those fallbacks are removed: a manager who has no
+ * `managerRoles/{uid}` document is not a manager, regardless of what `users/{uid}` says.
+ *
+ * `users/{uid}` is still written by managerUpsertStaffRole as a denormalized copy for
+ * display, but it is never read for an authorization decision.
+ */
 export async function getManagerProfile(userId: string): Promise<ManagerProfile> {
   const db = getFirestore();
-  const [userDoc, managerRoleDoc] = await Promise.all([
-    db.collection('users').doc(userId).get(),
-    db.collection('managerRoles').doc(userId).get(),
-  ]);
+  const managerRoleDoc = await db.collection('managerRoles').doc(userId).get();
 
-  const userData = userDoc.data() ?? {};
+  if (!managerRoleDoc.exists) {
+    logger.warn('[RBAC] No managerRoles document for user', { userId });
+    throw new ForbiddenError('Manager role is required');
+  }
+
   const managerRoleData = managerRoleDoc.data() ?? {};
 
-  const roleFromRoleDoc = normalizeManagerRole(managerRoleData.role);
-  const roleFromUserDoc = normalizeManagerRole(userData.role);
-  const role = ensureManagerRole(roleFromRoleDoc ?? roleFromUserDoc);
+  // A deactivated manager must lose access immediately, without needing the
+  // document to be deleted.
+  if (managerRoleData.isActive === false) {
+    logger.warn('[RBAC] Manager role is deactivated', { userId });
+    throw new ForbiddenError('Manager account is deactivated');
+  }
 
-  const explicitPermissions = normalizeManagerPermissions(
-    managerRoleData.permissions ?? userData.permissions
-  );
+  const role = ensureManagerRole(normalizeManagerRole(managerRoleData.role));
+
+  const explicitPermissions = normalizeManagerPermissions(managerRoleData.permissions);
   const permissions =
     explicitPermissions.length > 0
       ? explicitPermissions
       : getDefaultManagerPermissions(role);
 
-  const officeIds = normalizeScopeList(
-    managerRoleData.officeIds ??
-      userData.officeIds ??
-      (normalizeOptionalString(userData.officeId) ? [userData.officeId] : [])
-  );
-  const lineIds = normalizeScopeList(
-    managerRoleData.lineIds ??
-      userData.lineIds ??
-      (normalizeOptionalString(userData.lineId) ? [userData.lineId] : [])
-  );
+  const officeIds = normalizeScopeList(managerRoleData.officeIds);
+  const lineIds = normalizeScopeList(managerRoleData.lineIds);
 
   const profile: ManagerProfile = {
     userId,

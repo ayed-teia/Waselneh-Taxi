@@ -43,8 +43,38 @@ service cloud.firestore {
       return /databases/$(database)/documents/managerRoles/$(uid);
     }
 
-    function userDocPath(uid) {
-      return /databases/$(database)/documents/users/$(uid);
+    /**
+     * Privilege-granting fields on users/{uid}. SECURITY (R1): these must never be
+     * written by the document owner - see match /users/{uid}. Cloud Functions use the
+     * Admin SDK, which bypasses these rules, so backend provisioning is unaffected.
+     */
+    function privilegeFields() {
+      return [
+        'role',
+        'permissions',
+        'officeIds',
+        'officeId',
+        'lineIds',
+        'lineId',
+        'managerRole',
+        'status',
+      ];
+    }
+
+    /** True if an incoming document carries any privilege field at all. */
+    function writesPrivilegeFields() {
+      return request.resource.data.keys().hasAny(privilegeFields());
+    }
+
+    /**
+     * True if this update adds, removes, or modifies any privilege field.
+     * An update that leaves them byte-identical is allowed, so a client can safely
+     * re-send a document it just read.
+     */
+    function changesPrivilegeFields() {
+      return request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasAny(privilegeFields());
     }
 
     function isManagerRoleValue(value) {
@@ -68,7 +98,13 @@ service cloud.firestore {
     }
     
     /**
-     * Check if user is a manager
+     * Check if user is a manager.
+     *
+     * SECURITY (R1): manager status comes ONLY from a verified custom claim, or from an
+     * ACTIVE managerRoles/{uid} document. This previously also trusted users/{uid}.role.
+     * Because users can write their own users/{uid} document, any authenticated user
+     * could self-assign role: "admin", become a manager, and then write managerRoles/*
+     * to make the escalation permanent. That branch is removed.
      */
     function isManager() {
       return hasManagerClaim() ||
@@ -77,11 +113,6 @@ service cloud.firestore {
           exists(managerRoleDocPath(request.auth.uid)) &&
           isManagerRoleValue(get(managerRoleDocPath(request.auth.uid)).data.role) &&
           get(managerRoleDocPath(request.auth.uid)).data.isActive == true
-        ) ||
-        (
-          isAuthenticated() &&
-          exists(userDocPath(request.auth.uid)) &&
-          isManagerRoleValue(get(userDocPath(request.auth.uid)).data.role)
         );
     }
     
@@ -181,10 +212,17 @@ service cloud.firestore {
     match /users/{uid} {
       // User can read their own document, managers can read any
       allow read: if isOwner(uid) || isManager();
-      
-      // User can update their own document, managers can update any
-      // Note: User creation is handled by Cloud Functions on auth trigger
-      allow write: if isOwner(uid) || isManager();
+
+      // SECURITY (R1): an owner may maintain their own profile (displayName, photo,
+      // locale, ...) but must never set or change a privilege field on it. Only a
+      // manager may do that from a client; backend provisioning goes through Cloud
+      // Functions on the Admin SDK, which bypasses these rules entirely.
+      // Note: user creation is normally handled by a Cloud Function auth trigger.
+      allow create: if isManager() ||
+        (isOwner(uid) && !writesPrivilegeFields());
+      allow update: if isManager() ||
+        (isOwner(uid) && !changesPrivilegeFields());
+      allow delete: if isManager();
     }
 
     // =========================================================================
