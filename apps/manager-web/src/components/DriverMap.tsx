@@ -8,7 +8,7 @@ import { RoadblockData, getRoadblockStatusDisplay } from '../services/roadblocks
 import { TripData, getTripStatusDisplay } from '../services/trips.service';
 
 // Fix Leaflet default icon issue with bundlers (Vite/Webpack)
-// @ts-ignore
+// @ts-expect-error - Leaflet internal; deleted so bundlers resolve marker icon URLs
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',

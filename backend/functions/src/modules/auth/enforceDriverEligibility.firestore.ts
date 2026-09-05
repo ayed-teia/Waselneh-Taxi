@@ -47,7 +47,9 @@ export const enforceDriverEligibility = onDocumentWritten(
       return;
     }
 
-    await db.runTransaction(async (transaction) => {
+    await db.runTransaction(
+      // eslint-disable-next-line @typescript-eslint/require-await -- Firestore requires a promise-returning transaction callback
+      async (transaction) => {
       transaction.set(
         driverRef,
         {

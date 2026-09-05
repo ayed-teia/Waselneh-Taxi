@@ -25,6 +25,7 @@ export const ping = onCall<unknown, Promise<PingResponse>>(
     memory: '256MiB',
     timeoutSeconds: 30,
   },
+  // eslint-disable-next-line @typescript-eslint/require-await -- onCall handler contract is async
   async (request) => {
     try {
       const parsed = PingRequestSchema.safeParse(request.data);
