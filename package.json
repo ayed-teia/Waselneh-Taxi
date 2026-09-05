@@ -15,6 +15,8 @@
     "emulators:persist": "corepack pnpm run build:functions && node ./scripts/run-firebase-node20.cjs emulators:start --import=./emulator-data --export-on-exit=./emulator-data",
     "build:functions": "corepack pnpm --filter @taxi-line/functions build",
     "qa:driver-eligibility:e2e": "corepack pnpm --filter @taxi-line/functions qa:driver-eligibility:e2e",
+    "qa:request-lifecycle:e2e": "corepack pnpm --filter @taxi-line/functions qa:request-lifecycle:e2e",
+    "qa:cash-payment:e2e": "corepack pnpm --filter @taxi-line/functions qa:cash-payment:e2e",
     "qa:driver-eligibility:e2e:exec": "node ./scripts/run-firebase-node20.cjs emulators:exec --project waselneh-prod-414e2 --only auth,firestore,functions \"node backend/functions/scripts/qa-driver-eligibility-e2e.mjs\"",
     "backfill:driver-eligibility:dry-run": "corepack pnpm --filter @taxi-line/functions backfill:driver-eligibility -- --project waselneh-prod-414e2",
     "backfill:driver-eligibility:apply": "corepack pnpm --filter @taxi-line/functions backfill:driver-eligibility:apply -- --project waselneh-prod-414e2",
