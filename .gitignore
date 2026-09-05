@@ -61,3 +61,7 @@ GoogleService-Info.plist
 # Cache
 .eslintcache
 .cache
+
+# Build/QA artifacts from the overnight hardening run
+overnight.log
+emulator.log
