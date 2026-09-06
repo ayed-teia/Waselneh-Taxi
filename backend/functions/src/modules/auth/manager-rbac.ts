@@ -97,10 +97,17 @@ export async function getManagerProfile(userId: string): Promise<ManagerProfile>
 
   const managerRoleData = managerRoleDoc.data() ?? {};
 
-  // A deactivated manager must lose access immediately, without needing the
-  // document to be deleted.
-  if (managerRoleData.isActive === false) {
-    logger.warn('[RBAC] Manager role is deactivated', { userId });
+  // A manager must be EXPLICITLY active. This deliberately requires isActive === true
+  // rather than merely "not false": the Firestore rule gates on
+  // `managerRoles/{uid}.isActive == true`, so treating a missing/blank isActive as
+  // active here would let the backend and the rules disagree - a document with no
+  // isActive field would pass every manager callable while being rejected by the
+  // rules. Both sides now fail closed on the same condition.
+  if (managerRoleData.isActive !== true) {
+    logger.warn('[RBAC] Manager role is not active', {
+      userId,
+      isActive: managerRoleData.isActive ?? null,
+    });
     throw new ForbiddenError('Manager account is deactivated');
   }
 
