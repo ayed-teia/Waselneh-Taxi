@@ -155,6 +155,30 @@ service cloud.firestore {
         );
     }
 
+    /**
+     * True if the caller is the passenger on the trip this driver is currently
+     * assigned to.
+     *
+     * SECURITY (PII): drivers/{driverId} and driverLive/{driverId} used to be readable
+     * by ANY authenticated user, which let anyone enumerate every driver's nationalId,
+     * phone number and live GPS position. Reads are now scoped to the people who
+     * actually need them: the driver themselves, a manager, and the passenger of record
+     * on the driver's current trip.
+     *
+     * The link is drivers/{driverId}.currentTripId -> trips/{tripId}.passengerId, so a
+     * passenger can only reach the driver who is actually assigned to them, and only
+     * while that assignment stands.
+     */
+    function isPassengerOfDriverCurrentTrip(driverId) {
+      return isAuthenticated() &&
+        exists(driverDocPath(driverId)) &&
+        driverDoc(driverId).data.currentTripId is string &&
+        driverDoc(driverId).data.currentTripId.size() > 0 &&
+        exists(tripDocPath(driverDoc(driverId).data.currentTripId)) &&
+        get(tripDocPath(driverDoc(driverId).data.currentTripId)).data.passengerId
+          == request.auth.uid;
+    }
+
     function hasValidLineOrLicenseLink(data) {
       return (
         (data.lineId is string && data.lineId.size() > 0) ||
@@ -275,11 +299,9 @@ service cloud.firestore {
     // - Passengers can read location only for their active trip's driver
     // - Managers can read all for monitoring
     // 
-    // ⚠️  MVP LIMITATION: Passenger read access is permissive (any passenger
-    //     can read any driver location). For production, implement one of:
-    //     1. Server-side proxy for location reads
-    //     2. Store active trip driverId in passenger's token claims
-    //     3. Use a subcollection under trips for location streaming
+    // Passenger reads are scoped via drivers/{driverId}.currentTripId -> the trip's
+    // passengerId, so a passenger can only read the location of the driver actually
+    // assigned to them. See isPassengerOfDriverCurrentTrip().
     // =========================================================================
     match /driverLive/{driverId} {
       // Driver can create/update live location only when fully eligible
@@ -289,10 +311,15 @@ service cloud.firestore {
       allow delete: if isOwner(driverId);
       
       // Reading driver location:
-      // - Managers can read all (for monitoring dashboard)
+      // - Managers can read all, including listing the collection (monitoring dashboard)
       // - Drivers can read their own location
-      // - Authenticated users: MVP allows read for live trip UI (see limitation above)
-      allow read: if isOwner(driverId) || isManager() || isAuthenticated();
+      // - The passenger on this driver's current trip can read it, for the live trip UI
+      //
+      // SECURITY (PII): this previously ended in "|| isAuthenticated()", so any signed-in
+      // account could stream ANY driver's live GPS position. That blanket clause is gone.
+      allow read: if isOwner(driverId) ||
+        isManager() ||
+        isPassengerOfDriverCurrentTrip(driverId);
     }
     
     // =========================================================================
@@ -313,9 +340,19 @@ service cloud.firestore {
     // - Cloud Functions use Admin SDK which bypasses security rules
     // =========================================================================
     match /drivers/{driverId} {
-      // Authenticated users can read driver profile fields needed by mobile apps.
-      // Sensitive write operations remain restricted below.
-      allow read: if isAuthenticated();
+      // SECURITY (PII): this was "allow read: if isAuthenticated()", so any signed-in
+      // account could read - and list - every driver document, including nationalId and
+      // phone. Reads are now scoped to the driver themselves, managers, and the
+      // passenger of record on the driver's current trip (who needs the driver card
+      // during and just after a trip).
+      //
+      // KNOWN LIMIT: Firestore read rules are per-DOCUMENT, not per-field. The
+      // passenger of record therefore still receives the whole driver document,
+      // nationalId and phone included. Removing that requires moving PII into a
+      // private subcollection (a data-model change) - see HARDENING_REPORT.md.
+      allow read: if isOwner(driverId) ||
+        isManager() ||
+        isPassengerOfDriverCurrentTrip(driverId);
       
       // Managers can manage driver profiles (including verification fields).
       // Driver clients can update status/location fields only if they are eligible,

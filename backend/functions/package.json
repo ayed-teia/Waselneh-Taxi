@@ -21,7 +21,8 @@
     "qa:driver-eligibility:e2e": "node scripts/qa-driver-eligibility-e2e.mjs",
     "qa:request-lifecycle:e2e": "node scripts/qa-request-lifecycle-e2e.mjs",
     "qa:cash-payment:e2e": "node scripts/qa-cash-payment-e2e.mjs",
-    "qa:security-regression:e2e": "node scripts/qa-security-regression-e2e.mjs"
+    "qa:security-regression:e2e": "node scripts/qa-security-regression-e2e.mjs",
+    "qa:pii-scoping:e2e": "node scripts/qa-pii-scoping-e2e.mjs"
   },
   "engines": {
     "node": "20"
