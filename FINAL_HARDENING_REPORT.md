@@ -1,7 +1,7 @@
 # Final Hardening — Report
 
 **Branch:** `chore/final-hardening` (off `main` @ `59fb234`, with PR #1 and PR #2 merged)
-**PR:** _(link added below)_ — **OPEN, not merged.**
+**PR:** https://github.com/ayed-teia/Waselneh-Taxi/pull/3 — **OPEN, not merged.**
 
 All testing was LOCAL via the Firebase emulator suite. Nothing was deployed, nothing was
 merged, and the PII migration was **not** run.
