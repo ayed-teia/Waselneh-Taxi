@@ -16,21 +16,21 @@ function formatEta(value?: number | null): string {
 }
 
 export function LiveEtaCard({ etaToPickupMin, etaToDestinationMin, updatedAt }: LiveEtaCardProps) {
-  const { isRTL } = useI18n();
+  const { t } = useI18n();
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{isRTL ? 'وقت الوصول المباشر' : 'Live ETA'}</Text>
+      <Text style={styles.title}>{t('trip.live_eta')}</Text>
       <View style={styles.row}>
-        <Text style={styles.label}>{isRTL ? 'وصول الالتقاط' : 'Pickup arrival'}</Text>
+        <Text style={styles.label}>{t('trip.pickup_arrival')}</Text>
         <Text style={styles.value}>{formatEta(etaToPickupMin)}</Text>
       </View>
       <View style={styles.row}>
-        <Text style={styles.label}>{isRTL ? 'وصول الوجهة' : 'Dropoff arrival'}</Text>
+        <Text style={styles.label}>{t('trip.dropoff_arrival')}</Text>
         <Text style={styles.value}>{formatEta(etaToDestinationMin)}</Text>
       </View>
       <Text style={styles.updated}>
-        {isRTL ? 'آخر تحديث' : 'Updated'}: {updatedAt ? updatedAt.toLocaleTimeString() : isRTL ? 'بانتظار...' : 'waiting...'}
+        {t('trip.updated')}: {updatedAt ? updatedAt.toLocaleTimeString() : t('trip.waiting')}
       </Text>
     </View>
   );

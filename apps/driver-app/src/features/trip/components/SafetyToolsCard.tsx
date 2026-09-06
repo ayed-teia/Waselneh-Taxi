@@ -10,21 +10,21 @@ interface SafetyToolsCardProps {
 }
 
 export function SafetyToolsCard({ onShareTrip, onEmergencyCall, onCallDispatch }: SafetyToolsCardProps) {
-  const { isRTL } = useI18n();
+  const { isRTL, t } = useI18n();
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{isRTL ? 'أدوات الأمان' : 'Safety tools'}</Text>
+      <Text style={styles.title}>{t('trip.safety_tools')}</Text>
       <View style={[styles.row, isRTL && styles.rowReverse]}>
         <Pressable style={[styles.button, styles.shareButton]} onPress={onShareTrip}>
-          <Text style={styles.buttonText}>{isRTL ? 'مشاركة الرحلة' : 'Share trip'}</Text>
+          <Text style={styles.buttonText}>{t('trip.share_trip')}</Text>
         </Pressable>
         <Pressable style={[styles.button, styles.dispatchButton]} onPress={onCallDispatch}>
-          <Text style={styles.buttonText}>{isRTL ? 'اتصال بالمشرف' : 'Call dispatch'}</Text>
+          <Text style={styles.buttonText}>{t('trip.call_dispatch')}</Text>
         </Pressable>
       </View>
       <Pressable style={[styles.button, styles.emergencyButton]} onPress={onEmergencyCall}>
-        <Text style={styles.emergencyText}>{isRTL ? 'اتصال طوارئ' : 'Emergency call'}</Text>
+        <Text style={styles.emergencyText}>{t('trip.emergency_call')}</Text>
       </Pressable>
     </View>
   );

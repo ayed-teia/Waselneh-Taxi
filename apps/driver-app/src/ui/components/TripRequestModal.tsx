@@ -10,6 +10,7 @@ import {
   Vibration,
 } from 'react-native';
 
+import { useI18n } from '../../localization/i18n';
 import { acceptTripRequest, rejectTripRequest } from '../../services/api';
 import { useTripRequestStore } from '../../store/trip-request.store';
 
@@ -67,6 +68,7 @@ function formatBookingTypeLabel(bookingType: 'seat_only' | 'full_taxi' | undefin
  */
 export function TripRequestModal() {
   const router = useRouter();
+  const { t } = useI18n();
   const {
     pendingRequest,
     isModalVisible,
@@ -145,11 +147,11 @@ export function TripRequestModal() {
 
     const hasConfirmed = await new Promise<boolean>((resolve) => {
       Alert.alert(
-        'Accept trip?',
-        'Do you want to accept this trip request now?',
+        t('request.accept_confirm_title'),
+        t('request.accept_confirm_body'),
         [
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'Accept', onPress: () => resolve(true) },
+          { text: t('request.cancel'), style: 'cancel', onPress: () => resolve(false) },
+          { text: t('request.accept'), onPress: () => resolve(true) },
         ],
         { cancelable: true, onDismiss: () => resolve(false) }
       );
@@ -173,7 +175,7 @@ export function TripRequestModal() {
         params: { tripId: result.tripId },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to accept trip';
+      const message = error instanceof Error ? error.message : t('request.accept_failed');
       console.error('[TripRequestModal] Accept error:', message);
 
       if (isNotFoundError(message)) {
@@ -198,11 +200,11 @@ export function TripRequestModal() {
 
     const hasConfirmed = await new Promise<boolean>((resolve) => {
       Alert.alert(
-        'Reject trip?',
-        'Do you want to reject this trip request now?',
+        t('request.reject_confirm_title'),
+        t('request.reject_confirm_body'),
         [
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'Reject', style: 'destructive', onPress: () => resolve(true) },
+          { text: t('request.cancel'), style: 'cancel', onPress: () => resolve(false) },
+          { text: t('request.reject'), style: 'destructive', onPress: () => resolve(true) },
         ],
         { cancelable: true, onDismiss: () => resolve(false) }
       );
@@ -220,7 +222,7 @@ export function TripRequestModal() {
       console.log('[TripRequestModal] Trip rejected');
       hideRequest();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to reject trip';
+      const message = error instanceof Error ? error.message : t('request.reject_failed');
       console.error('[TripRequestModal] Reject error:', message);
 
       if (isNotFoundError(message)) {
@@ -251,22 +253,27 @@ export function TripRequestModal() {
           ]}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>New Trip Request</Text>
+            <Text style={styles.headerTitle}>{t('request.title')}</Text>
             <View style={styles.timerContainer}>
-              <Text style={styles.timerText}>{countdown}s</Text>
+              <Text style={styles.timerText}>
+                {countdown}
+                {t('request.seconds_short')}
+              </Text>
             </View>
           </View>
 
           <View style={styles.priceContainer}>
-            <Text style={styles.priceLabel}>Estimated Fare</Text>
-            <Text style={styles.priceValue}>NIS {pendingRequest.estimatedPriceIls}</Text>
+            <Text style={styles.priceLabel}>{t('request.estimated_fare')}</Text>
+            <Text style={styles.priceValue}>
+              {t('request.currency_nis')} {pendingRequest.estimatedPriceIls}
+            </Text>
           </View>
 
           <View style={styles.detailsContainer}>
             <View style={styles.detailRow}>
               <Text style={styles.detailIcon}>KM</Text>
               <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Pickup Distance</Text>
+                <Text style={styles.detailLabel}>{t('request.pickup_distance')}</Text>
                 <Text style={styles.detailValue}>
                   {pendingRequest.pickupDistanceKm} km away
                 </Text>
@@ -276,7 +283,7 @@ export function TripRequestModal() {
             <View style={styles.detailRow}>
               <Text style={styles.detailIcon}>PU</Text>
               <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Pickup Location</Text>
+                <Text style={styles.detailLabel}>{t('request.pickup_location')}</Text>
                 <Text style={styles.detailValue}>
                   {pendingRequest.pickup.lat.toFixed(4)}, {pendingRequest.pickup.lng.toFixed(4)}
                 </Text>
@@ -286,7 +293,7 @@ export function TripRequestModal() {
             <View style={styles.detailRow}>
               <Text style={styles.detailIcon}>DO</Text>
               <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Dropoff Location</Text>
+                <Text style={styles.detailLabel}>{t('request.dropoff_location')}</Text>
                 <Text style={styles.detailValue}>
                   {pendingRequest.dropoff.lat.toFixed(4)}, {pendingRequest.dropoff.lng.toFixed(4)}
                 </Text>
@@ -296,7 +303,7 @@ export function TripRequestModal() {
             <View style={styles.detailRow}>
               <Text style={styles.detailIcon}>SE</Text>
               <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Booking</Text>
+                <Text style={styles.detailLabel}>{t('request.booking')}</Text>
                 <Text style={styles.detailValue}>
                   {formatBookingTypeLabel(pendingRequest.bookingType)}
                   {pendingRequest.bookingType === 'seat_only'
@@ -309,7 +316,7 @@ export function TripRequestModal() {
             <View style={styles.detailRow}>
               <Text style={styles.detailIcon}>VT</Text>
               <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Vehicle Type</Text>
+                <Text style={styles.detailLabel}>{t('request.vehicle_type')}</Text>
                 <Text style={styles.detailValue}>
                   {formatVehicleTypeLabel(pendingRequest.requestedVehicleType)}
                 </Text>
@@ -320,7 +327,7 @@ export function TripRequestModal() {
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>DST</Text>
                 <View style={styles.detailContent}>
-                  <Text style={styles.detailLabel}>Destination</Text>
+                  <Text style={styles.detailLabel}>{t('request.destination')}</Text>
                   <Text style={styles.detailValue}>
                     {pendingRequest.destinationLabel ?? '--'}
                     {pendingRequest.destinationCity ? ` | ${pendingRequest.destinationCity}` : ''}
@@ -333,7 +340,7 @@ export function TripRequestModal() {
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>LN</Text>
                 <View style={styles.detailContent}>
-                  <Text style={styles.detailLabel}>Line / Route</Text>
+                  <Text style={styles.detailLabel}>{t('request.line_route')}</Text>
                   <Text style={styles.detailValue}>
                     {pendingRequest.driverLineNumber ?? '--'}
                     {pendingRequest.driverRoutePath ? ` | ${pendingRequest.driverRoutePath}` : ''}
@@ -351,7 +358,9 @@ export function TripRequestModal() {
 
           <View style={styles.buttonsContainer}>
             <Button
-              title={processingAction === 'reject' ? 'Rejecting...' : 'Reject'}
+              title={
+                processingAction === 'reject' ? t('request.rejecting') : t('request.reject')
+              }
               variant="outline"
               onPress={handleReject}
               loading={processingAction === 'reject'}
@@ -359,7 +368,9 @@ export function TripRequestModal() {
               style={styles.rejectButton}
             />
             <Button
-              title={processingAction === 'accept' ? 'Accepting...' : 'Accept'}
+              title={
+                processingAction === 'accept' ? t('request.accepting') : t('request.accept')
+              }
               variant="primary"
               onPress={handleAccept}
               loading={processingAction === 'accept'}
