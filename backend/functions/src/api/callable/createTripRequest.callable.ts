@@ -21,6 +21,7 @@ import { REGION } from '../../core/env';
 import { getFirestore, areTripsEnabled } from '../../core/config';
 import { handleError, ValidationError, UnauthorizedError, NotFoundError, ForbiddenError } from '../../core/errors';
 import { logger } from '../../core/logger';
+import { MAX_DISPATCH_ATTEMPTS } from '../../modules/trips/reoffer-trip';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { calculateDynamicRidePrice } from '../../modules/pricing/services';
@@ -718,6 +719,15 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       driversWithDistance.sort((a, b) => a.distance - b.distance);
       const nearestDriver = driversWithDistance[0]!;
 
+      // DISPATCH RELIABILITY: keep the whole ranked list, not just the winner.
+      // If this first driver rejects or lets the offer expire, the trip is
+      // re-offered to the next candidate (see modules/trips/reoffer-trip.ts)
+      // instead of dead-ending at NO_DRIVER_AVAILABLE while other drivers are
+      // online and metres away.
+      const candidateDriverIds = driversWithDistance
+        .slice(0, MAX_DISPATCH_ATTEMPTS)
+        .map((candidate) => candidate.driverId);
+
       logger.info(`✅ [CreateTrip] Selected driver: ${nearestDriver.driverId}`, {
         distance: `${nearestDriver.distance.toFixed(2)} km`,
         totalCandidates: driversWithDistance.length,
@@ -891,7 +901,13 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           paidAt: null,
           createdAt: FieldValue.serverTimestamp(),
         };
-        transaction.set(tripRef, tripDoc);
+        transaction.set(tripRef, {
+          ...tripDoc,
+          // Dispatch bookkeeping for the re-offer path.
+          candidateDriverIds,
+          dispatchAttempt: 1,
+          triedDriverIds: [nearestDriver.driverId],
+        });
 
         // Create driver request notification
         const expiresAt = Timestamp.fromMillis(

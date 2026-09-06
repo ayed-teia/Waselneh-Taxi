@@ -92,6 +92,8 @@ async function main() {
   const suffix = Date.now();
 
   const driverId = `qa-driver-${suffix}`;
+  // A second driver, for the dispatch re-offer scenarios.
+  const secondDriverId = `qa-driver-2-${suffix}`;
   const passengerLifecycle = `qa-passenger-lifecycle-${suffix}`;
   const passengerReject = `qa-passenger-reject-${suffix}`;
   const passengerExpiry = `qa-passenger-expiry-${suffix}`;
@@ -99,11 +101,14 @@ async function main() {
   const passengerSeat = `qa-passenger-seat-${suffix}`;
   const passengerFullTaxi = `qa-passenger-full-${suffix}`;
   const passengerFullTaxiProbe = `qa-passenger-full-probe-${suffix}`;
+  const passengerReofferReject = `qa-passenger-reoffer-${suffix}`;
+  const passengerExhaust = `qa-passenger-exhaust-${suffix}`;
   const pickup = { lat: 32.2211, lng: 35.2544 };
   const dropoff = { lat: 31.9038, lng: 35.2034 };
   const lineId = `LINE_QA_${suffix}`;
   const officeId = `OFFICE_QA_${suffix}`;
   const driverRef = db.collection('drivers').doc(driverId);
+  const secondDriverRef = db.collection('drivers').doc(secondDriverId);
 
   const cleanupDocRefs = [];
   const cleanupCollectionRefs = [];
@@ -164,6 +169,8 @@ async function main() {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     trackDoc(driverRef);
+    trackDoc(secondDriverRef);
+    trackCollection(db.collection('driverRequests').doc(secondDriverId).collection('requests'));
     trackDoc(db.collection('driverLive').doc(driverId));
     trackCollection(db.collection('driverRequests').doc(driverId).collection('requests'));
     trackCollection(db.collection('tripRequests'));
@@ -232,6 +239,9 @@ async function main() {
         callCallable('rejectTripRequest', { tripId, devUserId: driverId })
       );
       const tripDoc = await db.collection('trips').doc(tripId).get();
+      // Only ONE driver is seeded here, so after the rejection the candidate list is
+      // genuinely exhausted and no_driver_available is the correct outcome. The
+      // multi-driver re-offer behaviour is covered by the two scenarios below.
       assert(tripDoc.data()?.status === 'no_driver_available', 'Trip should move to no_driver_available');
       ok('Reject scenario', tripId);
     } catch (error) {
@@ -327,7 +337,188 @@ async function main() {
       assert(secondAttempt.created.tripId, 'Expected tripId after reconnect');
       trackDoc(db.collection('trips').doc(secondAttempt.created.tripId));
 
-      // Cleanup reconnect scenario trip so later scenarios start from a clean
+      // =========================================================================
+    // Scenario 7: DISPATCH RELIABILITY - a rejection re-offers to the next driver.
+    //
+    // Before this change a single rejection killed the trip outright, even when
+    // other eligible drivers were online. Two drivers are seeded here, the nearer
+    // one rejects, and the trip must be handed to the second rather than dying.
+    // =========================================================================
+    try {
+      // The primary driver sits exactly on the pickup, so it is always ranked first.
+      await driverRef.set(
+        {
+          isOnline: true,
+          isAvailable: true,
+          status: 'online',
+          currentTripId: null,
+          lastLocation: new admin.firestore.GeoPoint(pickup.lat, pickup.lng),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      // A second, slightly further driver: same line/office so it passes scope,
+      // offset so the distance ranking is deterministic (driver 1 first).
+      await secondDriverRef.set(
+        {
+          driverId: secondDriverId,
+          driverType: 'licensed_line_owner',
+          verificationStatus: 'approved',
+          officeId,
+          lineId,
+          licenseId: `LIC_QA_2_${suffix}`,
+          vehicleType: 'taxi_standard',
+          seatCapacity: 4,
+          isOnline: true,
+          isAvailable: true,
+          status: 'online',
+          currentTripId: null,
+          lastLocation: new admin.firestore.GeoPoint(pickup.lat + 0.01, pickup.lng + 0.01),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      const { created } = await runStep('createTrip(reoffer-reject)', () =>
+        createTrip(passengerReofferReject, pickup, dropoff, {
+          requiredSeats: 1,
+          officeId,
+          lineId,
+        })
+      );
+      assert(created.tripId, 'Expected tripId in re-offer reject scenario');
+      const tripId = created.tripId;
+      trackDoc(db.collection('trips').doc(tripId));
+
+      const beforeTrip = await db.collection('trips').doc(tripId).get();
+      const firstDriverId = beforeTrip.data()?.driverId;
+      assert(firstDriverId === driverId, `Expected the nearest driver to be offered first, got ${firstDriverId}`);
+      const candidates = beforeTrip.data()?.candidateDriverIds;
+      assert(
+        Array.isArray(candidates) && candidates.length >= 2,
+        `Expected a persisted candidate list of >= 2, got ${JSON.stringify(candidates)}`
+      );
+
+      await runStep('rejectTripRequest(reoffer)', () =>
+        callCallable('rejectTripRequest', { tripId, devUserId: driverId })
+      );
+
+      const afterTrip = await db.collection('trips').doc(tripId).get();
+      const afterData = afterTrip.data() ?? {};
+      assert(
+        afterData.status === 'pending',
+        `Trip should stay pending after re-offer, got ${afterData.status}`
+      );
+      assert(
+        afterData.driverId === secondDriverId,
+        `Trip should be re-offered to the second driver, got ${afterData.driverId}`
+      );
+
+      // The second driver must actually have a pending offer to act on.
+      const secondOffer = await db
+        .collection('driverRequests')
+        .doc(secondDriverId)
+        .collection('requests')
+        .doc(tripId)
+        .get();
+      assert(secondOffer.exists, 'Second driver should have received a request document');
+      assert(
+        secondOffer.data()?.status === 'pending',
+        `Second driver offer should be pending, got ${secondOffer.data()?.status}`
+      );
+
+      // And the second driver can complete the accept flow normally.
+      await runStep('acceptTripRequest(reoffer)', () =>
+        callCallable('acceptTripRequest', { tripId, devUserId: secondDriverId })
+      );
+      const acceptedTrip = await db.collection('trips').doc(tripId).get();
+      assert(
+        acceptedTrip.data()?.status === 'accepted',
+        `Second driver should be able to accept, got ${acceptedTrip.data()?.status}`
+      );
+
+      ok('Re-offer on reject scenario', tripId);
+    } catch (error) {
+      fail('Re-offer on reject scenario', error instanceof Error ? error.message : String(error));
+    }
+
+    // =========================================================================
+    // Scenario 8: DISPATCH RELIABILITY - candidates exhausted ends cleanly.
+    //
+    // The re-offer must be BOUNDED. With two drivers who both reject, the trip
+    // must end at no_driver_available rather than looping.
+    // =========================================================================
+    try {
+      for (const [ref, id, lat, lng] of [
+        [driverRef, driverId, pickup.lat, pickup.lng],
+        [secondDriverRef, secondDriverId, pickup.lat + 0.01, pickup.lng + 0.01],
+      ]) {
+        await ref.set(
+          {
+            isOnline: true,
+            isAvailable: true,
+            status: 'online',
+            currentTripId: null,
+            availableSeats: 4,
+            lastLocation: new admin.firestore.GeoPoint(lat, lng),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      const { created } = await runStep('createTrip(exhaust)', () =>
+        createTrip(passengerExhaust, pickup, dropoff, {
+          requiredSeats: 1,
+          officeId,
+          lineId,
+        })
+      );
+      assert(created.tripId, 'Expected tripId in exhaustion scenario');
+      const tripId = created.tripId;
+      trackDoc(db.collection('trips').doc(tripId));
+
+      // First driver rejects -> re-offered to the second.
+      await runStep('rejectTripRequest(exhaust-1)', () =>
+        callCallable('rejectTripRequest', { tripId, devUserId: driverId })
+      );
+      const mid = await db.collection('trips').doc(tripId).get();
+      assert(
+        mid.data()?.driverId === secondDriverId,
+        `Expected re-offer to the second driver, got ${mid.data()?.driverId}`
+      );
+
+      // Second driver rejects too -> no candidates left.
+      await runStep('rejectTripRequest(exhaust-2)', () =>
+        callCallable('rejectTripRequest', { tripId, devUserId: secondDriverId })
+      );
+      const final = await db.collection('trips').doc(tripId).get();
+      assert(
+        final.data()?.status === 'no_driver_available',
+        `Trip should end at no_driver_available once candidates are exhausted, got ${final.data()?.status}`
+      );
+
+      ok('Re-offer exhaustion scenario', tripId);
+    } catch (error) {
+      fail('Re-offer exhaustion scenario', error instanceof Error ? error.message : String(error));
+    } finally {
+      // The remaining scenarios assume a SINGLE matchable driver, so retire the
+      // second one. Without this it silently absorbs trips that those scenarios
+      // expect to go unmatched.
+      await secondDriverRef.set(
+        {
+          isOnline: false,
+          isAvailable: false,
+          status: 'offline',
+          currentTripId: null,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+
+    // Cleanup reconnect scenario trip so later scenarios start from a clean
       // passenger state and do not hit active-trip guard.
       await callCallable('passengerCancelTrip', {
         tripId: secondAttempt.created.tripId,

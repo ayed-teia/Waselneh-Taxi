@@ -3,6 +3,7 @@ import { TripStatus, normalizeSeatCapacity, normalizeVehicleType } from '@taxi-l
 import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
 import { logger } from '../../core/logger';
+import { reofferTripToNextDriver } from './reoffer-trip';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 export const expireDriverRequests = onSchedule(
@@ -63,14 +64,41 @@ export const expireDriverRequests = onSchedule(
               return;
             }
 
+            // ---- READS FIRST -------------------------------------------
+            // Firestore requires every read in a transaction to precede every
+            // write, and the re-offer below reads candidate driver documents.
+            const tripRef = db.collection('trips').doc(tripId);
+            const tripDoc = await transaction.get(tripRef);
+            const driverRef = db.collection('drivers').doc(driverId);
+            const driverDoc = await transaction.get(driverRef);
+
+            // DISPATCH RELIABILITY: an unanswered offer used to kill the trip.
+            // Offer it to the next ranked candidate first; only give up when the
+            // candidate list is exhausted.
+            let reofferedTo: string | null = null;
+            if (tripDoc.exists) {
+              const tripData = tripDoc.data() ?? {};
+              if (tripData.status === TripStatus.PENDING) {
+                const reoffer = await reofferTripToNextDriver(
+                  transaction,
+                  db,
+                  tripId,
+                  tripData,
+                  driverId
+                );
+                if (reoffer.reoffered) {
+                  reofferedTo = reoffer.driverId ?? null;
+                }
+              }
+            }
+
+            // ---- WRITES ------------------------------------------------------
             transaction.update(requestDoc.ref, {
               status: 'expired',
               expiredAt: FieldValue.serverTimestamp(),
             });
 
-            const tripRef = db.collection('trips').doc(tripId);
-            const tripDoc = await transaction.get(tripRef);
-            if (tripDoc.exists) {
+            if (tripDoc.exists && !reofferedTo) {
               const tripData = tripDoc.data() ?? {};
               if (tripData.status === TripStatus.PENDING) {
                 transaction.update(tripRef, {
@@ -81,8 +109,13 @@ export const expireDriverRequests = onSchedule(
               }
             }
 
-            const driverRef = db.collection('drivers').doc(driverId);
-            const driverDoc = await transaction.get(driverRef);
+            if (reofferedTo) {
+              logger.info('[ExpireDriverRequests] Trip re-offered after timeout', {
+                tripId,
+                timedOutDriverId: driverId,
+                reofferedTo,
+              });
+            }
             const driverData = (driverDoc.data() ?? {}) as Record<string, unknown>;
             const seatCapacity = normalizeSeatCapacity(
               driverData.seatCapacity,
