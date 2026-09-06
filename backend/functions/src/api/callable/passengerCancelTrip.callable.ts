@@ -1,13 +1,14 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import { BOOKING_TYPES, TripStatus, normalizeSeatCapacity } from '@taxi-line/shared';
+import { BOOKING_TYPES, TripStatus, normalizeSeatCapacity, normalizeVehicleType } from '@taxi-line/shared';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { getFirestore } from '../../core/config';
 import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError, handleError } from '../../core/errors';
 import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
 import { publishTripStatusNotifications } from '../../modules/notifications';
+import { getString } from '../../core/firestore/doc-data';
 
 const CancelTripSchema = z.object({
   tripId: z.string().min(1),
@@ -57,8 +58,9 @@ export const passengerCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
           throw new ForbiddenError('You are not the owner of this trip');
         }
 
-        if (!PASSENGER_CANCELLABLE_STATUSES.includes(tripData.status)) {
-          throw new ForbiddenError(`Cannot cancel trip with status: ${tripData.status}`);
+        const tripStatus = getString(tripData, 'status', '');
+        if (!PASSENGER_CANCELLABLE_STATUSES.includes(tripStatus)) {
+          throw new ForbiddenError(`Cannot cancel trip with status: ${tripStatus}`);
         }
 
         const driverId = typeof tripData.driverId === 'string' ? tripData.driverId : '';
@@ -78,7 +80,10 @@ export const passengerCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
           const driverDoc = await transaction.get(driverRef);
           const driverData = (driverDoc.data() ?? {}) as Record<string, unknown>;
 
-          const seatCapacity = normalizeSeatCapacity(driverData.seatCapacity, driverData.vehicleType as any);
+          const seatCapacity = normalizeSeatCapacity(
+            driverData.seatCapacity,
+            normalizeVehicleType(driverData.vehicleType)
+          );
           const availableSeatsRaw =
             typeof driverData.availableSeats === 'number' && Number.isFinite(driverData.availableSeats)
               ? Math.round(driverData.availableSeats)
