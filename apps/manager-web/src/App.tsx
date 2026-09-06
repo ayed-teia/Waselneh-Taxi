@@ -3,7 +3,7 @@ import { Outlet, NavLink } from 'react-router-dom';
 
 import { useI18n } from './localization';
 import { isUsingEmulators } from './services/firebase';
-import {
+import { MANAGER_PASSWORD_AUTH_ENABLED,
   ManagerRole,
   ManagerSession,
   ensureSignedInManager,
@@ -12,6 +12,7 @@ import {
 } from './services/manager-auth.service';
 import { Button, Card, LanguageToggle, Text } from './ui';
 import './App.css';
+import { ManagerLoginPage } from './pages/ManagerLoginPage';
 
 const ROLE_OPTIONS: ManagerRole[] = [
   'admin',
@@ -58,6 +59,12 @@ const NAV_ITEMS = [
 export function App() {
   const { txt, isRTL } = useI18n();
   const [loading, setLoading] = useState(true);
+  // With password auth ON, the dashboard must NOT auto-sign-in as a dev manager -
+  // that would skip the login page entirely. Flag defaults OFF, so by default this
+  // is false and the existing bootstrap runs exactly as before.
+  const [needsPasswordSignIn, setNeedsPasswordSignIn] = useState(
+    MANAGER_PASSWORD_AUTH_ENABLED
+  );
   const [role, setRole] = useState<ManagerRole>('admin');
   const [refreshToken, setRefreshToken] = useState(0);
   const [session, setSession] = useState<ManagerSession | null>(null);
@@ -68,6 +75,11 @@ export function App() {
     let active = true;
 
     const bootstrap = async () => {
+      // Waiting for the operator to enter credentials: do not auto-authenticate.
+      if (needsPasswordSignIn) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError(null);
       try {
@@ -94,7 +106,7 @@ export function App() {
     return () => {
       active = false;
     };
-  }, [refreshToken, role, txt]);
+  }, [refreshToken, role, txt, needsPasswordSignIn]);
 
   const roleLabel = useMemo(() => {
     const labels = ROLE_LABELS[role];
@@ -118,6 +130,19 @@ export function App() {
       })
       .join('، ');
   }, [session, txt]);
+
+  // Production sign-in gate. Only reachable when the flag is on; with it off,
+  // needsPasswordSignIn is false from the start and this never renders.
+  if (needsPasswordSignIn) {
+    return (
+      <ManagerLoginPage
+        onSignedIn={() => {
+          setNeedsPasswordSignIn(false);
+          setRefreshToken((current) => current + 1);
+        }}
+      />
+    );
+  }
 
   return (
     <div className={`app ${isRTL ? 'app-rtl' : 'app-ltr'}`}>
