@@ -1,16 +1,19 @@
 # Remaining Work — Report
 
 **Branch:** `feat/remaining-work`
-**Stacks on:** `chore/overnight-hardening` (PR #1), **not** `main`.
+**Base:** `main`.
 **PR:** https://github.com/ayed-teia/Waselneh-Taxi/pull/2 — **OPEN, not merged.**
 
-### Why it stacks rather than targeting main
+### Base branch
 
-This branch modifies `firestore.rules` (the driver PII subcollection) and the driver
-PII write paths, both of which build directly on the read-scoping in PR #1. Based on
-`main` it would conflict in `firestore.rules` and, worse, would look like it *replaces*
-the read-scoping rather than completing it. Reviewing it against PR #1 shows the actual
-delta. **Merge PR #1 first, then this.**
+This work was built on the tip of `chore/overnight-hardening` and originally opened
+against it, because it modifies `firestore.rules` and the driver PII write paths, both
+of which build directly on the read-scoping in PR #1.
+
+**You merged PR #1 into `main` while this was in progress**, so that branch is now fully
+contained in `main` (verified with `git merge-base --is-ancestor`). The PR has been
+retargeted to `main` and GitHub reports it as cleanly mergeable. No rebase was needed and
+no published history was rewritten.
 
 All testing was LOCAL via the Firebase emulator suite. Nothing was deployed or merged.
 
