@@ -24,7 +24,8 @@
     "qa:security-regression:e2e": "node scripts/qa-security-regression-e2e.mjs",
     "qa:pii-scoping:e2e": "node scripts/qa-pii-scoping-e2e.mjs",
     "qa:scheduled:e2e": "node scripts/qa-scheduled-functions-e2e.mjs",
-    "qa:reconciliation": "node scripts/qa-reconciliation-e2e.mjs"
+    "qa:reconciliation": "node scripts/qa-reconciliation-e2e.mjs",
+    "qa:otp-auth:e2e": "node scripts/qa-otp-auth-e2e.mjs"
   },
   "engines": {
     "node": "20"
