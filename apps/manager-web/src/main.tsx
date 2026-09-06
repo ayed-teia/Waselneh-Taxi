@@ -8,6 +8,7 @@ import { DriversListPage } from './pages/DriversListPage';
 import { LiveMapPage } from './pages/LiveMapPage';
 import { MonitoringPage } from './pages/MonitoringPage';
 import { OperationsPage } from './pages/OperationsPage';
+import { PaymentReconciliationPage } from './pages/PaymentReconciliationPage';
 import { PaymentsListPage } from './pages/PaymentsListPage';
 import { RoadblocksPage } from './pages/RoadblocksPage';
 import { SystemSettingsPage } from './pages/SystemSettingsPage';
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="live-map" element={<LiveMapPage />} />
             <Route path="drivers" element={<DriversListPage />} />
             <Route path="payments" element={<PaymentsListPage />} />
+            <Route path="reconciliation" element={<PaymentReconciliationPage />} />
             <Route path="roadblocks" element={<RoadblocksPage />} />
             <Route path="settings" element={<SystemSettingsPage />} />
             <Route path="operations" element={<OperationsPage />} />

@@ -20,7 +20,7 @@ interface TripChatPanelProps {
 }
 
 export function TripChatPanel({ messages, myRole, onSend, sending = false }: TripChatPanelProps) {
-  const { isRTL } = useI18n();
+  const { isRTL, t } = useI18n();
   const quickReplies = isRTL ? ['وصلت', 'أنا قريب', 'تأخير بسبب الازدحام'] : ['I arrived', 'I am nearby', 'Traffic delay'];
   const [draft, setDraft] = useState('');
   const recent = useMemo(() => messages.slice(-8), [messages]);
@@ -34,10 +34,10 @@ export function TripChatPanel({ messages, myRole, onSend, sending = false }: Tri
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{isRTL ? 'دردشة داخل التطبيق' : 'In-app chat'}</Text>
+      <Text style={styles.title}>{t('trip.in_app_chat')}</Text>
       <ScrollView style={styles.messages} contentContainerStyle={styles.messagesContent}>
         {recent.length === 0 ? (
-          <Text style={styles.empty}>{isRTL ? 'لا توجد رسائل بعد.' : 'No messages yet.'}</Text>
+          <Text style={styles.empty}>{t('trip.no_messages_yet')}</Text>
         ) : (
           recent.map((message) => {
             const isMine = message.senderRole === myRole;
@@ -62,7 +62,7 @@ export function TripChatPanel({ messages, myRole, onSend, sending = false }: Tri
         <TextInput
           value={draft}
           onChangeText={setDraft}
-          placeholder={isRTL ? 'اكتب رسالة' : 'Type a message'}
+          placeholder={t('trip.type_a_message')}
           style={styles.input}
           editable={!sending}
         />
@@ -71,7 +71,7 @@ export function TripChatPanel({ messages, myRole, onSend, sending = false }: Tri
           onPress={() => submit(draft)}
           disabled={sending}
         >
-          <Text style={styles.sendText}>{sending ? '...' : isRTL ? 'إرسال' : 'Send'}</Text>
+          <Text style={styles.sendText}>{sending ? '...' : t('trip.send')}</Text>
         </TouchableOpacity>
       </View>
     </View>

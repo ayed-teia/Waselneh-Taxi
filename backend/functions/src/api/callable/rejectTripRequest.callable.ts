@@ -8,6 +8,7 @@ import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 import { publishTripStatusNotifications } from '../../modules/notifications';
+import { reofferTripToNextDriver } from '../../modules/trips/reoffer-trip';
 
 const RejectTripRequestSchema = z.object({
   tripId: z.string().min(1),
@@ -41,6 +42,8 @@ export const rejectTripRequest = onCall<unknown, Promise<RejectTripRequestRespon
       const db = getFirestore();
       let passengerIdForNotify = '';
       let shouldNotifyPassenger = false;
+      // Set when the trip was handed on to another driver instead of dying here.
+      let reofferedToDriverId: string | null = null;
 
       await db.runTransaction(async (transaction) => {
         const driverRequestRef = db
@@ -90,18 +93,43 @@ export const rejectTripRequest = onCall<unknown, Promise<RejectTripRequestRespon
             : null;
         const shouldClearCurrentTrip = currentTripId === tripId;
 
+        // ---- REMAINING READS -------------------------------------------
+        // DISPATCH RELIABILITY: a rejection by ONE driver used to kill the trip
+        // outright, even with other eligible drivers online. Offer it to the next
+        // ranked candidate first; only fall back to NO_DRIVER_AVAILABLE when
+        // nobody is left.
+        //
+        // This reads the candidate driver documents, so it MUST happen before any
+        // write in this transaction - Firestore rejects a read that follows a write.
+        const isReofferable =
+          tripData.status === TripStatus.PENDING && tripData.driverId === driverId;
+        const reoffer = isReofferable
+          ? await reofferTripToNextDriver(transaction, db, tripId, tripData, driverId)
+          : null;
+
+        // ---- WRITES ------------------------------------------------------
         transaction.update(driverRequestRef, {
           status: 'rejected',
           rejectedAt: FieldValue.serverTimestamp(),
         });
 
-        if (tripData.status === TripStatus.PENDING && tripData.driverId === driverId) {
-          transaction.update(tripRef, {
-            status: TripStatus.NO_DRIVER_AVAILABLE,
-            rejectedAt: FieldValue.serverTimestamp(),
-            rejectedBy: driverId,
-          });
-          shouldNotifyPassenger = true;
+        if (isReofferable && reoffer) {
+          if (reoffer.reoffered) {
+            reofferedToDriverId = reoffer.driverId ?? null;
+          } else {
+            logger.info('[RejectTrip] No further candidates; trip has no driver', {
+              tripId,
+              rejectedBy: driverId,
+              reason: reoffer.reason,
+            });
+            transaction.update(tripRef, {
+              status: TripStatus.NO_DRIVER_AVAILABLE,
+              rejectedAt: FieldValue.serverTimestamp(),
+              rejectedBy: driverId,
+              dispatchFailureReason: reoffer.reason ?? null,
+            });
+            shouldNotifyPassenger = true;
+          }
         }
 
         transaction.set(
@@ -129,6 +157,14 @@ export const rejectTripRequest = onCall<unknown, Promise<RejectTripRequestRespon
       });
 
       logger.tripEvent('TRIP_REJECTED', tripId, { driverId });
+
+      if (reofferedToDriverId) {
+        logger.info('[RejectTrip] Trip re-offered after rejection', {
+          tripId,
+          rejectedBy: driverId,
+          reofferedTo: reofferedToDriverId,
+        });
+      }
 
       if (shouldNotifyPassenger && passengerIdForNotify) {
         await publishTripStatusNotifications({

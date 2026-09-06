@@ -1,0 +1,55 @@
+/**
+ * ============================================================================
+ * AUTH FEATURE FLAGS
+ * ============================================================================
+ *
+ * Production phone/OTP sign-in is SCAFFOLDED BUT NOT ENABLED.
+ *
+ * Everything needed to turn it on is either a Firebase console action or a
+ * decision that has not been made yet (SMS budget, allowed countries, App Check
+ * enforcement, store test numbers). Half-enabling it would break the existing
+ * dev login for no gain, so it ships OFF and the existing dev sign-in path is
+ * completely untouched.
+ *
+ * See docs/AUTH_ROLLOUT.md for the console steps, the server-side rate limiting
+ * that must exist BEFORE this is switched on, and the open decisions.
+ *
+ * TO ENABLE (only after that document's prerequisites are done):
+ *   set EXPO_PUBLIC_ENABLE_PHONE_AUTH=true for the app build.
+ *
+ * This is intentionally an env flag rather than a remote/Firestore flag: auth is
+ * the one surface where a remote toggle could lock every user out of the app,
+ * and a build-time flag cannot be flipped by accident in production.
+ * ============================================================================
+ */
+
+function readEnvFlag(value: string | undefined): boolean {
+  return typeof value === 'string' && value.trim().toLowerCase() === 'true';
+}
+
+/**
+ * Whether the production phone/OTP sign-in UI is available.
+ * DEFAULTS TO FALSE, including when the variable is absent or malformed.
+ */
+export function isPhoneAuthEnabled(env?: Record<string, string | undefined>): boolean {
+  const source = env ?? (typeof process !== 'undefined' ? process.env : {});
+  return readEnvFlag(source?.EXPO_PUBLIC_ENABLE_PHONE_AUTH);
+}
+
+/**
+ * Limits the OTP flow must respect. These are enforced SERVER-SIDE before phone
+ * auth is enabled - a client-side limit is not a limit, it is a suggestion.
+ * See docs/AUTH_ROLLOUT.md.
+ */
+export const OTP_LIMITS = {
+  /** Codes that may be requested for one phone number per hour. */
+  MAX_SENDS_PER_NUMBER_PER_HOUR: 5,
+  /** Codes that may be requested from one device/IP per hour. */
+  MAX_SENDS_PER_DEVICE_PER_HOUR: 10,
+  /** Wrong-code attempts before the number is locked out. */
+  MAX_VERIFY_ATTEMPTS: 5,
+  /** Lockout duration once MAX_VERIFY_ATTEMPTS is hit. */
+  LOCKOUT_MINUTES: 15,
+  /** Seconds a user must wait before requesting another code. */
+  RESEND_COOLDOWN_SECONDS: 60,
+} as const;

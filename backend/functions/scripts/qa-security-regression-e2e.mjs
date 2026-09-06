@@ -251,6 +251,40 @@ async function main() {
   }
 
   // ===========================================================================
+  // R1.6b - a managerRoles document with NO isActive field must also be refused.
+  //
+  // The Firestore rule requires `isActive == true`, so if the backend accepted a
+  // missing/blank isActive as "active", the two sides would disagree: such a document
+  // would pass every manager callable while being rejected by the rules. Both must
+  // fail closed on the same condition.
+  // ===========================================================================
+  await attackerRoleRef.set({
+    uid: attackerUid,
+    role: 'admin',
+    permissions: ['manage_operations'],
+    officeIds: [],
+    lineIds: [],
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  // Remove isActive entirely, so the field is absent rather than false.
+  await attackerRoleRef.update({ isActive: admin.firestore.FieldValue.delete() });
+
+  try {
+    await callCallable('getManagerSession', { devUserId: attackerUid });
+    fail(
+      'R1: managerRoles document with NO isActive field is refused',
+      'getManagerSession SUCCEEDED for a document with no isActive field'
+    );
+  } catch (error) {
+    const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+    if (message.includes('deactivated') || message.includes('permission')) {
+      pass('R1: managerRoles document with NO isActive field is refused');
+    } else {
+      fail('R1: managerRoles document with NO isActive field is refused', message);
+    }
+  }
+
+  // ===========================================================================
   // R1.7 - positive control: an ACTIVE managerRoles document DOES grant access.
   // Without this, every check above could pass simply because manager auth is broken.
   // ===========================================================================

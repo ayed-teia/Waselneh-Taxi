@@ -12,12 +12,13 @@
  * the driver's CURRENT trip (linked via drivers/{driverId}.currentTripId -> the trip's
  * passengerId).
  *
- * KNOWN LIMIT (deliberate, documented)
- * Firestore read rules are per-DOCUMENT, not per-field. The passenger of record still
- * receives the whole driver document, nationalId and phone included. Hiding those from
- * the passenger requires moving PII to a private subcollection - a data-model change,
- * left as a follow-up. This suite therefore asserts ACCESS SCOPING, and explicitly
- * documents the field-level exposure that remains rather than pretending it is fixed.
+ * PII IS NOW SPLIT OUT (the previously-documented limit is fixed)
+ * Firestore read rules are per-DOCUMENT, not per-field, so while nationalId / phone /
+ * fullName lived on drivers/{id}, the passenger of record received them along with the
+ * driver card they legitimately read. Those fields now live in the private
+ * subcollection drivers/{id}/private/pii, readable only by the driver and managers.
+ * This suite asserts BOTH the document-level access scoping AND that the passenger of
+ * record no longer receives the PII fields.
  *
  * Requires the emulator suite (auth, firestore, functions) to be running.
  */
@@ -143,19 +144,23 @@ async function main() {
 
   const driverRef = adminDb.collection('drivers').doc(driverUid);
   const driverLiveRef = adminDb.collection('driverLive').doc(driverUid);
+  const driverPiiRef = adminDb
+    .collection('drivers')
+    .doc(driverUid)
+    .collection('private')
+    .doc('pii');
   const tripRef = adminDb.collection('trips').doc(tripId);
   const managerRoleRef = adminDb.collection('managerRoles').doc(managerUid);
   pushCleanup(driverRef);
   pushCleanup(driverLiveRef);
+  pushCleanup(driverPiiRef);
   pushCleanup(tripRef);
   pushCleanup(managerRoleRef);
 
-  // Driver profile, carrying the PII this issue is about.
+  // Parent driver document: display + operational fields only, no PII.
   await driverRef.set({
     driverId: driverUid,
-    fullName: 'QA PII Driver',
-    nationalId: 'QA-NATIONAL-ID-123',
-    phone: '+970000000000',
+    displayName: 'QA PII Driver',
     status: 'online',
     isOnline: true,
     isAvailable: true,
@@ -164,6 +169,15 @@ async function main() {
     lineId: 'line-qa-pii',
     licenseId: null,
     currentTripId: tripId,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // PII goes to the private subcollection.
+  await driverPiiRef.set({
+    driverId: driverUid,
+    fullName: 'QA PII Driver Legal Name',
+    nationalId: 'QA-NATIONAL-ID-123',
+    phone: '+970000000000',
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
@@ -265,12 +279,21 @@ async function main() {
 
   await otherDriverRef.set({
     driverId: otherDriverUid,
-    fullName: 'QA Unrelated Driver',
-    nationalId: 'QA-OTHER-NATIONAL-ID',
-    phone: '+970111111111',
+    displayName: 'QA Unrelated Driver',
     currentTripId: null,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
+  await adminDb
+    .collection('drivers')
+    .doc(otherDriverUid)
+    .collection('private')
+    .doc('pii')
+    .set({
+      driverId: otherDriverUid,
+      fullName: 'QA Unrelated Legal Name',
+      nationalId: 'QA-OTHER-NATIONAL-ID',
+      phone: '+970111111111',
+    });
   await otherDriverLiveRef.set({
     driverId: otherDriverUid,
     lat: 31.9,
@@ -301,26 +324,82 @@ async function main() {
   await driverRef.set({ currentTripId: tripId }, { merge: true });
 
   // ===========================================================================
-  // DOCUMENTED LIMIT (not a pass/fail assertion, a stated fact):
-  // the passenger of record does still receive nationalId and phone, because
-  // Firestore read rules cannot filter fields.
+  // THE POINT OF THE MIGRATION: the passenger of record must NOT receive PII.
   // ===========================================================================
+
+  // 1. The driver document they can read must carry no PII fields at all.
   try {
     const snap = await getDoc(clientDoc(passengerClient.db, 'drivers', driverUid));
     const data = snap.data() ?? {};
-    const stillExposed = ['nationalId', 'phone'].filter((f) => data[f] !== undefined);
-    if (stillExposed.length > 0) {
-      console.log(
-        `\nℹ️  KNOWN LIMIT (by design, documented): the passenger of record still receives ` +
-          `[${stillExposed.join(', ')}] on the driver document. Firestore read rules are ` +
-          `per-document, not per-field. Fixing this requires moving PII into a private ` +
-          `subcollection - a data-model change, deliberately NOT attempted here.\n`
-      );
+    const leaked = ['nationalId', 'phone', 'fullName'].filter((f) => data[f] !== undefined);
+    if (leaked.length === 0) {
+      pass('PII: passenger driver document carries NO nationalId / phone / fullName');
     } else {
-      console.log('\nℹ️  Note: nationalId/phone were not present on the passenger read.\n');
+      fail(
+        'PII: passenger driver document carries NO nationalId / phone / fullName',
+        `still exposed: [${leaked.join(', ')}]`
+      );
     }
-  } catch {
-    // If it is denied, the assertion above already recorded the failure.
+  } catch (error) {
+    fail(
+      'PII: passenger driver document carries NO nationalId / phone / fullName',
+      `the passenger could not read the driver doc at all: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  // 2. The passenger must still get the display fields the trip UI renders,
+  //    otherwise the migration has simply broken the driver card.
+  try {
+    const snap = await getDoc(clientDoc(passengerClient.db, 'drivers', driverUid));
+    const data = snap.data() ?? {};
+    if (typeof data.displayName === 'string' && data.displayName.length > 0) {
+      pass('PII: passenger still receives display fields (displayName)', data.displayName);
+    } else {
+      fail('PII: passenger still receives display fields (displayName)', 'displayName missing');
+    }
+  } catch (error) {
+    fail(
+      'PII: passenger still receives display fields (displayName)',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+
+  // 3. The passenger must be denied the private PII subcollection outright.
+  await expectDenied('PII: passenger CANNOT read drivers/{id}/private/pii', () =>
+    getDoc(clientDoc(passengerClient.db, 'drivers', driverUid, 'private', 'pii'))
+  );
+
+  // 4. A stranger, likewise.
+  await expectDenied('PII: stranger CANNOT read drivers/{id}/private/pii', () =>
+    getDoc(clientDoc(strangerClient.db, 'drivers', driverUid, 'private', 'pii'))
+  );
+
+  // 5. POSITIVE CONTROLS - the people who need the PII must still get it.
+  await expectAllowed('PII: driver CAN read their own private PII', () =>
+    getDoc(clientDoc(driverClient.db, 'drivers', driverUid, 'private', 'pii'))
+  );
+
+  await expectAllowed('PII: manager CAN read a driver private PII doc', () =>
+    getDoc(clientDoc(managerClient.db, 'drivers', driverUid, 'private', 'pii'))
+  );
+
+  // 6. And the manager must actually receive the values, not an empty doc.
+  try {
+    const snap = await getDoc(clientDoc(managerClient.db, 'drivers', driverUid, 'private', 'pii'));
+    const data = snap.data() ?? {};
+    if (data.nationalId === 'QA-NATIONAL-ID-123' && data.phone === '+970000000000') {
+      pass('PII: manager receives the actual nationalId and phone values');
+    } else {
+      fail(
+        'PII: manager receives the actual nationalId and phone values',
+        `got nationalId=${String(data.nationalId)} phone=${String(data.phone)}`
+      );
+    }
+  } catch (error) {
+    fail(
+      'PII: manager receives the actual nationalId and phone values',
+      error instanceof Error ? error.message : String(error)
+    );
   }
 
   // ---------------------------------------------------------------------------

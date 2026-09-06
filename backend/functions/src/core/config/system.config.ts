@@ -19,6 +19,7 @@
 
 import { getFirestore } from './firebase.config';
 import { logger } from '../logger';
+import { docData, getBoolean, getNonEmptyString, getTimestamp } from '../firestore/doc-data';
 
 /**
  * System configuration interface
@@ -76,13 +77,21 @@ export async function getSystemConfig(): Promise<SystemConfig> {
       });
       configCache = DEFAULT_CONFIG;
     } else {
-      const data = configDoc.data();
+      const data = docData(configDoc);
+      const updatedAt = getTimestamp(data, 'updatedAt');
+      const updatedBy = getNonEmptyString(data, 'updatedBy');
       configCache = {
-        tripsEnabled: data?.tripsEnabled ?? DEFAULT_CONFIG.tripsEnabled,
-        roadblocksEnabled: data?.roadblocksEnabled ?? DEFAULT_CONFIG.roadblocksEnabled,
-        paymentsEnabled: data?.paymentsEnabled ?? DEFAULT_CONFIG.paymentsEnabled,
-        updatedAt: data?.updatedAt,
-        updatedBy: data?.updatedBy,
+        tripsEnabled: getBoolean(data, 'tripsEnabled', DEFAULT_CONFIG.tripsEnabled),
+        roadblocksEnabled: getBoolean(
+          data,
+          'roadblocksEnabled',
+          DEFAULT_CONFIG.roadblocksEnabled
+        ),
+        paymentsEnabled: getBoolean(data, 'paymentsEnabled', DEFAULT_CONFIG.paymentsEnabled),
+        // exactOptionalPropertyTypes is on, so an absent optional field must be
+        // OMITTED rather than set to undefined.
+        ...(updatedAt ? { updatedAt } : {}),
+        ...(updatedBy ? { updatedBy } : {}),
       };
     }
     

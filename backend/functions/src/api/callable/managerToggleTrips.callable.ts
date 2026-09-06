@@ -7,6 +7,7 @@ import { getFirestore, invalidateConfigCache } from '../../core/config';
 import { handleError, UnauthorizedError, ValidationError } from '../../core/errors';
 import { logger } from '../../core/logger';
 import { assertManagerPermission } from '../../modules/auth';
+import { docData, getBoolean, getNonEmptyString, getTimestampIso } from '../../core/firestore/doc-data';
 
 const ToggleTripsSchema = z.object({
   enabled: z.boolean(),
@@ -107,13 +108,16 @@ export const getSystemConfigCallable = onCall<unknown, Promise<SystemConfigRespo
         };
       }
 
-      const data = configDoc.data() ?? {};
+      const data = docData(configDoc);
+      const updatedAt = getTimestampIso(data, 'updatedAt');
+      const updatedBy = getNonEmptyString(data, 'updatedBy');
       return {
-        tripsEnabled: data.tripsEnabled ?? true,
-        roadblocksEnabled: data.roadblocksEnabled ?? true,
-        paymentsEnabled: data.paymentsEnabled ?? false,
-        updatedAt: data.updatedAt?.toDate?.()?.toISOString?.(),
-        updatedBy: data.updatedBy,
+        tripsEnabled: getBoolean(data, 'tripsEnabled', true),
+        roadblocksEnabled: getBoolean(data, 'roadblocksEnabled', true),
+        paymentsEnabled: getBoolean(data, 'paymentsEnabled', false),
+        // exactOptionalPropertyTypes: omit rather than assign undefined.
+        ...(updatedAt ? { updatedAt } : {}),
+        ...(updatedBy ? { updatedBy } : {}),
       };
     } catch (error) {
       logger.error('[GetSystemConfig] FAILED', error);

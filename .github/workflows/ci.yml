@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+# A new push to the same branch supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Static checks. Fast, and they fail on the majority of mistakes.
+  # ---------------------------------------------------------------------------
+  static:
+    name: typecheck / lint / build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          # The functions codebase targets Node 20 (backend/functions package.json).
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: corepack pnpm typecheck
+
+      # `lint` is currently NOT clean (see HARDENING_REPORT.md: ~80 no-unsafe-*
+      # errors from untyped Firestore doc.data()). It is reported but does not fail
+      # the build yet, so CI stays useful instead of being permanently red.
+      # Flip this to a hard failure once that backlog is cleared.
+      - name: Lint (advisory - does not fail the build yet)
+        run: corepack pnpm lint || echo "::warning::lint reported problems (advisory; see HARDENING_REPORT.md)"
+
+      - name: Build functions
+        run: corepack pnpm build:functions
+
+  # ---------------------------------------------------------------------------
+  # The emulator QA suites - the checks that actually cover security and
+  # trip-lifecycle behaviour. These are the ones worth protecting main with.
+  # ---------------------------------------------------------------------------
+  emulator-qa:
+    name: emulator QA suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # The Firestore emulator is a Java process.
+      - name: Set up Java (required by the Firestore emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Build functions
+        run: corepack pnpm build:functions
+
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools
+
+      # `emulators:exec` starts the suite, runs the command, and tears down -
+      # so a failing script cannot leave an emulator running and wedge the job.
+      # GCLOUD_PROJECT only names the emulator's project; nothing contacts a real
+      # Firebase project, and no credentials are used.
+      - name: Run QA suites against the emulator
+        env:
+          GCLOUD_PROJECT: waselneh-prod-414e2
+        run: |
+          firebase emulators:exec \
+            --project waselneh-prod-414e2 \
+            --only auth,firestore,functions \
+            'node scripts/run-qa-suites.mjs'
+
+      - name: Upload emulator logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-logs
+          path: |
+            firebase-debug.log
+            firestore-debug.log
+            ui-debug.log
+          if-no-files-found: ignore

@@ -366,6 +366,24 @@ service cloud.firestore {
       );
       allow delete: if isManager();
       
+      // =====================================================================
+      // PRIVATE PII SUBCOLLECTION
+      // Path: /drivers/{driverId}/private/{docId}   (the doc is 'pii')
+      //
+      // SECURITY: nationalId, phone and the driver's legal fullName live HERE and
+      // never on the parent drivers/{driverId} document. Firestore read rules are
+      // per-document, so the passenger on an active trip - who legitimately reads the
+      // parent doc for the driver card - would otherwise receive the PII with it.
+      // Only the driver themselves and managers can read this subcollection.
+      //
+      // Writes are Cloud-Functions-only (Admin SDK bypasses rules), so no client can
+      // forge or alter identity fields.
+      // =====================================================================
+      match /private/{docId} {
+        allow read: if isOwner(driverId) || isManager();
+        allow write: if false;
+      }
+
       // Inbox subcollection
       match /inbox/{requestId} {
         // Driver can read their own inbox items
