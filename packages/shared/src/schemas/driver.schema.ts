@@ -31,10 +31,15 @@ export const DriverSchema = z.object({
   /** Driver's auth UID */
   driverId: z.string(),
 
-  /** Human profile fields maintained by operations manager */
-  fullName: z.string().trim().min(2).max(120).nullable().optional(),
-  nationalId: z.string().trim().min(5).max(32).nullable().optional(),
-  phone: z.string().trim().min(5).max(32).nullable().optional(),
+  /**
+   * Passenger-facing display name.
+   *
+   * SECURITY: the driver's legal name, nationalId and phone are PII and live in the
+   * private subcollection drivers/{driverId}/private/pii (see DriverPiiSchema below),
+   * NOT on this document. Firestore read rules are per-document, so anything here is
+   * visible to the passenger who reads the driver card during a trip.
+   */
+  displayName: z.string().trim().min(2).max(120).nullable().optional(),
   lineNumber: z.string().trim().min(1).max(40).nullable().optional(),
   routePath: z.string().trim().min(2).max(180).nullable().optional(),
   routeName: z.string().trim().min(2).max(180).nullable().optional(),
@@ -96,6 +101,22 @@ export const DriverSchema = z.object({
 });
 
 export type Driver = z.infer<typeof DriverSchema>;
+
+/**
+ * Driver PII, stored ONLY at drivers/{driverId}/private/pii.
+ *
+ * Readable by the driver themselves and by managers; never by a passenger. Written
+ * exclusively by Cloud Functions via the Admin SDK - the Firestore rule for the
+ * subcollection is `allow write: if false` for all clients.
+ */
+export const DriverPiiSchema = z.object({
+  driverId: z.string(),
+  fullName: z.string().trim().min(2).max(120).nullable().optional(),
+  nationalId: z.string().trim().min(5).max(32).nullable().optional(),
+  phone: z.string().trim().min(5).max(32).nullable().optional(),
+});
+
+export type DriverPii = z.infer<typeof DriverPiiSchema>;
 
 /**
  * Driver availability status (computed from isOnline + isAvailable)

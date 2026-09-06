@@ -1,4 +1,4 @@
-import { collection, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
 import { getFirestoreDb , getFunctionsInstance } from './firebase';
@@ -26,6 +26,12 @@ export interface DriverDocument {
   officeId?: string | null;
   driverType?: string | null;
   verificationStatus?: string | null;
+  /** Passenger-facing name held on the parent driver document. */
+  displayName?: string | null;
+  /**
+   * PII, loaded separately from drivers/{id}/private/pii via fetchDriverPii().
+   * Undefined until that fetch resolves.
+   */
   fullName?: string | null;
   nationalId?: string | null;
   phone?: string | null;
@@ -78,9 +84,11 @@ export function subscribeToDrivers(
           officeId: typeof data.officeId === 'string' ? data.officeId : null,
           driverType: typeof data.driverType === 'string' ? data.driverType : null,
           verificationStatus: typeof data.verificationStatus === 'string' ? data.verificationStatus : null,
-          fullName: typeof data.fullName === 'string' ? data.fullName : null,
-          nationalId: typeof data.nationalId === 'string' ? data.nationalId : null,
-          phone: typeof data.phone === 'string' ? data.phone : null,
+          // SECURITY: fullName / nationalId / phone are PII and now live in
+          // drivers/{id}/private/pii. They are no longer on this document; load them
+          // for a single driver with fetchDriverPii(). displayName is the
+          // passenger-facing name that stays on the parent doc.
+          displayName: typeof data.displayName === 'string' ? data.displayName : null,
           lineNumber: typeof data.lineNumber === 'string' ? data.lineNumber : null,
           routePath: typeof data.routePath === 'string' ? data.routePath : null,
           routeName: typeof data.routeName === 'string' ? data.routeName : null,
@@ -151,4 +159,32 @@ export async function upsertDriverEligibility(
   );
   const result = await callable(payload);
   return result.data;
+}
+
+/**
+ * Driver PII, stored in the private subcollection drivers/{driverId}/private/pii.
+ *
+ * SECURITY: this is deliberately a separate, per-driver read. PII was moved off the
+ * parent driver document because Firestore read rules are per-document, so anything on
+ * drivers/{id} is visible to the passenger who reads the driver card during a trip.
+ * Only the driver and managers can read this subcollection.
+ *
+ * Because it is a subcollection it cannot arrive with the collection-wide drivers
+ * snapshot; it must be fetched per driver, on demand.
+ */
+export interface DriverPii {
+  fullName: string | null;
+  nationalId: string | null;
+  phone: string | null;
+}
+
+export async function fetchDriverPii(driverId: string): Promise<DriverPii> {
+  const db = getFirestoreDb();
+  const snapshot = await getDoc(doc(db, 'drivers', driverId, 'private', 'pii'));
+  const data = snapshot.data() ?? {};
+  return {
+    fullName: typeof data.fullName === 'string' ? data.fullName : null,
+    nationalId: typeof data.nationalId === 'string' ? data.nationalId : null,
+    phone: typeof data.phone === 'string' ? data.phone : null,
+  };
 }

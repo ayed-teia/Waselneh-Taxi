@@ -17,7 +17,6 @@ export interface DriverProfile {
   photoUrl: string | null;
   rating: number | null;
   completedTrips: number | null;
-  phone: string | null;
   lineNumber: string | null;
   routePath: string | null;
   routeName: string | null;
@@ -122,6 +121,10 @@ export function subscribeToDriverProfile(
 
         const data = snapshot.data() || {};
 
+        // SECURITY: the driver's legal fullName is PII and now lives in
+        // drivers/{id}/private/pii, which the passenger cannot read. displayName is
+        // the passenger-facing name on the parent document. fullName is kept only as
+        // a fallback for driver documents predating the PII migration.
         const name =
           toStringOrNull(data.name) ||
           toStringOrNull(data.displayName) ||
@@ -143,10 +146,6 @@ export function subscribeToDriverProfile(
           toNumber(data.completedTrips) ??
           toNumber(data.tripsCount) ??
           toNumber(data.totalTrips);
-
-        const phone =
-          toStringOrNull(data.phone) ||
-          toStringOrNull(data.phoneNumber);
 
         const lineNumber = toStringOrNull(data.lineNumber);
         const routePath = toStringOrNull(data.routePath);
@@ -178,7 +177,6 @@ export function subscribeToDriverProfile(
           photoUrl,
           rating,
           completedTrips,
-          phone,
           lineNumber,
           routePath,
           routeName,

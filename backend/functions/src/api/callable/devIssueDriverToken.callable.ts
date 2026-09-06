@@ -2,6 +2,7 @@ import { onCall } from 'firebase-functions/v2/https';
 import { FieldValue } from 'firebase-admin/firestore';
 import { VEHICLE_TYPES, getDefaultSeatCapacityForVehicleType } from '@taxi-line/shared';
 import { REGION } from '../../core/env';
+import { writeDriverPii } from '../../modules/drivers/driver-pii';
 import { getAuth, getFirestore, isEmulatorEnvironment } from '../../core/config';
 import { ValidationError } from '../../core/errors';
 
@@ -46,9 +47,9 @@ export const devIssueDriverToken = onCall<unknown, Promise<DevIssueDriverTokenRe
     await db.collection('drivers').doc(uid).set(
       {
         driverId: uid,
-        fullName: profileName,
-        nationalId,
-        phone,
+        // SECURITY: fullName / nationalId / phone are PII and go to the private
+        // subcollection below, never onto this publicly-readable document.
+        displayName: profileName,
         driverType: 'licensed_line_owner',
         verificationStatus: 'approved',
         lineId,
@@ -70,6 +71,13 @@ export const devIssueDriverToken = onCall<unknown, Promise<DevIssueDriverTokenRe
         devProvisionedAt: FieldValue.serverTimestamp(),
       },
       { merge: true }
+    );
+
+    await writeDriverPii(
+      db,
+      uid,
+      { fullName: profileName, nationalId, phone },
+      'devIssueDriverToken'
     );
 
     const token = await getAuth().createCustomToken(uid, { role: 'driver' });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { useI18n } from '../localization';
-import {
+import { fetchDriverPii,
   DriverDocument,
   subscribeToDrivers,
   upsertDriverEligibility,
@@ -187,7 +187,10 @@ function localizeEligibilityReason(
 
 function createInitialDraft(driver: DriverDocument): DriverDraft {
   return {
-    fullName: driver.fullName || '',
+    // PII (fullName / nationalId / phone) is not on the driver document any more; it
+    // arrives from drivers/{id}/private/pii via the hydration effect below. Until it
+    // resolves these stay blank, seeded only by the public displayName.
+    fullName: driver.fullName || driver.displayName || '',
     nationalId: driver.nationalId || '',
     phone: driver.phone || '',
     officeId: driver.officeId || '',
@@ -222,6 +225,50 @@ export function DriversListPage() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // PII lives in drivers/{id}/private/pii and cannot come down with the
+  // collection-wide drivers snapshot, so fetch it per driver once the list loads.
+  // Only managers can read it (Firestore rules); a failure here must not break the
+  // page, so each fetch is individually guarded.
+  useEffect(() => {
+    let cancelled = false;
+    if (drivers.length === 0) return;
+
+    (async () => {
+      const entries = await Promise.all(
+        drivers.map(async (driver) => {
+          try {
+            return [driver.id, await fetchDriverPii(driver.id)] as const;
+          } catch (piiError) {
+            console.error('[Drivers] Failed to load PII for', driver.id, piiError);
+            return [driver.id, null] as const;
+          }
+        })
+      );
+      if (cancelled) return;
+
+      setDrafts((current) => {
+        const next = { ...current };
+        for (const [driverId, pii] of entries) {
+          if (!pii) continue;
+          const draft = next[driverId];
+          if (!draft) continue;
+          // Do not clobber edits the manager has already typed.
+          next[driverId] = {
+            ...draft,
+            fullName: draft.fullName || pii.fullName || '',
+            nationalId: draft.nationalId || pii.nationalId || '',
+            phone: draft.phone || pii.phone || '',
+          };
+        }
+        return next;
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [drivers]);
 
   useEffect(() => {
     const unsubscribe = subscribeToDrivers((updatedDrivers) => {

@@ -12,6 +12,11 @@ import { getFirestore } from '../../core/config';
 import { UnauthorizedError, ValidationError, handleError } from '../../core/errors';
 import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
+import {
+  readDriverPiiInTransaction,
+  stripDriverPii,
+  writeDriverPiiInTransaction,
+} from '../../modules/drivers/driver-pii';
 import { assertManagerPermission, evaluateDriverEligibility } from '../../modules/auth';
 
 const SetDriverEligibilitySchema = z.object({
@@ -140,6 +145,9 @@ export const managerSetDriverEligibility = onCall<unknown, Promise<ManagerSetDri
 
       await db.runTransaction(async (transaction) => {
         const driverDoc = await transaction.get(driverRef);
+        // PII lives in drivers/{id}/private/pii. Read it here, before any write in
+        // this transaction - Firestore requires every read to precede every write.
+        const currentPii = await readDriverPiiInTransaction(transaction, db, driverId);
         const currentData = driverDoc.data() ?? {};
         const currentDriverType = normalizeOptional(
           typeof currentData.driverType === 'string' ? currentData.driverType : undefined
@@ -182,9 +190,10 @@ export const managerSetDriverEligibility = onCall<unknown, Promise<ManagerSetDri
           officeId: resolvedOfficeId,
           lineId: resolvedLineId,
           licenseId: resolvedLicenseId,
-          fullName: normalizedFullName ?? currentData.fullName ?? null,
-          nationalId: normalizedNationalId ?? currentData.nationalId ?? null,
-          phone: normalizedPhone ?? currentData.phone ?? null,
+          // PII is resolved from the private subcollection, never the parent doc.
+          fullName: normalizedFullName ?? currentPii.fullName ?? null,
+          nationalId: normalizedNationalId ?? currentPii.nationalId ?? null,
+          phone: normalizedPhone ?? currentPii.phone ?? null,
           lineNumber: normalizedLineNumber ?? currentData.lineNumber ?? null,
           routePath: normalizedRoutePath ?? currentData.routePath ?? null,
           routeName: normalizedRouteName ?? currentData.routeName ?? null,
@@ -217,9 +226,10 @@ export const managerSetDriverEligibility = onCall<unknown, Promise<ManagerSetDri
           officeId: resolvedOfficeId,
           lineId: resolvedLineId,
           licenseId: resolvedLicenseId,
-          fullName: nextData.fullName,
-          nationalId: nextData.nationalId,
-          phone: nextData.phone,
+          // SECURITY: fullName / nationalId / phone are PII and are written to
+          // drivers/{id}/private/pii below, NOT onto this publicly-readable document.
+          // displayName is the passenger-facing name and stays here.
+          displayName: nextData.fullName,
           lineNumber: nextData.lineNumber,
           routePath: nextData.routePath,
           routeName: nextData.routeName,
@@ -250,7 +260,21 @@ export const managerSetDriverEligibility = onCall<unknown, Promise<ManagerSetDri
           updatePayload.eligibilityBlockReasons = [];
         }
 
-        transaction.set(driverRef, updatePayload, { merge: true });
+        transaction.set(driverRef, stripDriverPii(updatePayload), { merge: true });
+
+        // PII goes to the private subcollection, readable only by the driver and
+        // managers (see firestore.rules: match /drivers/{id}/private/{doc}).
+        writeDriverPiiInTransaction(
+          transaction,
+          db,
+          driverId,
+          {
+            fullName: nextData.fullName,
+            nationalId: nextData.nationalId,
+            phone: nextData.phone,
+          },
+          managerId
+        );
 
         if (!eligibility.isEligible && forceOfflineIfIneligible) {
           const driverLiveRef = db.collection('driverLive').doc(driverId);
@@ -269,7 +293,8 @@ export const managerSetDriverEligibility = onCall<unknown, Promise<ManagerSetDri
         officeId: normalizedOfficeId,
         lineId: normalizedLineId,
         licenseId: normalizedLicenseId,
-        fullName: updatedDoc.data()?.fullName ?? null,
+        // Do not log PII. displayName is the passenger-facing name.
+        displayName: updatedDoc.data()?.displayName ?? null,
         lineNumber: updatedDoc.data()?.lineNumber ?? null,
         routePath: updatedDoc.data()?.routePath ?? null,
         vehicleType: updatedDoc.data()?.vehicleType ?? null,

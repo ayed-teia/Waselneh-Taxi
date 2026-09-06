@@ -7,7 +7,6 @@ import { getFirestoreDb } from './firebase';
  */
 export interface DriverProfile {
   name?: string;
-  phone?: string;
   lineId?: string;
   vehiclePlate?: string;
   isOnline?: boolean;
@@ -55,8 +54,7 @@ async function fetchDriverProfile(driverId: string): Promise<DriverProfile | nul
       const data = driverDoc.data();
       const profile: DriverProfile = {
         name: data.name ?? data.displayName ?? undefined,
-        phone: data.phone ?? undefined,
-        lineId: data.lineId ?? undefined,
+            lineId: data.lineId ?? undefined,
         vehiclePlate: data.vehiclePlate ?? undefined,
         isOnline: data.isOnline ?? false,
         isAvailable: data.isAvailable ?? false,
