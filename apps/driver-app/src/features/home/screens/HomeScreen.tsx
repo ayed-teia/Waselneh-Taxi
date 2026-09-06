@@ -1,3 +1,5 @@
+import { BottomSheetCard, StatusChip } from '@waselneh/ui';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import {
   StyleSheet,
@@ -7,13 +9,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { BottomSheetCard, StatusChip } from '@waselneh/ui';
-import { DriverMapView } from '../../map';
+
+import { useI18n } from '../../../localization';
 import { useDriverStore } from '../../../store';
 import { useTripRequestStore } from '../../../store/trip-request.store';
 import { LanguageToggle, StatusToggle } from '../../../ui';
-import { useI18n } from '../../../localization';
+import { DriverMapView } from '../../map';
 
 interface HomeScreenProps {
   onToggleStatus: (goOnline: boolean) => void;

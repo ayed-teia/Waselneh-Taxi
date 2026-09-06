@@ -72,6 +72,7 @@ export {
   driverArrived,
   startTrip,
   completeTrip,
+  confirmCashPayment,
   submitRating,
   submitPassengerRating,
   createSupportTicket,

@@ -8,7 +8,9 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+
 import { getModeColors, waselnehRadius, waselnehSpacing, waselnehTypography } from '../tokens/design-tokens';
+
 import { Text } from './Text';
 
 export interface InputProps extends Omit<TextInputProps, 'style'> {

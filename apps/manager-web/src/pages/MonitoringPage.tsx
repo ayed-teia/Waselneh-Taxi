@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+
 import { useI18n } from '../localization';
-import { acknowledgeAlert } from '../services/operations.service';
 import {
   OpsAlert,
   OpsError,
@@ -9,6 +9,7 @@ import {
   subscribeOpsErrors,
   subscribeOpsMetrics,
 } from '../services/monitoring.service';
+import { acknowledgeAlert } from '../services/operations.service';
 import './MonitoringPage.css';
 
 function formatDate(value: Date | null | undefined, locale: 'ar' | 'en'): string {

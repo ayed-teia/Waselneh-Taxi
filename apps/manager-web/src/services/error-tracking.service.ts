@@ -1,4 +1,5 @@
 import { httpsCallable } from 'firebase/functions';
+
 import { getFunctionsInstance } from './firebase';
 
 let installed = false;

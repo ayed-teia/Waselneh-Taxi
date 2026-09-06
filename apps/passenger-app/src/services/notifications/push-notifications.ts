@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+
 import { arrayUnion, firebaseDB, serverTimestamp } from '../firebase';
 
 const INSTALLATION_ID_KEY = 'waselneh.passenger.installationId';

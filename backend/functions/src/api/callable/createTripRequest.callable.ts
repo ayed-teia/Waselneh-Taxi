@@ -292,7 +292,7 @@ function normalizeText(value: unknown): string | null {
 function tokenizeRouteHint(value: string | null): string[] {
   if (!value) return [];
   return value
-    .split(/[\s,\/\-\u2192\u2194]+/g)
+    .split(/[\s,/\u2192\u2194-]+/g)
     .map((token) => token.trim().toLowerCase())
     .filter((token) => token.length >= 3);
 }
@@ -409,7 +409,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
 
       const db = getFirestore();
       let requestedOfficeId = normalizedRideOptions.officeId;
-      let requestedLineId = normalizedRideOptions.lineId;
+      const requestedLineId = normalizedRideOptions.lineId;
 
       if (requestedLineId) {
         const lineDoc = await db.collection('lines').doc(requestedLineId).get();

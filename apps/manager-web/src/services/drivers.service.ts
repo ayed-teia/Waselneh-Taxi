@@ -1,7 +1,7 @@
 import { collection, onSnapshot, Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { getFirestoreDb } from './firebase';
-import { getFunctionsInstance } from './firebase';
+
+import { getFirestoreDb , getFunctionsInstance } from './firebase';
 
 /**
  * ============================================================================

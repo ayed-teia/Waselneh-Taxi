@@ -1,5 +1,5 @@
-import { firebaseDB, Unsubscribe } from '../firebase';
 import { TripStatus } from '../../types/shared';
+import { firebaseDB, Unsubscribe } from '../firebase';
 
 export interface DriverTripHistoryItem {
   id: string;

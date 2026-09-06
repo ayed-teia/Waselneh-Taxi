@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Redirect, useRouter } from 'expo-router';
-import { Alert } from 'react-native';
 import { LoadingState, ScreenContainer } from '@waselneh/ui';
-import { useAuthStore, useDriverStore } from '../src/store';
-import { HomeScreen } from '../src/features/home';
+import { Redirect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert } from 'react-native';
+
 import { DriverAccessDeniedScreen } from '../src/features/auth';
+import { HomeScreen } from '../src/features/home';
+import { useI18n } from '../src/localization';
 import { 
   startLocationTracking, 
   stopLocationTracking,
@@ -20,7 +21,7 @@ import {
   subscribeToDriverEligibility,
   type DriverEligibilityState,
 } from '../src/services/realtime';
-import { useI18n } from '../src/localization';
+import { useAuthStore, useDriverStore } from '../src/store';
 
 // DEV MODE - set to false to use real GPS from phone
 const DEV_MODE = false;

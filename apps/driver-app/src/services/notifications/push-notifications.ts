@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import firebase from 'firebase/compat/app';
+
 import { firebaseDB } from '../firebase';
 
 const INSTALLATION_ID_KEY = 'waselneh.driver.installationId';

@@ -1,6 +1,7 @@
+import { TripStatus } from '@taxi-line/shared';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { TripStatus } from '@taxi-line/shared';
+
 import { useI18n } from '../../../localization';
 
 const STATUS_ORDER: TripStatus[] = [

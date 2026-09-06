@@ -1,5 +1,5 @@
-import { firebaseFunctions } from '../firebase';
 import { LatLng } from '../../types/shared';
+import { firebaseFunctions } from '../firebase';
 
 // Dev mode configuration - matches app/index.tsx
 const DEV_MODE = process.env.EXPO_PUBLIC_DEV_AUTH_BYPASS === 'true';

@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleProp, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
 import { Edge, SafeAreaView } from 'react-native-safe-area-context';
+
 import { getModeColors, waselnehSpacing } from '../tokens/design-tokens';
 
 export interface ScreenContainerProps extends Omit<ViewProps, 'style'> {

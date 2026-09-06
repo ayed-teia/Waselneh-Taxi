@@ -1,4 +1,5 @@
 import { doc, onSnapshot } from 'firebase/firestore';
+
 import { getFirestoreDb } from './firebase';
 import { CollectionItem, subscribeCollection } from './operations.service';
 

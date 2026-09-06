@@ -70,7 +70,9 @@ export const expireStaleTrips = onSchedule(
 
         for (const requestDoc of staleRequestsSnapshot.docs) {
           try {
-            await db.runTransaction(async (transaction) => {
+            await db.runTransaction(
+      // eslint-disable-next-line @typescript-eslint/require-await -- Firestore requires a promise-returning transaction callback
+      async (transaction) => {
               // Update trip request to expired
               transaction.update(requestDoc.ref, {
                 status: TripRequestStatus.EXPIRED,
@@ -117,7 +119,9 @@ export const expireStaleTrips = onSchedule(
             const tripData = tripDoc.data();
             const driverId = tripData.driverId;
 
-            await db.runTransaction(async (transaction) => {
+            await db.runTransaction(
+      // eslint-disable-next-line @typescript-eslint/require-await -- Firestore requires a promise-returning transaction callback
+      async (transaction) => {
               // Update trip to cancelled
               transaction.update(tripDoc.ref, {
                 status: TripStatus.CANCELLED_BY_SYSTEM,

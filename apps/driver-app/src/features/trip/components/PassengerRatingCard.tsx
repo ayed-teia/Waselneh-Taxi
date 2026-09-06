@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
 import { useI18n } from '../../../localization';
 
 const LOW_RATING_REASONS = [

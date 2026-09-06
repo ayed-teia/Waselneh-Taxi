@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleProp, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
+
 import { getModeColors, waselnehRadius, waselnehShadows, waselnehSpacing } from '../tokens/design-tokens';
 
 export interface CardProps extends Omit<ViewProps, 'style'> {

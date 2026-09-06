@@ -1,13 +1,14 @@
+import L from 'leaflet';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Circle, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
+
 import 'leaflet/dist/leaflet.css';
 import { DriverLiveLocation } from '../services/driver-location.service';
-import { TripData, getTripStatusDisplay } from '../services/trips.service';
 import { RoadblockData, getRoadblockStatusDisplay } from '../services/roadblocks.service';
+import { TripData, getTripStatusDisplay } from '../services/trips.service';
 
 // Fix Leaflet default icon issue with bundlers (Vite/Webpack)
-// @ts-ignore
+// @ts-expect-error - Leaflet internal; deleted so bundlers resolve marker icon URLs
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',

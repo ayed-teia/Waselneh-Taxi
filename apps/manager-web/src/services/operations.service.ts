@@ -8,6 +8,7 @@ import {
   query,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
+
 import { getFirestoreDb, getFunctionsInstance } from './firebase';
 
 export type Unsubscribe = () => void;

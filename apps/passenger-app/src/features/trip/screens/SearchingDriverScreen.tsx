@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PassengerMapView } from '../../map';
-import { Button } from '../../../ui';
-import { subscribeToTripRequest } from '../../../services/realtime';
+
 import { useI18n } from '../../../localization';
+import { subscribeToTripRequest } from '../../../services/realtime';
+import { Button } from '../../../ui';
+import { PassengerMapView } from '../../map';
 
 interface SearchingDriverScreenProps {
   requestId: string;

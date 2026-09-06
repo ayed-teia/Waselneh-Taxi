@@ -1,7 +1,3 @@
-import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, connectFirestoreEmulator, Firestore } from 'firebase/firestore';
-import { getAuth, connectAuthEmulator, Auth } from 'firebase/auth';
-import { getFunctions, connectFunctionsEmulator, Functions } from 'firebase/functions';
 import {
   parseAppMode,
   shouldAllowEmulators,
@@ -9,6 +5,10 @@ import {
   validateAppModeConfig,
   type AppMode,
 } from '@taxi-line/shared';
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import { getAuth, connectAuthEmulator, Auth } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator, Firestore } from 'firebase/firestore';
+import { getFunctions, connectFunctionsEmulator, Functions } from 'firebase/functions';
 
 // Firebase configuration for manager web - Production
 const firebaseConfig = {

@@ -1,9 +1,10 @@
+import { Button, Header, ScreenContainer, Text } from '@waselneh/ui';
+import { Redirect, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, Share, StyleSheet, TextInput, View } from 'react-native';
-import { Redirect, useRouter } from 'expo-router';
-import { Button, Header, ScreenContainer, Text } from '@waselneh/ui';
-import { useAuthStore } from '../src/store';
+
 import { useI18n } from '../src/localization';
+import { useAuthStore } from '../src/store';
 
 export default function Promo() {
   const { isRTL } = useI18n();

@@ -8,8 +8,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { TripChatMessage } from '../../../services/realtime';
+
 import { useI18n } from '../../../localization';
+import { TripChatMessage } from '../../../services/realtime';
 
 interface TripChatPanelProps {
   messages: TripChatMessage[];

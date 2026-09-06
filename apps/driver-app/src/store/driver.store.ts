@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+
 import { LatLng } from '../types/shared';
 
 export type DriverStatus = 'offline' | 'online' | 'busy';

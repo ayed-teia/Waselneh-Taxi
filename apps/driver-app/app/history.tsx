@@ -1,10 +1,11 @@
+import { Card, EmptyState, Header, LoadingState, ScreenContainer, Text } from '@waselneh/ui';
+import { Redirect, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { Redirect, useRouter } from 'expo-router';
-import { Card, EmptyState, Header, LoadingState, ScreenContainer, Text } from '@waselneh/ui';
-import { useAuthStore } from '../src/store';
-import { DriverTripHistoryItem, subscribeToDriverTripHistory } from '../src/services/realtime';
+
 import { useI18n } from '../src/localization';
+import { DriverTripHistoryItem, subscribeToDriverTripHistory } from '../src/services/realtime';
+import { useAuthStore } from '../src/store';
 
 function formatDate(value: Date | null | undefined): string {
   if (!value) return '--';

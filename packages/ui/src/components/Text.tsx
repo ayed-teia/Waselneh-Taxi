@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleProp, StyleSheet, Text as RNText, TextProps as RNTextProps, TextStyle } from 'react-native';
+
 import { getModeColors, waselnehTypography } from '../tokens/design-tokens';
 
 export type TextVariant = 'h1' | 'h2' | 'h3' | 'body' | 'bodyStrong' | 'caption' | 'overline';

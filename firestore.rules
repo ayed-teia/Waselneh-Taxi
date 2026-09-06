@@ -43,8 +43,38 @@ service cloud.firestore {
       return /databases/$(database)/documents/managerRoles/$(uid);
     }
 
-    function userDocPath(uid) {
-      return /databases/$(database)/documents/users/$(uid);
+    /**
+     * Privilege-granting fields on users/{uid}. SECURITY (R1): these must never be
+     * written by the document owner - see match /users/{uid}. Cloud Functions use the
+     * Admin SDK, which bypasses these rules, so backend provisioning is unaffected.
+     */
+    function privilegeFields() {
+      return [
+        'role',
+        'permissions',
+        'officeIds',
+        'officeId',
+        'lineIds',
+        'lineId',
+        'managerRole',
+        'status',
+      ];
+    }
+
+    /** True if an incoming document carries any privilege field at all. */
+    function writesPrivilegeFields() {
+      return request.resource.data.keys().hasAny(privilegeFields());
+    }
+
+    /**
+     * True if this update adds, removes, or modifies any privilege field.
+     * An update that leaves them byte-identical is allowed, so a client can safely
+     * re-send a document it just read.
+     */
+    function changesPrivilegeFields() {
+      return request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasAny(privilegeFields());
     }
 
     function isManagerRoleValue(value) {
@@ -68,7 +98,13 @@ service cloud.firestore {
     }
     
     /**
-     * Check if user is a manager
+     * Check if user is a manager.
+     *
+     * SECURITY (R1): manager status comes ONLY from a verified custom claim, or from an
+     * ACTIVE managerRoles/{uid} document. This previously also trusted users/{uid}.role.
+     * Because users can write their own users/{uid} document, any authenticated user
+     * could self-assign role: "admin", become a manager, and then write managerRoles/*
+     * to make the escalation permanent. That branch is removed.
      */
     function isManager() {
       return hasManagerClaim() ||
@@ -77,11 +113,6 @@ service cloud.firestore {
           exists(managerRoleDocPath(request.auth.uid)) &&
           isManagerRoleValue(get(managerRoleDocPath(request.auth.uid)).data.role) &&
           get(managerRoleDocPath(request.auth.uid)).data.isActive == true
-        ) ||
-        (
-          isAuthenticated() &&
-          exists(userDocPath(request.auth.uid)) &&
-          isManagerRoleValue(get(userDocPath(request.auth.uid)).data.role)
         );
     }
     
@@ -122,6 +153,30 @@ service cloud.firestore {
         get(tripDocPath(tripId)).data.passengerId == request.auth.uid ||
         get(tripDocPath(tripId)).data.driverId == request.auth.uid
         );
+    }
+
+    /**
+     * True if the caller is the passenger on the trip this driver is currently
+     * assigned to.
+     *
+     * SECURITY (PII): drivers/{driverId} and driverLive/{driverId} used to be readable
+     * by ANY authenticated user, which let anyone enumerate every driver's nationalId,
+     * phone number and live GPS position. Reads are now scoped to the people who
+     * actually need them: the driver themselves, a manager, and the passenger of record
+     * on the driver's current trip.
+     *
+     * The link is drivers/{driverId}.currentTripId -> trips/{tripId}.passengerId, so a
+     * passenger can only reach the driver who is actually assigned to them, and only
+     * while that assignment stands.
+     */
+    function isPassengerOfDriverCurrentTrip(driverId) {
+      return isAuthenticated() &&
+        exists(driverDocPath(driverId)) &&
+        driverDoc(driverId).data.currentTripId is string &&
+        driverDoc(driverId).data.currentTripId.size() > 0 &&
+        exists(tripDocPath(driverDoc(driverId).data.currentTripId)) &&
+        get(tripDocPath(driverDoc(driverId).data.currentTripId)).data.passengerId
+          == request.auth.uid;
     }
 
     function hasValidLineOrLicenseLink(data) {
@@ -181,10 +236,17 @@ service cloud.firestore {
     match /users/{uid} {
       // User can read their own document, managers can read any
       allow read: if isOwner(uid) || isManager();
-      
-      // User can update their own document, managers can update any
-      // Note: User creation is handled by Cloud Functions on auth trigger
-      allow write: if isOwner(uid) || isManager();
+
+      // SECURITY (R1): an owner may maintain their own profile (displayName, photo,
+      // locale, ...) but must never set or change a privilege field on it. Only a
+      // manager may do that from a client; backend provisioning goes through Cloud
+      // Functions on the Admin SDK, which bypasses these rules entirely.
+      // Note: user creation is normally handled by a Cloud Function auth trigger.
+      allow create: if isManager() ||
+        (isOwner(uid) && !writesPrivilegeFields());
+      allow update: if isManager() ||
+        (isOwner(uid) && !changesPrivilegeFields());
+      allow delete: if isManager();
     }
 
     // =========================================================================
@@ -237,11 +299,9 @@ service cloud.firestore {
     // - Passengers can read location only for their active trip's driver
     // - Managers can read all for monitoring
     // 
-    // ⚠️  MVP LIMITATION: Passenger read access is permissive (any passenger
-    //     can read any driver location). For production, implement one of:
-    //     1. Server-side proxy for location reads
-    //     2. Store active trip driverId in passenger's token claims
-    //     3. Use a subcollection under trips for location streaming
+    // Passenger reads are scoped via drivers/{driverId}.currentTripId -> the trip's
+    // passengerId, so a passenger can only read the location of the driver actually
+    // assigned to them. See isPassengerOfDriverCurrentTrip().
     // =========================================================================
     match /driverLive/{driverId} {
       // Driver can create/update live location only when fully eligible
@@ -251,10 +311,15 @@ service cloud.firestore {
       allow delete: if isOwner(driverId);
       
       // Reading driver location:
-      // - Managers can read all (for monitoring dashboard)
+      // - Managers can read all, including listing the collection (monitoring dashboard)
       // - Drivers can read their own location
-      // - Authenticated users: MVP allows read for live trip UI (see limitation above)
-      allow read: if isOwner(driverId) || isManager() || isAuthenticated();
+      // - The passenger on this driver's current trip can read it, for the live trip UI
+      //
+      // SECURITY (PII): this previously ended in "|| isAuthenticated()", so any signed-in
+      // account could stream ANY driver's live GPS position. That blanket clause is gone.
+      allow read: if isOwner(driverId) ||
+        isManager() ||
+        isPassengerOfDriverCurrentTrip(driverId);
     }
     
     // =========================================================================
@@ -275,9 +340,19 @@ service cloud.firestore {
     // - Cloud Functions use Admin SDK which bypasses security rules
     // =========================================================================
     match /drivers/{driverId} {
-      // Authenticated users can read driver profile fields needed by mobile apps.
-      // Sensitive write operations remain restricted below.
-      allow read: if isAuthenticated();
+      // SECURITY (PII): this was "allow read: if isAuthenticated()", so any signed-in
+      // account could read - and list - every driver document, including nationalId and
+      // phone. Reads are now scoped to the driver themselves, managers, and the
+      // passenger of record on the driver's current trip (who needs the driver card
+      // during and just after a trip).
+      //
+      // KNOWN LIMIT: Firestore read rules are per-DOCUMENT, not per-field. The
+      // passenger of record therefore still receives the whole driver document,
+      // nationalId and phone included. Removing that requires moving PII into a
+      // private subcollection (a data-model change) - see HARDENING_REPORT.md.
+      allow read: if isOwner(driverId) ||
+        isManager() ||
+        isPassengerOfDriverCurrentTrip(driverId);
       
       // Managers can manage driver profiles (including verification fields).
       // Driver clients can update status/location fields only if they are eligible,

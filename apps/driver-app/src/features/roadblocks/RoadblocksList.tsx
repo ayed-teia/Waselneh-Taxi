@@ -1,6 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
-import {
+﻿import {
   BottomSheetCard,
   EmptyState,
   ErrorState,
@@ -13,8 +11,11 @@ import {
   waselnehShadows,
   waselnehSpacing,
 } from '@waselneh/ui';
-import { RoadblockData, getRoadblockStatusDisplay, subscribeToAllRoadblocks } from '../../services/realtime';
+import React, { useEffect, useMemo, useState } from 'react';
+import { FlatList, StyleSheet, View } from 'react-native';
+
 import { useI18n } from '../../localization';
+import { RoadblockData, getRoadblockStatusDisplay, subscribeToAllRoadblocks } from '../../services/realtime';
 
 /**
  * Driver-facing road conditions screen.

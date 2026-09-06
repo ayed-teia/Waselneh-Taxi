@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, Switch } from 'react-native';
-import { DriverStatus } from '../../store/driver.store';
+
 import { useI18n } from '../../localization';
+import { DriverStatus } from '../../store/driver.store';
 
 interface StatusToggleProps {
   status: DriverStatus;

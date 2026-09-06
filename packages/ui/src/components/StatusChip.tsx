@@ -1,6 +1,8 @@
 import React from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+
 import { getModeColors, waselnehRadius, waselnehSpacing } from '../tokens/design-tokens';
+
 import { Text } from './Text';
 
 export type StatusChipTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';

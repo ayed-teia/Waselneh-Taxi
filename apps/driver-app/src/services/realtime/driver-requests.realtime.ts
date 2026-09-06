@@ -1,6 +1,6 @@
-import { firebaseDB, type Unsubscribe } from '../firebase';
-import { TripRequest, useTripRequestStore } from '../../store/trip-request.store';
 import { useDriverStore } from '../../store';
+import { TripRequest, useTripRequestStore } from '../../store/trip-request.store';
+import { firebaseDB, type Unsubscribe } from '../firebase';
 
 /**
  * ============================================================================

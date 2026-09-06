@@ -1,8 +1,9 @@
+import Constants from 'expo-constants';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import type { Auth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
 import type { Functions } from 'firebase/functions';
-import Constants from 'expo-constants';
+
 import { getEmulatorHost } from '../../utils/emulator-host';
 
 /**

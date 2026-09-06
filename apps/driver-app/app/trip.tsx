@@ -1,9 +1,12 @@
+import { TripStatus } from '@taxi-line/shared';
+import { ErrorState, LoadingState, ScreenContainer } from '@waselneh/ui';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Share } from 'react-native';
-import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import { ErrorState, LoadingState, ScreenContainer } from '@waselneh/ui';
-import { TripStatus } from '@taxi-line/shared';
+
 import { ActiveTripScreen } from '../src/features/trip';
+import { useI18n } from '../src/localization';
+import { RetryQueue } from '../src/services';
 import {
   estimateTrip,
   submitPassengerRating,
@@ -15,10 +18,8 @@ import {
   subscribeToTrip,
   subscribeToTripChat,
 } from '../src/services/realtime';
-import { RetryQueue } from '../src/services';
 import { useAuthStore, useDriverStore } from '../src/store';
 import { BackButton } from '../src/ui';
-import { useI18n } from '../src/localization';
 
 function isNetworkError(error: unknown): boolean {
   const text = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();

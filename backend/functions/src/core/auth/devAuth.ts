@@ -5,22 +5,33 @@
  * The client can pass a `devUserId` in the request data which will be used
  * as the authenticated user ID.
  * 
- * ⚠️ SECURITY WARNING: This ONLY works when:
- * 1. FUNCTIONS_EMULATOR environment variable is set (running in emulator)
- * 2. OR ENVIRONMENT is 'dev'
+ * ⚠️ SECURITY WARNING: this bypasses Firebase Auth entirely, so it must be reachable
+ * ONLY from the local emulator. It is gated on the two variables the Firebase emulator
+ * sets automatically and that a deployed function never has:
+ *   - FUNCTIONS_EMULATOR === 'true'
+ *   - FIRESTORE_EMULATOR_HOST
  */
 
 import { CallableRequest } from 'firebase-functions/v2/https';
 import { logger } from '../logger';
 
 /**
- * Check if we're running in emulator/dev mode
+ * Check if we are genuinely running inside the Firebase emulator.
+ *
+ * SECURITY (R2): this previously also returned true when ENVIRONMENT === 'dev'.
+ * ENVIRONMENT is a plain configurable variable that DEFAULTS to 'dev'
+ * (see core/env/env.ts), so any deployed environment that had not explicitly
+ * overridden it would accept an unauthenticated caller's `devUserId` and act as
+ * that user - a complete authentication bypass reachable from the public internet.
+ *
+ * The gate is now exactly the two variables the emulator sets automatically and
+ * that a deployed Cloud Function never has. This intentionally matches
+ * isEmulatorEnvironment() in core/config/firebase.config.ts.
  */
 export function isEmulatorMode(): boolean {
   return (
     process.env.FUNCTIONS_EMULATOR === 'true' ||
-    process.env.FIRESTORE_EMULATOR_HOST !== undefined ||
-    process.env.ENVIRONMENT === 'dev'
+    process.env.FIRESTORE_EMULATOR_HOST !== undefined
   );
 }
 

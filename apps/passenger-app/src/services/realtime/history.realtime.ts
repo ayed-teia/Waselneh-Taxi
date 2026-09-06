@@ -1,5 +1,6 @@
-import { firebaseDB, Unsubscribe } from '../firebase';
 import { TripStatus } from '@taxi-line/shared';
+
+import { firebaseDB, Unsubscribe } from '../firebase';
 
 export interface PassengerTripHistoryItem {
   id: string;

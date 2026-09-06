@@ -19,6 +19,9 @@
         "alwaysTryTypes": true,
         "project": ["./tsconfig.json", "./apps/*/tsconfig.json", "./packages/*/tsconfig.json", "./backend/*/tsconfig.json"]
       }
+    },
+    "import/parsers": {
+      "@typescript-eslint/parser": [".ts", ".tsx"]
     }
   },
   "rules": {

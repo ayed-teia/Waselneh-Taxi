@@ -6,6 +6,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
+
 import { getFirebaseAuth, getFunctionsInstance, isUsingEmulators } from './firebase';
 
 export type ManagerRole = 'admin' | 'manager' | 'operations_manager' | 'dispatcher' | 'support';

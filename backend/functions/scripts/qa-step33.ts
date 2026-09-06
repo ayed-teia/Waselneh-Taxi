@@ -46,6 +46,7 @@ async function test1_AppModeConfig() {
   const configPath = path.join(__dirname, '../../..', 'packages/shared/dist/config/app-mode.config.js');
   
   if (fs.existsSync(configPath)) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires -- runtime-conditional load of a built artifact, guarded by fs.existsSync above
     const appModeModule = require(configPath);
     const parseAppMode = appModeModule.parseAppMode;
     
@@ -85,6 +86,7 @@ async function test2_EmulatorGuard() {
   const configPath = path.join(__dirname, '../../..', 'packages/shared/dist/config/app-mode.config.js');
   
   if (fs.existsSync(configPath)) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires -- runtime-conditional load of a built artifact, guarded by fs.existsSync above
     const appModeModule = require(configPath);
     const shouldAllowEmulators = appModeModule.shouldAllowEmulators;
     const getConnectionGuardMessage = appModeModule.getConnectionGuardMessage;
@@ -342,4 +344,7 @@ async function main() {
   }
 }
 
-main();
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

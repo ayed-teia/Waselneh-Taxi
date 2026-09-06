@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { Button, Card, LanguageToggle, Text } from './ui';
+
 import { useI18n } from './localization';
+import { isUsingEmulators } from './services/firebase';
 import {
   ManagerRole,
   ManagerSession,
@@ -9,7 +10,7 @@ import {
   getManagerSession,
   signOutManager,
 } from './services/manager-auth.service';
-import { isUsingEmulators } from './services/firebase';
+import { Button, Card, LanguageToggle, Text } from './ui';
 import './App.css';
 
 const ROLE_OPTIONS: ManagerRole[] = [

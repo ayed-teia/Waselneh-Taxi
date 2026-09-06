@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
@@ -8,10 +9,12 @@ import {
   Animated,
   Vibration,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Button } from './Button';
-import { useTripRequestStore } from '../../store/trip-request.store';
+
 import { acceptTripRequest, rejectTripRequest } from '../../services/api';
+import { useTripRequestStore } from '../../store/trip-request.store';
+
+import { Button } from './Button';
+
 
 const DEFAULT_TIMEOUT_SECONDS = 45;
 const ACTION_GUARD_MS = 1200;

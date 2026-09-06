@@ -1,13 +1,3 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { useRouter } from 'expo-router';
 import {
   Button,
   Card,
@@ -22,10 +12,21 @@ import {
   waselnehShadows,
   waselnehSpacing,
 } from '@waselneh/ui';
-import { useAuthStore } from '../../../store';
-import { InboxItem, subscribeToInbox } from '../../../services/realtime';
-import { acceptTripRequest } from '../../../services/api';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
 import { useI18n } from '../../../localization';
+import { acceptTripRequest } from '../../../services/api';
+import { InboxItem, subscribeToInbox } from '../../../services/realtime';
+import { useAuthStore } from '../../../store';
 
 export function InboxScreen() {
   const router = useRouter();

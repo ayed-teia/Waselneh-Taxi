@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { I18nManager } from 'react-native';
+
 import { AppLocale, DRIVER_TRANSLATIONS } from './translations';
 
 const STORAGE_KEY = 'waselneh.driver.locale';

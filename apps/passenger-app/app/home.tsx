@@ -1,13 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { TripStatus } from '@taxi-line/shared';
 import { Redirect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
-import { useAuthStore, useTripStore } from '../src/store';
+
 import { MapScreen } from '../src/features/map';
 import { ActiveTripScreen } from '../src/features/trip';
-import { subscribeToActiveTrip } from '../src/services/realtime';
-import { passengerCancelTrip } from '../src/services/api';
-import { TripStatus } from '@taxi-line/shared';
 import { useI18n } from '../src/localization';
+import { passengerCancelTrip } from '../src/services/api';
+import { subscribeToActiveTrip } from '../src/services/realtime';
+import { useAuthStore, useTripStore } from '../src/store';
 
 export default function Home() {
   const { t } = useI18n();
