@@ -2,7 +2,7 @@
 
 **Branch:** `feat/remaining-work`
 **Stacks on:** `chore/overnight-hardening` (PR #1), **not** `main`.
-**PR:** _(link added below)_ — **OPEN, not merged.**
+**PR:** https://github.com/ayed-teia/Waselneh-Taxi/pull/2 — **OPEN, not merged.**
 
 ### Why it stacks rather than targeting main
 
