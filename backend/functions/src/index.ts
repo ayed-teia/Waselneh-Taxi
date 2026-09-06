@@ -96,6 +96,9 @@ export {
   managerUpsertPricingZone,
   managerUpsertStaffRole,
   reportClientError,
+  joinLineQueue,
+  leaveLineQueue,
+  getLineQueue,
   getSystemConfigCallable,
   // Step 33: Feature flag toggle
   managerToggleFeatureFlag,

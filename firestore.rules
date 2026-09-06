@@ -555,6 +555,20 @@ service cloud.firestore {
     match /lines/{lineId} {
       allow read: if isManager() || isAuthenticated();
       allow write: if false;
+
+      // TAXI-LINE QUEUE: lines/{lineId}/queue/{driverId}
+      //
+      // Readable by any authenticated user so a driver can see their place in the
+      // line and how many are ahead of them - a queue nobody can see is not a queue.
+      //
+      // WRITES ARE CLOUD-FUNCTIONS-ONLY. Position determines who earns the next
+      // fare, so a driver who could write their own position would simply set it to
+      // zero. That is the first thing anyone would try, and it is why joinLineQueue
+      // assigns position server-side and this rule denies every client write.
+      match /queue/{driverId} {
+        allow read: if isAuthenticated();
+        allow write: if false;
+      }
     }
 
     match /licenses/{licenseId} {
