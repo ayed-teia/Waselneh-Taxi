@@ -34,7 +34,15 @@ import {
  * ============================================================================
  */
 
-type ReconcileState = 'collected' | 'uncollected' | 'unrecorded';
+import {
+  classifyTrip,
+  findOrphanedPayments,
+  indexPaymentsByTrip,
+  type ReconcileState,
+} from '../services/reconciliation';
+
+// The classification itself lives in ../services/reconciliation.ts as pure
+// functions, so it can be unit-tested directly rather than only by eye.
 
 interface ReconciledRow {
   tripId: string;
@@ -106,24 +114,12 @@ export function PaymentReconciliationPage() {
     return () => unsubscribe();
   }, []);
 
-  // Index payments by trip so the join is O(n) rather than O(n*m).
-  const paymentsByTrip = useMemo(() => {
-    const map = new Map<string, PaymentDocument>();
-    for (const payment of payments) {
-      if (payment.tripId) map.set(payment.tripId, payment);
-    }
-    return map;
-  }, [payments]);
+  const paymentsByTrip = useMemo(() => indexPaymentsByTrip(payments), [payments]);
 
   const rows = useMemo<ReconciledRow[]>(() => {
     return trips.map((trip) => {
       const payment = paymentsByTrip.get(trip.tripId) ?? null;
-      const tripSaysPaid = trip.paymentStatus === 'paid';
-
-      let state: ReconcileState;
-      if (tripSaysPaid && payment) state = 'collected';
-      else if (tripSaysPaid && !payment) state = 'unrecorded';
-      else state = 'uncollected';
+      const state = classifyTrip(trip, payment);
 
       return {
         tripId: trip.tripId,
@@ -141,10 +137,10 @@ export function PaymentReconciliationPage() {
   }, [trips, paymentsByTrip]);
 
   // A payment whose trip is not in the completed set at all.
-  const orphanedPayments = useMemo(() => {
-    const tripIds = new Set(trips.map((t) => t.tripId));
-    return payments.filter((p) => p.tripId && !tripIds.has(p.tripId));
-  }, [payments, trips]);
+  const orphanedPayments = useMemo(
+    () => findOrphanedPayments(payments, trips),
+    [payments, trips]
+  );
 
   const totals = useMemo(() => {
     const sum = (predicate: (row: ReconciledRow) => boolean) =>
