@@ -8,6 +8,7 @@ import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError, hand
 import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
 import { assertManagerPermission, publishTripStatusNotifications } from '../../modules';
+import { docData, getString } from '../../core/firestore/doc-data';
 
 const ForceCancelTripSchema = z.object({
   tripId: z.string().min(1),
@@ -57,11 +58,14 @@ export const managerForceCancelTrip = onCall<unknown, Promise<ForceCancelTripRes
           throw new NotFoundError('Trip', tripId);
         }
 
-        const tripData = tripDoc.data()!;
-        driverIdForNotify = String(tripData.driverId || '');
-        passengerIdForNotify = String(tripData.passengerId || '');
-        if (!ACTIVE_TRIP_STATUSES.includes(tripData.status)) {
-          throw new ForbiddenError(`Trip is already ${tripData.status}`);
+        const tripData = docData(tripDoc);
+        driverIdForNotify = getString(tripData, 'driverId', '');
+        passengerIdForNotify = getString(tripData, 'passengerId', '');
+        const tripStatus = getString(tripData, 'status', '');
+        // ACTIVE_TRIP_STATUSES is a readonly TripStatus[]; widen for the membership
+        // test rather than casting the value we read out of Firestore.
+        if (!(ACTIVE_TRIP_STATUSES as readonly string[]).includes(tripStatus)) {
+          throw new ForbiddenError(`Trip is already ${tripStatus}`);
         }
 
         const driverId = tripData.driverId as string | undefined;

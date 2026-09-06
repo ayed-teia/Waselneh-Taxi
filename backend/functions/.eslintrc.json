@@ -22,5 +22,11 @@
     "@typescript-eslint/require-await": "error",
     "no-console": "off"
   },
-  "ignorePatterns": ["node_modules", "dist", "*.js"]
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "*.js",
+    "scripts/qa-step32.ts",
+    "scripts/qa-step33.ts"
+  ]
 }

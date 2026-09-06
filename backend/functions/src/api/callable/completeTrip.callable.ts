@@ -6,6 +6,7 @@ import {
   PaymentStatus,
   PaymentMethod,
   normalizeSeatCapacity,
+  normalizeVehicleType,
 } from '@taxi-line/shared';
 import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
@@ -15,6 +16,7 @@ import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 import { publishTripStatusNotifications } from '../../modules/notifications';
 import { assertDriverIsLicensedLineOwner } from '../../modules/auth';
+import { docData, getNumber, getString } from '../../core/firestore/doc-data';
 
 const CompleteTripSchema = z.object({
   tripId: z.string().min(1),
@@ -59,7 +61,7 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
           throw new NotFoundError('Trip', tripId);
         }
 
-        const tripData = tripDoc.data()!;
+        const tripData = docData(tripDoc);
         const paymentId = `payment_${tripId}`;
         const paymentRef = db.collection('payments').doc(paymentId);
         const existingPayment = await transaction.get(paymentRef);
@@ -71,16 +73,21 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
           throw new ForbiddenError('You are not assigned to this trip');
         }
 
-        if (tripData.status !== TripStatus.IN_PROGRESS) {
+        const tripStatus = getString(tripData, 'status', '');
+        if (tripStatus !== TripStatus.IN_PROGRESS) {
           throw new ForbiddenError(
-            `Cannot complete trip from status '${tripData.status}'. Expected '${TripStatus.IN_PROGRESS}'.`
+            `Cannot complete trip from status '${tripStatus}'. Expected '${TripStatus.IN_PROGRESS}'.`
           );
         }
 
-        passengerIdForNotify = String(tripData.passengerId || '');
-        const finalPriceIls = tripData.estimatedPriceIls;
+        const tripPassengerId = getString(tripData, 'passengerId', '');
+        passengerIdForNotify = tripPassengerId;
+        const finalPriceIls = getNumber(tripData, 'estimatedPriceIls', 0);
 
-        const seatCapacity = normalizeSeatCapacity(driverData.seatCapacity, driverData.vehicleType as any);
+        const seatCapacity = normalizeSeatCapacity(
+          driverData.seatCapacity,
+          normalizeVehicleType(driverData.vehicleType)
+        );
         const availableSeatsRaw =
           typeof driverData.availableSeats === 'number' && Number.isFinite(driverData.availableSeats)
             ? Math.round(driverData.availableSeats)
@@ -140,7 +147,7 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
           transaction.set(paymentRef, {
             paymentId,
             tripId,
-            passengerId: tripData.passengerId,
+            passengerId: tripPassengerId,
             driverId,
             amount: finalPriceIls,
             currency: 'ILS',

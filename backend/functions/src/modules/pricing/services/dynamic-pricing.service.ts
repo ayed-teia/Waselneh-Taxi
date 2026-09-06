@@ -9,6 +9,7 @@ import {
 } from '@taxi-line/shared';
 import { getFirestore } from '../../../core/config';
 import { logger } from '../../../core/logger';
+import { asRecord, getRecord } from '../../../core/firestore/doc-data';
 
 const OPS_TIMEZONE = 'Asia/Hebron';
 const DEFAULT_PRICING_PROFILE_ID = 'default';
@@ -229,22 +230,32 @@ async function getPricingProfile(profileId: string): Promise<PricingProfileDoc> 
   return finalProfile;
 }
 
-function sanitizePricingZone(data: FirebaseFirestore.DocumentData | undefined, zoneId: string): PricingZoneDoc | null {
-  if (!data || data.status === 'inactive') return null;
-  if (!data.center || typeof data.center !== 'object') return null;
-  const center = data.center as { lat?: unknown; lng?: unknown };
-  if (typeof center.lat !== 'number' || typeof center.lng !== 'number') return null;
+function sanitizePricingZone(
+  raw: FirebaseFirestore.DocumentData | undefined,
+  zoneId: string
+): PricingZoneDoc | null {
+  if (!raw) return null;
+  // DocumentData carries an `any` index signature, so narrow the whole body once
+  // here rather than at each field read.
+  const data = asRecord(raw);
+  if (data.status === 'inactive') return null;
+  const center = getRecord(data, 'center');
+  const centerLat = center.lat;
+  const centerLng = center.lng;
+  if (typeof centerLat !== 'number' || typeof centerLng !== 'number') return null;
   const radiusKm = sanitizeMultiplier(data.radiusKm, 0);
   if (radiusKm <= 0) return null;
-  const appliesTo = data.appliesTo === 'pickup' || data.appliesTo === 'dropoff' ? data.appliesTo : 'both';
+  const appliesToRaw = data.appliesTo;
+  const appliesTo: 'pickup' | 'dropoff' | 'both' =
+    appliesToRaw === 'pickup' || appliesToRaw === 'dropoff' ? appliesToRaw : 'both';
   return {
     zoneId,
     status: 'active',
     officeId: sanitizeId(data.officeId),
     lineId: sanitizeId(data.lineId),
     center: {
-      lat: center.lat,
-      lng: center.lng,
+      lat: centerLat,
+      lng: centerLng,
     },
     radiusKm,
     multiplier: sanitizeMultiplier(data.multiplier, 1),

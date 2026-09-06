@@ -144,3 +144,33 @@ export function getTimestampDate(data: Record<string, unknown>, field: string): 
     return null;
   }
 }
+
+/**
+ * A nested object field, as an unknown-valued record.
+ * Returns {} when absent or not an object, so `getString(getRecord(d,'x'),'y')`
+ * is always safe.
+ */
+export function getRecord(
+  data: Record<string, unknown>,
+  field: string
+): Record<string, unknown> {
+  const value = data[field];
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+/**
+ * A `{ lat, lng }` coordinate pair, or null when either component is missing or
+ * not a finite number. Firestore stores these as plain maps on trip documents.
+ */
+export function getLatLng(
+  data: Record<string, unknown>,
+  field: string
+): { lat: number; lng: number } | null {
+  const value = getRecord(data, field);
+  const lat = value.lat;
+  const lng = value.lng;
+  if (typeof lat !== 'number' || !Number.isFinite(lat)) return null;
+  if (typeof lng !== 'number' || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}

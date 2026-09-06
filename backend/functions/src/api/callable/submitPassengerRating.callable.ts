@@ -13,6 +13,7 @@ import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 import { TripStatus } from '@taxi-line/shared';
 import { publishTripStatusNotifications } from '../../modules/notifications';
+import { getString } from '../../core/firestore/doc-data';
 
 const SubmitPassengerRatingSchema = z.object({
   tripId: z.string().min(1),
@@ -70,15 +71,15 @@ export const submitPassengerRating = onCall<unknown, Promise<SubmitPassengerRati
           throw new ForbiddenError('You are not assigned to this trip');
         }
 
-        const validStatuses = [TripStatus.COMPLETED, TripStatus.RATED];
-        if (!validStatuses.includes(trip.status)) {
+        const validStatuses: string[] = [TripStatus.COMPLETED, TripStatus.RATED];
+        if (!validStatuses.includes(getString(trip, 'status', ''))) {
           throw new ForbiddenError('Trip must be completed before rating passenger');
         }
 
         const ratingPayload = {
           tripId,
           driverId,
-          passengerId: trip.passengerId,
+          passengerId: getString(trip, 'passengerId', ''),
           rating,
           comment: comment ?? null,
           lowRatingReason: lowRatingReason ?? null,

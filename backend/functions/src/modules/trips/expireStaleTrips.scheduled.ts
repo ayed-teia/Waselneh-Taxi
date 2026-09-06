@@ -4,6 +4,7 @@ import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
 import { logger } from '../../core/logger';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { docData, getString } from '../../core/firestore/doc-data';
 
 /**
  * ============================================================================
@@ -116,8 +117,8 @@ export const expireStaleTrips = onSchedule(
 
         for (const tripDoc of staleAcceptedTripsSnapshot.docs) {
           try {
-            const tripData = tripDoc.data();
-            const driverId = tripData.driverId;
+            const tripData = docData(tripDoc);
+            const driverId = getString(tripData, 'driverId', '');
 
             await db.runTransaction(
       // eslint-disable-next-line @typescript-eslint/require-await -- Firestore requires a promise-returning transaction callback

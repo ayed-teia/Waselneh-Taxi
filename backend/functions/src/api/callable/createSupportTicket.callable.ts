@@ -41,7 +41,10 @@ export const createSupportTicket = onCall<unknown, Promise<CreateSupportTicketRe
       const { tripId, category, subject, message } = parsed.data;
       const db = getFirestore();
       const ticketRef = db.collection('supportTickets').doc();
-      const role = request.auth?.token?.role ?? 'unknown';
+      // Custom auth claims are typed `any`, so narrow the role to a string here
+      // rather than storing whatever the token happens to carry.
+      const rawRole: unknown = request.auth?.token?.role;
+      const role = typeof rawRole === 'string' && rawRole.trim() ? rawRole : 'unknown';
 
       await ticketRef.set({
         userId,

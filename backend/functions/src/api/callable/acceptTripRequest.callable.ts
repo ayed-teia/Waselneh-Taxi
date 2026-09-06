@@ -1,6 +1,6 @@
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import { BOOKING_TYPES, TripStatus, normalizeSeatCapacity } from '@taxi-line/shared';
+import { BOOKING_TYPES, TripStatus, normalizeSeatCapacity, normalizeVehicleType } from '@taxi-line/shared';
 import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
 import { handleError, ValidationError, NotFoundError, ForbiddenError, UnauthorizedError } from '../../core/errors';
@@ -22,9 +22,10 @@ function resolveDriverSeatState(driverData: Record<string, unknown>): {
   seatCapacity: number;
   availableSeats: number;
 } {
-  const vehicleType =
-    typeof driverData.vehicleType === 'string' ? driverData.vehicleType : undefined;
-  const seatCapacity = normalizeSeatCapacity(driverData.seatCapacity, vehicleType as any);
+  const seatCapacity = normalizeSeatCapacity(
+    driverData.seatCapacity,
+    normalizeVehicleType(driverData.vehicleType)
+  );
   const availableSeatsRaw =
     typeof driverData.availableSeats === 'number' && Number.isFinite(driverData.availableSeats)
       ? Math.round(driverData.availableSeats)

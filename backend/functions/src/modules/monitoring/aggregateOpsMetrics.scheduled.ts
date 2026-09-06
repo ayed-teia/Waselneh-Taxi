@@ -3,6 +3,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { REGION } from '../../core/env';
 import { getFirestore } from '../../core/config';
 import { logger } from '../../core/logger';
+import { docData, getString } from '../../core/firestore/doc-data';
 
 type AlertSeverity = 'warning' | 'critical';
 
@@ -123,7 +124,7 @@ export const aggregateOpsMetrics = onSchedule(
     let pendingTrips = 0;
     let inProgressTrips = 0;
     activeTripsSnapshot.forEach((docSnap) => {
-      const status = docSnap.data()?.status;
+      const status = getString(docData(docSnap), 'status', '');
       if (status === 'pending') pendingTrips += 1;
       if (status === 'in_progress' || status === 'accepted' || status === 'driver_arrived') {
         inProgressTrips += 1;
@@ -133,7 +134,7 @@ export const aggregateOpsMetrics = onSchedule(
     let completedTrips24h = 0;
     let cancelledTrips24h = 0;
     trips24hSnapshot.forEach((docSnap) => {
-      const status = docSnap.data()?.status;
+      const status = getString(docData(docSnap), 'status', '');
       if (status === 'completed' || status === 'rated') completedTrips24h += 1;
       if (
         status === 'cancelled' ||

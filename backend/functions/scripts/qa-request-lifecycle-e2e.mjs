@@ -103,6 +103,7 @@ async function main() {
   const passengerFullTaxiProbe = `qa-passenger-full-probe-${suffix}`;
   const passengerReofferReject = `qa-passenger-reoffer-${suffix}`;
   const passengerExhaust = `qa-passenger-exhaust-${suffix}`;
+  const passengerNoRepeat = `qa-passenger-norepeat-${suffix}`;
   const pickup = { lat: 32.2211, lng: 35.2544 };
   const dropoff = { lat: 31.9038, lng: 35.2034 };
   const lineId = `LINE_QA_${suffix}`;
@@ -502,6 +503,84 @@ async function main() {
       ok('Re-offer exhaustion scenario', tripId);
     } catch (error) {
       fail('Re-offer exhaustion scenario', error instanceof Error ? error.message : String(error));
+    }
+
+    // =========================================================================
+    // Scenario 9: DISPATCH RELIABILITY - the driver who already rejected must not
+    // be offered the same trip again.
+    //
+    // Without this, a re-offer loop could hand the trip straight back to the
+    // driver who just declined it, which is worse than the original dead-end:
+    // it wastes the passenger's time AND annoys the driver.
+    // =========================================================================
+    try {
+      for (const [ref, id, lat, lng] of [
+        [driverRef, driverId, pickup.lat, pickup.lng],
+        [secondDriverRef, secondDriverId, pickup.lat + 0.01, pickup.lng + 0.01],
+      ]) {
+        await ref.set(
+          {
+            driverId: id,
+            isOnline: true,
+            isAvailable: true,
+            status: 'online',
+            currentTripId: null,
+            availableSeats: 4,
+            lastLocation: new admin.firestore.GeoPoint(lat, lng),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      const { created } = await runStep('createTrip(no-repeat)', () =>
+        createTrip(passengerNoRepeat, pickup, dropoff, {
+          requiredSeats: 1,
+          officeId,
+          lineId,
+        })
+      );
+      assert(created.tripId, 'Expected tripId in no-repeat scenario');
+      const tripId = created.tripId;
+      trackDoc(db.collection('trips').doc(tripId));
+
+      // Driver 1 rejects -> should go to driver 2.
+      await runStep('rejectTripRequest(no-repeat-1)', () =>
+        callCallable('rejectTripRequest', { tripId, devUserId: driverId })
+      );
+      const afterFirst = await db.collection('trips').doc(tripId).get();
+      assert(
+        afterFirst.data()?.driverId === secondDriverId,
+        `Expected re-offer to driver 2, got ${afterFirst.data()?.driverId}`
+      );
+      const tried = afterFirst.data()?.triedDriverIds;
+      assert(
+        Array.isArray(tried) && tried.includes(driverId),
+        `Expected driver 1 recorded in triedDriverIds, got ${JSON.stringify(tried)}`
+      );
+
+      // Driver 2 rejects too. Driver 1 is idle and eligible again, but must NOT
+      // be re-offered the trip they already declined.
+      await runStep('rejectTripRequest(no-repeat-2)', () =>
+        callCallable('rejectTripRequest', { tripId, devUserId: secondDriverId })
+      );
+      const afterSecond = await db.collection('trips').doc(tripId).get();
+      const finalData = afterSecond.data() ?? {};
+      assert(
+        finalData.status === 'no_driver_available',
+        `Trip should end at no_driver_available, got ${finalData.status}`
+      );
+      assert(
+        finalData.driverId !== driverId || finalData.status === 'no_driver_available',
+        'Trip must not be re-offered to the driver who already rejected it'
+      );
+
+      ok('Re-offer never returns to a driver who rejected', tripId);
+    } catch (error) {
+      fail(
+        'Re-offer never returns to a driver who rejected',
+        error instanceof Error ? error.message : String(error)
+      );
     } finally {
       // The remaining scenarios assume a SINGLE matchable driver, so retire the
       // second one. Without this it silently absorbs trips that those scenarios

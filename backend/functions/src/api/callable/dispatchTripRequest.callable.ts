@@ -7,6 +7,7 @@ import { handleError, ValidationError, NotFoundError, ForbiddenError } from '../
 import { logger } from '../../core/logger';
 import { FieldValue } from 'firebase-admin/firestore';
 import { evaluateDriverEligibility } from '../../modules/auth';
+import { docData, getLatLng, getNumber, getRecord, getString } from '../../core/firestore/doc-data';
 
 function sanitizeId(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -86,14 +87,16 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
         throw new NotFoundError('Trip request', requestId);
       }
 
-      const requestData = requestDoc.data()!;
-      const requestedOfficeId = sanitizeId(requestData.rideOptions?.officeId);
-      const requestedLineId = sanitizeId(requestData.rideOptions?.lineId);
+      const requestData = docData(requestDoc);
+      const rideOptions = getRecord(requestData, 'rideOptions');
+      const requestedOfficeId = sanitizeId(rideOptions.officeId);
+      const requestedLineId = sanitizeId(rideOptions.lineId);
 
       // Ensure status is OPEN
-      if (requestData.status !== TripRequestStatus.OPEN) {
+      const requestStatus = getString(requestData, 'status', '');
+      if (requestStatus !== TripRequestStatus.OPEN) {
         throw new ForbiddenError(
-          `Cannot dispatch trip request with status '${requestData.status}'. Expected 'open'.`
+          `Cannot dispatch trip request with status '${requestStatus}'. Expected 'open'.`
         );
       }
 
@@ -138,8 +141,9 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
           continue;
         }
 
-        const driverOfficeId = sanitizeId(driverDoc.data().officeId);
-        const driverLineId = sanitizeId(driverDoc.data().lineId);
+        const driverData = docData(driverDoc);
+        const driverOfficeId = sanitizeId(driverData.officeId);
+        const driverLineId = sanitizeId(driverData.lineId);
         if (requestedLineId && driverLineId !== requestedLineId) {
           skippedScopeDrivers += 1;
           continue;
@@ -159,12 +163,12 @@ export const dispatchTripRequest = onCall<unknown, Promise<DispatchTripRequestRe
 
         const inboxDoc: InboxDocument = {
           requestId,
-          passengerId: requestData.passengerId,
-          pickup: requestData.pickup,
-          dropoff: requestData.dropoff,
-          estimatedDistanceKm: requestData.estimatedDistanceKm,
-          estimatedDurationMin: requestData.estimatedDurationMin,
-          estimatedPriceIls: requestData.estimatedPriceIls,
+          passengerId: getString(requestData, 'passengerId', ''),
+          pickup: getLatLng(requestData, 'pickup') ?? { lat: 0, lng: 0 },
+          dropoff: getLatLng(requestData, 'dropoff') ?? { lat: 0, lng: 0 },
+          estimatedDistanceKm: getNumber(requestData, 'estimatedDistanceKm', 0),
+          estimatedDurationMin: getNumber(requestData, 'estimatedDurationMin', 0),
+          estimatedPriceIls: getNumber(requestData, 'estimatedPriceIls', 0),
           createdAt: FieldValue.serverTimestamp(),
         };
 

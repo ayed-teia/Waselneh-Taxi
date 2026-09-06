@@ -29,6 +29,8 @@ const SUITES = [
   'qa-cash-payment-e2e.mjs',
   'qa-security-regression-e2e.mjs',
   'qa-pii-scoping-e2e.mjs',
+  'qa-scheduled-functions-e2e.mjs',
+  'qa-reconciliation-e2e.mjs',
 ];
 
 const results = [];

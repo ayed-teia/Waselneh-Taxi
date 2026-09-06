@@ -18,6 +18,7 @@ import {
   writeDriverPiiInTransaction,
 } from '../../modules/drivers/driver-pii';
 import { assertManagerPermission, evaluateDriverEligibility } from '../../modules/auth';
+import { getNonEmptyString, getStringArray } from '../../core/firestore/doc-data';
 
 const SetDriverEligibilitySchema = z.object({
   driverId: z.string().min(1),
@@ -194,11 +195,15 @@ export const managerSetDriverEligibility = onCall<unknown, Promise<ManagerSetDri
           fullName: normalizedFullName ?? currentPii.fullName ?? null,
           nationalId: normalizedNationalId ?? currentPii.nationalId ?? null,
           phone: normalizedPhone ?? currentPii.phone ?? null,
-          lineNumber: normalizedLineNumber ?? currentData.lineNumber ?? null,
-          routePath: normalizedRoutePath ?? currentData.routePath ?? null,
-          routeName: normalizedRouteName ?? currentData.routeName ?? null,
-          routeCities: normalizedRouteCities ?? currentData.routeCities ?? null,
-          photoUrl: normalizedPhotoUrl ?? currentData.photoUrl ?? null,
+          lineNumber: normalizedLineNumber ?? getNonEmptyString(currentData, 'lineNumber'),
+          routePath: normalizedRoutePath ?? getNonEmptyString(currentData, 'routePath'),
+          routeName: normalizedRouteName ?? getNonEmptyString(currentData, 'routeName'),
+          routeCities:
+            normalizedRouteCities ??
+            (currentData.routeCities === undefined
+              ? null
+              : getStringArray(currentData, 'routeCities')),
+          photoUrl: normalizedPhotoUrl ?? getNonEmptyString(currentData, 'photoUrl'),
           vehicleType: resolvedVehicleType,
           seatCapacity: resolvedSeatCapacity,
           availableSeats: resolvedAvailableSeats,

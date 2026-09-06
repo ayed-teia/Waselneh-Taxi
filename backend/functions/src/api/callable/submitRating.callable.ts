@@ -8,6 +8,7 @@ import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 import { publishTripStatusNotifications } from '../../modules/notifications';
+import { getString } from '../../core/firestore/doc-data';
 
 /**
  * ============================================================================
@@ -141,7 +142,7 @@ export const submitRating = onCall<unknown, Promise<SubmitRatingResponse>>(
         const ratingData = {
           tripId,
           passengerId,
-          driverId: tripData.driverId,
+          driverId: getString(tripData, 'driverId', ''),
           rating,
           comment: comment || null,
           lowRatingReason: lowRatingReason || null,
