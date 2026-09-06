@@ -41,12 +41,12 @@ jobs:
       - name: Typecheck
         run: corepack pnpm typecheck
 
-      # `lint` is currently NOT clean (see HARDENING_REPORT.md: ~80 no-unsafe-*
-      # errors from untyped Firestore doc.data()). It is reported but does not fail
-      # the build yet, so CI stays useful instead of being permanently red.
-      # Flip this to a hard failure once that backlog is cleared.
-      - name: Lint (advisory - does not fail the build yet)
-        run: corepack pnpm lint || echo "::warning::lint reported problems (advisory; see HARDENING_REPORT.md)"
+      # BLOCKING as of the typed-accessor rollout: the no-unsafe-* backlog that made
+      # this advisory is cleared and `pnpm lint` exits 0 with 0 errors. Warnings are
+      # still permitted (169 of them, mostly no-console in QA scripts and pre-existing
+      # no-explicit-any), so this fails the build only on a genuine new error.
+      - name: Lint
+        run: corepack pnpm lint
 
       - name: Build functions
         run: corepack pnpm build:functions
