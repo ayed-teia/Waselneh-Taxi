@@ -63,6 +63,17 @@ write, matching how every other privileged mutation works here).
 
 ## 2. Card / online payments
 
+> **STILL THE ONLY BLOCKER: which PSP.** Deliberately not built. The constraint is
+> not the SDK - it is settlement in ILS to West Bank accounts. Stripe does not
+> support Palestinian entities; the Israeli and regional processors (Tranzila,
+> PayPlus, Cardcom, and others) differ in KYC, settlement terms and fees.
+>
+> **Pick the processor and the integration follows in days.** Everything below is
+> processor-agnostic and ready to be written against whichever you choose.
+>
+> The cash path already works (R6), and the reconciliation view already surfaces
+> where the trip and the ledger disagree.
+
 **Blocked on: choosing a PSP. That is the whole decision — the SDK is the easy part.**
 
 ### Current state
