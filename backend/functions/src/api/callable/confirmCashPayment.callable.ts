@@ -7,6 +7,7 @@ import { handleError, ValidationError, NotFoundError, ForbiddenError, Unauthoriz
 import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
+import { docData, getNumber, getString } from '../../core/firestore/doc-data';
 
 /**
  * ============================================================================
@@ -105,7 +106,7 @@ export const confirmCashPayment = onCall<unknown, Promise<ConfirmCashPaymentResp
         throw new NotFoundError('Trip not found');
       }
 
-      const tripData = tripDoc.data()!;
+      const tripData = docData(tripDoc);
 
       // ========================================
       // 4. Validate driver owns the trip
@@ -121,12 +122,15 @@ export const confirmCashPayment = onCall<unknown, Promise<ConfirmCashPaymentResp
       // ========================================
       // 5. Validate trip is completed
       // ========================================
-      if (tripData.status !== TripStatus.COMPLETED) {
-        logger.warn(`⚠️ [ConfirmCashPayment] Trip not completed`, { 
-          tripId, 
-          status: tripData.status 
+      const tripStatus = getString(tripData, 'status', '');
+      if (tripStatus !== TripStatus.COMPLETED) {
+        logger.warn(`⚠️ [ConfirmCashPayment] Trip not completed`, {
+          tripId,
+          status: tripStatus,
         });
-        throw new ValidationError(`Trip must be completed before collecting payment. Current status: ${tripData.status}`);
+        throw new ValidationError(
+          `Trip must be completed before collecting payment. Current status: ${tripStatus}`
+        );
       }
 
       // ========================================
@@ -147,12 +151,16 @@ export const confirmCashPayment = onCall<unknown, Promise<ConfirmCashPaymentResp
         paidAt: now,
       });
 
-      const fareAmount = tripData.fareAmount || tripData.estimatedPriceIls;
+      const fareAmount =
+        getNumber(tripData, 'fareAmount') ?? getNumber(tripData, 'estimatedPriceIls', 0);
 
       // Log structured payment confirmation
-      logger.paymentConfirmed(tripId, fareAmount, tripData.paymentMethod || 'cash', {
+      // logger.paymentConfirmed takes a narrow 'cash' | 'card' union, so widen only
+      // to what it accepts rather than casting an arbitrary stored string.
+      const paymentMethod = getString(tripData, 'paymentMethod', 'cash') === 'card' ? 'card' : 'cash';
+      logger.paymentConfirmed(tripId, fareAmount, paymentMethod, {
         driverId,
-        passengerId: tripData.passengerId,
+        passengerId: getString(tripData, 'passengerId', ''),
       });
 
       logger.info(`🎉 [ConfirmCashPayment] COMPLETE`, { tripId, driverId });
