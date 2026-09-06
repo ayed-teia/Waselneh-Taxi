@@ -4,6 +4,7 @@
 configured `origin` still uses the old URL, which GitHub redirects — no remote change needed).
 **Branch:** `chore/overnight-hardening`
 **Base:** `origin/main` @ `85a49c7` (the vulnerable baseline)
+**Pull request:** https://github.com/ayed-teia/Waselneh-Taxi/pull/1 — **OPEN, not merged**
 
 All testing is LOCAL via the Firebase emulator suite. Nothing was deployed or merged.
 
