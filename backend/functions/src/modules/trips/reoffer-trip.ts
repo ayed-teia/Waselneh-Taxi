@@ -52,6 +52,11 @@ export interface ReofferResult {
   reason?: string;
 }
 
+/** Pass a value through only when it is a plain JSON-ish scalar/object we can store. */
+function passThrough(value: unknown): unknown {
+  return value === undefined ? null : value;
+}
+
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === 'string' && item.length > 0);
@@ -136,17 +141,19 @@ export async function reofferTripToNextDriver(
 
   transaction.set(driverRequestRef, {
     tripId,
-    passengerId: tripData.passengerId,
-    pickup: tripData.pickup,
-    dropoff: tripData.dropoff,
-    estimatedDistanceKm: tripData.estimatedDistanceKm ?? null,
-    estimatedDurationMin: tripData.estimatedDurationMin ?? null,
-    estimatedPriceIls: tripData.estimatedPriceIls ?? null,
-    bookingType: tripData.bookingType ?? null,
-    requestedSeats: tripData.requestedSeats ?? null,
-    requiredSeats: tripData.requiredSeats ?? null,
-    destinationLabel: tripData.destinationLabel ?? null,
-    destinationCity: tripData.destinationCity ?? null,
+    // The trip document is untyped Firestore data; copy the offer fields through a
+    // helper so nothing is implicitly typed `any` at this boundary.
+    passengerId: passThrough(tripData.passengerId),
+    pickup: passThrough(tripData.pickup),
+    dropoff: passThrough(tripData.dropoff),
+    estimatedDistanceKm: passThrough(tripData.estimatedDistanceKm),
+    estimatedDurationMin: passThrough(tripData.estimatedDurationMin),
+    estimatedPriceIls: passThrough(tripData.estimatedPriceIls),
+    bookingType: passThrough(tripData.bookingType),
+    requestedSeats: passThrough(tripData.requestedSeats),
+    requiredSeats: passThrough(tripData.requiredSeats),
+    destinationLabel: passThrough(tripData.destinationLabel),
+    destinationCity: passThrough(tripData.destinationCity),
     status: 'pending',
     createdAt: FieldValue.serverTimestamp(),
     expiresAt,
