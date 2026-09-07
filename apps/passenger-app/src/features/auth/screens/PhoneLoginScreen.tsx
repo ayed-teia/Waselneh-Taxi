@@ -1,0 +1,235 @@
+import { Button, Card, ScreenContainer, Text } from '@waselneh/ui';
+import React, { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, StyleSheet, TextInput, View } from 'react-native';
+
+import { useI18n } from '../../../localization';
+import {
+  ALLOWED_COUNTRY_CODES,
+  isAcceptablePhoneNumber,
+  requestOtpPermission,
+} from '../../../services/auth/phone-auth.service';
+import { LanguageToggle } from '../../../ui';
+import { colors } from '../../../ui/theme';
+
+/**
+ * ============================================================================
+ * PHONE / OTP SIGN-IN SCREEN
+ * ============================================================================
+ *
+ * Only reachable when EXPO_PUBLIC_ENABLE_PHONE_AUTH=true. With the flag off (the
+ * default) the app shows the existing dev login and this screen is never mounted.
+ *
+ * TWO STEPS: enter a number, then enter the 6-digit code. The server is asked for
+ * permission BEFORE Firebase is asked to send anything, so an abusive client is
+ * stopped before any SMS is billed.
+ *
+ * The reCAPTCHA verifier is supplied by the caller (`onRequestCode`), because it is
+ * platform-specific and is the one part that genuinely needs a device.
+ * ============================================================================
+ */
+
+export interface PhoneLoginScreenProps {
+  /** Sends the code. Receives an E.164 number; resolves when the SMS is on its way. */
+  onRequestCode: (phoneNumber: string) => Promise<void>;
+  /** Verifies the code. Resolves on success, rejects with a message on failure. */
+  onVerifyCode: (code: string) => Promise<void>;
+  /** Fall back to the existing dev sign-in (kept available in dev builds). */
+  onUseDevLogin?: () => void;
+  loading?: boolean;
+}
+
+type Step = 'phone' | 'code';
+
+export function PhoneLoginScreen({
+  onRequestCode,
+  onVerifyCode,
+  onUseDevLogin,
+  loading = false,
+}: PhoneLoginScreenProps) {
+  const { t, isRTL } = useI18n();
+  const [step, setStep] = useState<Step>('phone');
+  const [countryCode, setCountryCode] = useState<string>(ALLOWED_COUNTRY_CODES[0]);
+  const [nationalNumber, setNationalNumber] = useState('');
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const e164 = useMemo(
+    () => `${countryCode}${nationalNumber.replace(/^0+/, '').replace(/[\s\-().]/g, '')}`,
+    [countryCode, nationalNumber]
+  );
+
+  const phoneValid = isAcceptablePhoneNumber(e164);
+
+  /** Map a server refusal reason to a localized message. */
+  const messageForReason = useCallback(
+    (reason?: string, retryAfterSeconds?: number): string => {
+      switch (reason) {
+        case 'cooldown':
+          return t('auth.otp_cooldown', { seconds: String(retryAfterSeconds ?? 60) });
+        case 'number_hourly_limit':
+        case 'device_hourly_limit':
+          return t('auth.otp_too_many');
+        case 'locked_out':
+          return t('auth.otp_locked_out');
+        case 'country_not_allowed':
+          return t('auth.otp_country_not_allowed');
+        case 'invalid_number':
+          return t('auth.otp_invalid_number');
+        case 'rate_limit_unavailable':
+          return t('auth.otp_unavailable');
+        default:
+          return t('auth.otp_send_failed');
+      }
+    },
+    [t]
+  );
+
+  const handleSendCode = useCallback(async () => {
+    if (busy || !phoneValid) return;
+    setBusy(true);
+    setError(null);
+    try {
+      // Server-side gate FIRST - this is where the limits are actually enforced.
+      const permission = await requestOtpPermission(e164);
+      if (!permission.ok) {
+        setError(messageForReason(permission.reason, permission.retryAfterSeconds));
+        return;
+      }
+      await onRequestCode(e164);
+      setStep('code');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('auth.otp_send_failed'));
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, phoneValid, e164, onRequestCode, messageForReason, t]);
+
+  const handleVerify = useCallback(async () => {
+    if (busy || code.trim().length < 4) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onVerifyCode(code.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('auth.otp_wrong_code'));
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, code, onVerifyCode, t]);
+
+  const disabled = busy || loading;
+
+  return (
+    <ScreenContainer style={styles.container}>
+      <View style={styles.header}>
+        <LanguageToggle />
+        <Text variant="h1" style={styles.title}>
+          {t('auth.phone_title')}
+        </Text>
+        <Text muted style={styles.subtitle}>
+          {step === 'phone' ? t('auth.phone_subtitle') : t('auth.code_subtitle')}
+        </Text>
+      </View>
+
+      <Card elevated style={styles.card}>
+        {step === 'phone' ? (
+          <>
+            <Text style={styles.label}>{t('auth.phone_label')}</Text>
+            <View style={[styles.row, isRTL && styles.rowReverse]}>
+              <View style={styles.codePicker}>
+                {ALLOWED_COUNTRY_CODES.map((cc) => (
+                  <Button
+                    key={cc}
+                    title={cc}
+                    variant={cc === countryCode ? 'primary' : 'secondary'}
+                    onPress={() => setCountryCode(cc)}
+                    disabled={disabled}
+                  />
+                ))}
+              </View>
+              <TextInput
+                style={[styles.input, isRTL && styles.inputRtl]}
+                value={nationalNumber}
+                onChangeText={setNationalNumber}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                placeholder={t('auth.phone_placeholder')}
+                editable={!disabled}
+                maxLength={15}
+              />
+            </View>
+            <Button
+              title={busy ? t('auth.sending') : t('auth.send_code')}
+              onPress={() => void handleSendCode()}
+              disabled={disabled || !phoneValid}
+              loading={busy}
+            />
+          </>
+        ) : (
+          <>
+            <Text style={styles.label}>{t('auth.code_label')}</Text>
+            <TextInput
+              style={[styles.input, styles.codeInput]}
+              value={code}
+              onChangeText={setCode}
+              keyboardType="number-pad"
+              autoComplete="sms-otp"
+              placeholder="------"
+              editable={!disabled}
+              maxLength={8}
+            />
+            <Button
+              title={busy ? t('auth.verifying') : t('auth.verify_code')}
+              onPress={() => void handleVerify()}
+              disabled={disabled || code.trim().length < 4}
+              loading={busy}
+            />
+            <Button
+              title={t('auth.change_number')}
+              variant="secondary"
+              onPress={() => {
+                setStep('phone');
+                setCode('');
+                setError(null);
+              }}
+              disabled={disabled}
+            />
+          </>
+        )}
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {loading ? <ActivityIndicator style={styles.spinner} /> : null}
+      </Card>
+
+      {onUseDevLogin ? (
+        <Button title={t('auth.use_dev_login')} variant="secondary" onPress={onUseDevLogin} />
+      ) : null}
+    </ScreenContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center' },
+  header: { marginBottom: 24, alignItems: 'center' },
+  title: { textAlign: 'center', marginTop: 12 },
+  subtitle: { textAlign: 'center', marginTop: 8 },
+  card: { padding: 16, gap: 12 },
+  label: { marginBottom: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  rowReverse: { flexDirection: 'row-reverse' },
+  codePicker: { flexDirection: 'row', gap: 4 },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+  },
+  inputRtl: { textAlign: 'right' },
+  codeInput: { letterSpacing: 8, textAlign: 'center', fontSize: 22 },
+  error: { color: '#dc2626', marginTop: 8 },
+  spinner: { marginTop: 8 },
+});

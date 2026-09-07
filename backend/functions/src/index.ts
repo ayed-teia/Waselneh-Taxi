@@ -96,6 +96,8 @@ export {
   managerUpsertPricingZone,
   managerUpsertStaffRole,
   reportClientError,
+  requestOtpPermission,
+  reportOtpResult,
   getSystemConfigCallable,
   // Step 33: Feature flag toggle
   managerToggleFeatureFlag,
