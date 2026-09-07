@@ -53,3 +53,22 @@ export const OTP_LIMITS = {
   /** Seconds a user must wait before requesting another code. */
   RESEND_COOLDOWN_SECONDS: 60,
 } as const;
+
+/**
+ * Whether manager-web offers production email+password sign-in.
+ * DEFAULTS TO FALSE. With it off, manager-web keeps using the emulator dev-token
+ * path and nothing changes.
+ *
+ * Vite exposes build-time vars on `import.meta.env`, so manager-web passes that in
+ * explicitly rather than relying on `process.env`, which does not exist in a browser
+ * bundle.
+ *
+ * TO ENABLE: set VITE_ENABLE_MANAGER_PASSWORD_AUTH=true for the manager-web build,
+ * AFTER creating the manager accounts and seeding their managerRoles documents. See
+ * docs/AUTH_ROLLOUT.md.
+ */
+export function isManagerPasswordAuthEnabled(env?: Record<string, string | undefined>): boolean {
+  const source =
+    env ?? (typeof process !== 'undefined' ? (process.env as Record<string, string | undefined>) : {});
+  return readEnvFlag(source?.VITE_ENABLE_MANAGER_PASSWORD_AUTH);
+}
