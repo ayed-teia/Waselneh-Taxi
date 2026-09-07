@@ -96,6 +96,8 @@ export {
   managerUpsertPricingZone,
   managerUpsertStaffRole,
   reportClientError,
+  registerDriverDocument,
+  reviewDriverDocument,
   requestOtpPermission,
   reportOtpResult,
   getSystemConfigCallable,

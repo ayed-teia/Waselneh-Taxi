@@ -26,4 +26,5 @@ export * from './devIssueManagerToken.callable';
 export * from './getManagerSession.callable';
 export * from './managerOperations.callable';
 export * from './reportClientError.callable';
+export * from './driverDocuments.callable';
 export * from './otpRateLimit.callable';
