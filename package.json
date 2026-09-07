@@ -21,6 +21,7 @@
     "qa:pii-scoping:e2e": "corepack pnpm --filter @taxi-line/functions qa:pii-scoping:e2e",
     "qa:scheduled:e2e": "corepack pnpm --filter @taxi-line/functions qa:scheduled:e2e",
     "qa:reconciliation": "corepack pnpm --filter @taxi-line/functions qa:reconciliation",
+    "qa:otp-auth:e2e": "corepack pnpm --filter @taxi-line/functions qa:otp-auth:e2e",
     "qa:all": "node ./scripts/run-firebase-node20.cjs emulators:exec --project waselneh-prod-414e2 --only auth,firestore,functions,pubsub \"node scripts/run-qa-suites.mjs\"",
     "qa:driver-eligibility:e2e:exec": "node ./scripts/run-firebase-node20.cjs emulators:exec --project waselneh-prod-414e2 --only auth,firestore,functions,pubsub \"node backend/functions/scripts/qa-driver-eligibility-e2e.mjs\"",
     "backfill:driver-eligibility:dry-run": "corepack pnpm --filter @taxi-line/functions backfill:driver-eligibility -- --project waselneh-prod-414e2",
