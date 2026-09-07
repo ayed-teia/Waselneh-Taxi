@@ -29,7 +29,14 @@ export const PILOT_LIMITS = {
   DRIVER_RESPONSE_TIMEOUT_SECONDS: 45,
 
   /**
-   * Maximum search radius for drivers in kilometers
+   * Maximum search radius for drivers in kilometers.
+   *
+   * @deprecated NOT the source of truth, and NOT read by matching. The dispatcher
+   * enforces MAX_SEARCH_RADIUS_METERS from the backend function environment
+   * (see backend/functions/src/core/env/env.ts and backend/functions/.env), because
+   * that is tunable per environment without a code change. This constant is kept
+   * only so existing imports do not break; it disagreed with the env value (15km vs
+   * 5km) for as long as both were dead code. Do not add new readers.
    */
   MAX_DRIVER_SEARCH_RADIUS_KM: 15,
 

@@ -9,6 +9,7 @@ import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
 import { assertManagerPermission, publishTripStatusNotifications } from '../../modules';
 import { docData, getString } from '../../core/firestore/doc-data';
+import { buildDriverReleasePatch } from '../../modules/drivers/driver-seat-release';
 
 const ForceCancelTripSchema = z.object({
   tripId: z.string().min(1),
@@ -70,6 +71,9 @@ export const managerForceCancelTrip = onCall<unknown, Promise<ForceCancelTripRes
 
         const driverId = tripData.driverId as string | undefined;
         let shouldUpdateDriverRequest = false;
+        // Read the driver here, BEFORE any write in this transaction - Firestore
+        // rejects a read that follows a write. Needed for the seat restore below.
+        let driverData: FirebaseFirestore.DocumentData | undefined;
 
         if (driverId) {
           const driverRequestRef = db
@@ -80,6 +84,9 @@ export const managerForceCancelTrip = onCall<unknown, Promise<ForceCancelTripRes
 
           const driverRequestDoc = await transaction.get(driverRequestRef);
           shouldUpdateDriverRequest = driverRequestDoc.exists;
+
+          const driverSnap = await transaction.get(db.collection('drivers').doc(driverId));
+          driverData = driverSnap.data();
         }
 
         transaction.update(tripRef, {
@@ -91,13 +98,14 @@ export const managerForceCancelTrip = onCall<unknown, Promise<ForceCancelTripRes
 
         if (driverId) {
           const driverRef = db.collection('drivers').doc(driverId);
+          // R8: this used to write { isAvailable: true, currentTripId: null } and
+          // nothing else, leaving availableSeats decremented and fullTaxiReserved
+          // stuck true - so a force-cancelled driver silently lost seats forever, or
+          // became unbookable entirely. The shared helper returns them to their
+          // pre-trip seat state, and only marks them available if they are online.
           transaction.set(
             driverRef,
-            {
-              isAvailable: true,
-              currentTripId: null,
-              updatedAt: FieldValue.serverTimestamp(),
-            },
+            buildDriverReleasePatch(driverData, tripData, tripId),
             { merge: true }
           );
 

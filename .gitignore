@@ -68,3 +68,4 @@ emulator.log
 hardening.log
 remaining-work.log
 launch-features.log
+correctness-pass.log

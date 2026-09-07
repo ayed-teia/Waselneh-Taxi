@@ -21,6 +21,8 @@
     "qa:pii-scoping:e2e": "corepack pnpm --filter @taxi-line/functions qa:pii-scoping:e2e",
     "qa:scheduled:e2e": "corepack pnpm --filter @taxi-line/functions qa:scheduled:e2e",
     "qa:reconciliation": "corepack pnpm --filter @taxi-line/functions qa:reconciliation",
+    "qa:seat-accounting:e2e": "corepack pnpm --filter @taxi-line/functions qa:seat-accounting:e2e",
+    "qa:search-radius:e2e": "corepack pnpm --filter @taxi-line/functions qa:search-radius:e2e",
     "qa:line-queue:e2e": "corepack pnpm --filter @taxi-line/functions qa:line-queue:e2e",
     "qa:all": "node ./scripts/run-firebase-node20.cjs emulators:exec --project waselneh-prod-414e2 --only auth,firestore,functions,pubsub,storage \"node scripts/run-qa-suites.mjs\"",
     "qa:driver-eligibility:e2e:exec": "node ./scripts/run-firebase-node20.cjs emulators:exec --project waselneh-prod-414e2 --only auth,firestore,functions,pubsub,storage \"node backend/functions/scripts/qa-driver-eligibility-e2e.mjs\"",
@@ -31,7 +33,9 @@
     "backfill:driver-eligibility:apply": "corepack pnpm --filter @taxi-line/functions backfill:driver-eligibility:apply -- --project waselneh-prod-414e2",
     "deploy:prod": "node ./scripts/run-firebase-node20.cjs deploy --project waselneh-prod-414e2 --only functions,firestore:rules",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "qa:unit": "node --test \"backend/functions/scripts/unit/*.test.mjs\"",
+    "qa:verify": "corepack pnpm qa:unit && corepack pnpm qa:all"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",

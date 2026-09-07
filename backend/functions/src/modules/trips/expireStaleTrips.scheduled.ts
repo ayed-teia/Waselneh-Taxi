@@ -5,6 +5,7 @@ import { getFirestore } from '../../core/config';
 import { logger } from '../../core/logger';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { docData, getString } from '../../core/firestore/doc-data';
+import { buildDriverReleasePatch } from '../drivers/driver-seat-release';
 
 /**
  * ============================================================================
@@ -120,24 +121,29 @@ export const expireStaleTrips = onSchedule(
             const tripData = docData(tripDoc);
             const driverId = getString(tripData, 'driverId', '');
 
-            await db.runTransaction(
-      // eslint-disable-next-line @typescript-eslint/require-await -- Firestore requires a promise-returning transaction callback
-      async (transaction) => {
-              // Update trip to cancelled
+            await db.runTransaction(async (transaction) => {
+              // ---- READS FIRST (Firestore requires it) ----
+              // R8: this branch previously wrote { isAvailable: true,
+              // currentTripId: null } and nothing else, so a no-show left the
+              // driver's availableSeats decremented and any full-taxi reservation
+              // stuck true. It never read the driver at all, which is why the seats
+              // could not be restored. Read it here, before any write.
+              const driverRef = driverId ? db.collection('drivers').doc(driverId) : null;
+              const driverSnap = driverRef ? await transaction.get(driverRef) : null;
+
+              // ---- WRITES ----
               transaction.update(tripDoc.ref, {
                 status: TripStatus.CANCELLED_BY_SYSTEM,
                 cancelledAt: FieldValue.serverTimestamp(),
                 cancellationReason: 'driver_no_show',
               });
 
-              // Reset driver availability
-              if (driverId) {
-                const driverRef = db.collection('drivers').doc(driverId);
-                transaction.update(driverRef, {
-                  isAvailable: true,
-                  currentTripId: null,
-                  updatedAt: FieldValue.serverTimestamp(),
-                });
+              if (driverRef) {
+                transaction.set(
+                  driverRef,
+                  buildDriverReleasePatch(driverSnap?.data(), tripData, tripDoc.id),
+                  { merge: true }
+                );
               }
             });
 
