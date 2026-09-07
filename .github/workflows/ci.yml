@@ -51,6 +51,12 @@ jobs:
       - name: Build functions
         run: corepack pnpm build:functions
 
+      # Pure-logic unit tests: no emulator, milliseconds. Runs in the fast job so a
+      # broken fare calculation or seat-release rule fails in seconds rather than
+      # after the emulator suites have spun up.
+      - name: Unit tests (pure logic)
+        run: corepack pnpm qa:unit
+
   # ---------------------------------------------------------------------------
   # The emulator QA suites - the checks that actually cover security and
   # trip-lifecycle behaviour. These are the ones worth protecting main with.
