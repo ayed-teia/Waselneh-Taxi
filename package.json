@@ -13,6 +13,7 @@
     "emulators:core": "corepack pnpm run build:functions && node ./scripts/run-firebase-node20.cjs emulators:start --only auth,firestore,functions,pubsub,storage",
     "emulators": "corepack pnpm run build:functions && node ./scripts/run-firebase-node20.cjs emulators:start",
     "emulators:persist": "corepack pnpm run build:functions && node ./scripts/run-firebase-node20.cjs emulators:start --import=./emulator-data --export-on-exit=./emulator-data",
+    "build:shared": "corepack pnpm --filter @taxi-line/shared build",
     "build:functions": "corepack pnpm --filter @taxi-line/functions build",
     "qa:driver-eligibility:e2e": "corepack pnpm --filter @taxi-line/functions qa:driver-eligibility:e2e",
     "qa:request-lifecycle:e2e": "corepack pnpm --filter @taxi-line/functions qa:request-lifecycle:e2e",
