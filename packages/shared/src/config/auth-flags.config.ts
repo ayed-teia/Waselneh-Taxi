@@ -93,3 +93,24 @@ export function isTaxiLineQueueEnabled(env?: Record<string, string | undefined>)
     env ?? (typeof process !== 'undefined' ? (process.env as Record<string, string | undefined>) : {});
   return readEnvFlag(source?.TAXI_LINE_QUEUE_ENABLED);
 }
+
+/**
+ * ⚠️  ONLINE PAYMENTS - DEFAULT OFF, AND NO REAL PROCESSOR IS WIRED.
+ *
+ * With this off, the payments module is inert: no charge is ever created, the
+ * webhook rejects every request, and CASH remains the only path to `paid`. That is
+ * the current, shipping behaviour and it is unchanged.
+ *
+ * It is server-side because money state may only advance server-side. There is
+ * deliberately no client flag - an app build must never be able to decide whether
+ * it is allowed to pay.
+ *
+ * TO ENABLE: ONLINE_PAYMENTS_ENABLED=true in the FUNCTIONS environment - but ONLY
+ * after a real PaymentProvider adapter exists. Enabling it today selects the
+ * StubProvider, which marks trips paid for free. See docs/REMAINING_PLAN.md.
+ */
+export function isOnlinePaymentsEnabled(env?: Record<string, string | undefined>): boolean {
+  const source =
+    env ?? (typeof process !== 'undefined' ? (process.env as Record<string, string | undefined>) : {});
+  return readEnvFlag(source?.ONLINE_PAYMENTS_ENABLED);
+}

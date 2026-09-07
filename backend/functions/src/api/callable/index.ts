@@ -29,3 +29,4 @@ export * from './reportClientError.callable';
 export * from './lineQueue.callable';
 export * from './driverDocuments.callable';
 export * from './otpRateLimit.callable';
+export * from './startOnlinePayment.callable';

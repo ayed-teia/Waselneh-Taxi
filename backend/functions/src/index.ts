@@ -56,7 +56,7 @@ if (!(process.env.MAPBOX_ACCESS_TOKEN || '').trim()) {
 // ============================================================================
 // HTTP Endpoints
 // ============================================================================
-export { health, devCustomToken } from './api/http';
+export { health, devCustomToken, paymentWebhook } from './api/http';
 
 // ============================================================================
 // Callable Functions
@@ -73,6 +73,7 @@ export {
   startTrip,
   completeTrip,
   confirmCashPayment,
+  startOnlinePayment,
   submitRating,
   submitPassengerRating,
   createSupportTicket,

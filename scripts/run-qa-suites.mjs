@@ -37,6 +37,7 @@ const SUITES = [
   'qa-driver-onboarding-e2e.mjs',
   'qa-manager-login-e2e.mjs',
   'qa-otp-auth-e2e.mjs',
+  'qa-online-payments-e2e.mjs',
 ];
 
 const results = [];

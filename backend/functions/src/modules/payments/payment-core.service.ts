@@ -1,0 +1,174 @@
+import { FieldValue } from 'firebase-admin/firestore';
+import { PaymentStatus, isOnlinePaymentsEnabled } from '@taxi-line/shared';
+
+import { getFirestore } from '../../core/config';
+import { asRecord, getString } from '../../core/firestore/doc-data';
+import { logger } from '../../core/logger';
+
+import type { PaymentProvider, VerifiedPaymentEvent } from './payment-provider';
+import { StubProvider } from './payment-provider';
+import {
+  decidePaymentTransition,
+  isPaymentState,
+  paymentIdempotencyKey,
+  type PaymentState,
+} from './payment-state-machine';
+
+/**
+ * ============================================================================
+ * ONLINE PAYMENTS CORE
+ * ============================================================================
+ *
+ * Ties together the state machine, the provider adapter and Firestore. Two things
+ * matter more than anything else here.
+ *
+ * 1. THE PROVIDER EVENT IS THE SOURCE OF TRUTH, NEVER THE CLIENT.
+ *    Nothing in this module accepts "the passenger's app says it paid". State only
+ *    advances from a payload the adapter has cryptographically verified.
+ *
+ * 2. EVERY ADVANCE IS IDEMPOTENT AND TRANSACTIONAL.
+ *    Processors retry webhooks - that is normal, not exceptional. A retry is
+ *    delivered because our 200 was lost, not because anything changed, so applying
+ *    it twice would be OUR bug. Two guards, deliberately overlapping:
+ *      a. the processed-event id set, which catches a byte-identical replay;
+ *      b. the state machine's from === to check, which catches a re-delivery that
+ *         somehow carries a different event id.
+ *    Both live INSIDE the transaction, because a check outside one is only a
+ *    narrower race, not the absence of one.
+ * ============================================================================
+ */
+
+/** Payment documents are `payments/payment_<tripId>`. */
+const PAYMENTS_COLLECTION = 'payments';
+
+/**
+ * Provider selection.
+ *
+ * With the flag OFF this returns null and every entry point becomes a no-op, so the
+ * module is genuinely inert rather than merely unused. There is no real adapter yet;
+ * when one exists it is selected here by name and the stub stays emulator-only.
+ */
+export function getPaymentProvider(
+  env: Record<string, string | undefined> = process.env
+): PaymentProvider | null {
+  if (!isOnlinePaymentsEnabled(env)) return null;
+  return new StubProvider();
+}
+
+export interface AdvanceResult {
+  /** False only when the event was rejected outright. */
+  ok: boolean;
+  /** The state the payment is in after this call. */
+  status?: PaymentState;
+  /** True when nothing was written because the event had already been applied. */
+  duplicate: boolean;
+  /** Set when the event was rejected. */
+  reason?: string;
+}
+
+/**
+ * Apply a VERIFIED provider event to the payment document.
+ *
+ * The caller must already have verified the signature; this function assumes the
+ * event is authentic and concerns itself only with whether it is NEW and LEGAL.
+ */
+export async function advancePaymentFromEvent(
+  event: VerifiedPaymentEvent,
+  providerName: string
+): Promise<AdvanceResult> {
+  const db = getFirestore();
+  const paymentRef = db.collection(PAYMENTS_COLLECTION).doc(paymentIdempotencyKey(event.tripId));
+
+  return db.runTransaction(async (tx) => {
+    // ---- reads first; Firestore transactions forbid a read after a write --------
+    const snap = await tx.get(paymentRef);
+
+    if (!snap.exists) {
+      // No charge was ever created for this trip. An event for an unknown payment is
+      // either a misrouted webhook or an attack; either way we do not conjure a
+      // payment record out of it.
+      logger.warn('⚠️ [Payments] Event for unknown payment', {
+        tripId: event.tripId,
+        eventId: event.eventId,
+      });
+      return { ok: false, duplicate: false, reason: 'Unknown payment' };
+    }
+
+    const data = asRecord(snap.data());
+
+    // ---- guard (a): exact replay ------------------------------------------------
+    const processed = Array.isArray(data.processedEventIds)
+      ? data.processedEventIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    if (processed.includes(event.eventId)) {
+      logger.info('↩️ [Payments] Duplicate event ignored', {
+        tripId: event.tripId,
+        eventId: event.eventId,
+      });
+      return { ok: true, duplicate: true, status: readState(data) };
+    }
+
+    // ---- guard (b): the state machine ------------------------------------------
+    const from = readState(data);
+    const decision = decidePaymentTransition(from, event.status);
+
+    if (!decision.apply) {
+      if (decision.alreadyApplied) {
+        // Re-delivery under a different event id. Record the id so guard (a) catches
+        // the next one cheaply, but change no money state.
+        tx.update(paymentRef, {
+          processedEventIds: FieldValue.arrayUnion(event.eventId),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return { ok: true, duplicate: true, status: from };
+      }
+
+      logger.warn('⚠️ [Payments] Illegal transition rejected', {
+        tripId: event.tripId,
+        from,
+        to: event.status,
+        reason: decision.reason,
+      });
+      return {
+        ok: false,
+        duplicate: false,
+        status: from,
+        ...(decision.reason ? { reason: decision.reason } : {}),
+      };
+    }
+
+    // ---- apply ------------------------------------------------------------------
+    tx.update(paymentRef, {
+      status: event.status,
+      provider: providerName,
+      providerChargeId: event.providerChargeId,
+      processedEventIds: FieldValue.arrayUnion(event.eventId),
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(event.status === PaymentStatus.PAID ? { paidAt: FieldValue.serverTimestamp() } : {}),
+      ...(event.status === PaymentStatus.REFUNDED
+        ? { refundedAt: FieldValue.serverTimestamp() }
+        : {}),
+      ...(event.failureReason ? { failureReason: event.failureReason } : {}),
+    });
+
+    logger.info('💳 [Payments] Transition applied', {
+      tripId: event.tripId,
+      from,
+      to: event.status,
+      eventId: event.eventId,
+    });
+
+    return { ok: true, duplicate: false, status: event.status };
+  });
+}
+
+/**
+ * Read the current state off a payment document.
+ *
+ * An unreadable or unrecognised status is treated as `pending` rather than trusted:
+ * the alternative is letting a corrupt field authorise a transition.
+ */
+function readState(data: Record<string, unknown>): PaymentState {
+  const raw = getString(data, 'status', PaymentStatus.PENDING);
+  return isPaymentState(raw) ? raw : PaymentStatus.PENDING;
+}

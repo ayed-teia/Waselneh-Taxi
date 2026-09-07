@@ -13,6 +13,7 @@
     "emulators:core": "corepack pnpm run build:functions && node ./scripts/run-firebase-node20.cjs emulators:start --only auth,firestore,functions,pubsub,storage",
     "emulators": "corepack pnpm run build:functions && node ./scripts/run-firebase-node20.cjs emulators:start",
     "emulators:persist": "corepack pnpm run build:functions && node ./scripts/run-firebase-node20.cjs emulators:start --import=./emulator-data --export-on-exit=./emulator-data",
+    "build:shared": "corepack pnpm --filter @taxi-line/shared build",
     "build:functions": "corepack pnpm --filter @taxi-line/functions build",
     "qa:driver-eligibility:e2e": "corepack pnpm --filter @taxi-line/functions qa:driver-eligibility:e2e",
     "qa:request-lifecycle:e2e": "corepack pnpm --filter @taxi-line/functions qa:request-lifecycle:e2e",
@@ -29,12 +30,13 @@
     "qa:driver-onboarding:e2e": "corepack pnpm --filter @taxi-line/functions qa:driver-onboarding:e2e",
     "qa:manager-login:e2e": "corepack pnpm --filter @taxi-line/functions qa:manager-login:e2e",
     "qa:otp-auth:e2e": "corepack pnpm --filter @taxi-line/functions qa:otp-auth:e2e",
+    "qa:online-payments:e2e": "corepack pnpm --filter @taxi-line/functions qa:online-payments:e2e",
     "backfill:driver-eligibility:dry-run": "corepack pnpm --filter @taxi-line/functions backfill:driver-eligibility -- --project waselneh-prod-414e2",
     "backfill:driver-eligibility:apply": "corepack pnpm --filter @taxi-line/functions backfill:driver-eligibility:apply -- --project waselneh-prod-414e2",
     "deploy:prod": "node ./scripts/run-firebase-node20.cjs deploy --project waselneh-prod-414e2 --only functions,firestore:rules",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "qa:unit": "node --test \"backend/functions/scripts/unit/*.test.mjs\"",
+    "qa:unit": "node scripts/run-unit-tests.mjs",
     "qa:verify": "corepack pnpm qa:unit && corepack pnpm qa:all"
   },
   "devDependencies": {
