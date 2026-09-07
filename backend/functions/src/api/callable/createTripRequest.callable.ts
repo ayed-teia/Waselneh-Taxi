@@ -17,7 +17,7 @@ import { isTaxiLineQueueEnabled,
   normalizeSeatCapacity,
   normalizeVehicleType,
 } from '@taxi-line/shared';
-import { REGION } from '../../core/env';
+import { REGION, env } from '../../core/env';
 import { getFirestore, areTripsEnabled } from '../../core/config';
 import { handleError, ValidationError, UnauthorizedError, NotFoundError, ForbiddenError } from '../../core/errors';
 import { logger } from '../../core/logger';
@@ -538,6 +538,19 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       // 4. Compute distance using Haversine formula
       // ========================================
       let skippedIneligibleDrivers = 0;
+      let skippedOutOfRangeDrivers = 0;
+
+      // R5 - SINGLE SOURCE OF TRUTH FOR THE SEARCH RADIUS.
+      //
+      // Two constants existed and BOTH were dead code, and they disagreed:
+      //   PILOT_LIMITS.MAX_DRIVER_SEARCH_RADIUS_KM = 15  (shared, hardcoded)
+      //   MAX_SEARCH_RADIUS_METERS = 5000                (backend env)
+      //
+      // env.maxSearchRadiusMeters wins, because it is genuinely operator-tunable per
+      // environment (it is already set in backend/functions/.env) whereas a hardcoded
+      // shared constant would need a code change and a redeploy to adjust. The shared
+      // constant is now documented as deprecated and points here.
+      const maxSearchRadiusKm = env.maxSearchRadiusMeters / 1000;
       let skippedVehicleTypeDrivers = 0;
       let skippedCapacityDrivers = 0;
       let skippedScopeDrivers = 0;
@@ -667,6 +680,19 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           driverData.lastLocation.longitude
         );
 
+        // R5: enforce the search radius. Matching previously had NO ceiling at all,
+        // so a driver 80km away was a valid match whenever nobody closer was online -
+        // the passenger waits an hour for a car that should never have been offered
+        // the trip. Excluded here rather than merely ranked last, so the driver is
+        // also kept out of the re-offer candidate list.
+        if (distance > maxSearchRadiusKm) {
+          skippedOutOfRangeDrivers += 1;
+          logger.debug(
+            `Driver ${doc.id}: ${distance.toFixed(2)} km away - beyond the ${maxSearchRadiusKm} km cap`
+          );
+          return;
+        }
+
         driversWithDistance.push({
           driverId: doc.id,
           distance,
@@ -682,6 +708,13 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       if (skippedIneligibleDrivers > 0) {
         logger.info('🚫 [CreateTrip] Skipped ineligible drivers', {
           skippedIneligibleDrivers,
+        });
+      }
+
+      if (skippedOutOfRangeDrivers > 0) {
+        logger.info('[CreateTrip] Skipped drivers beyond the search radius', {
+          skippedOutOfRangeDrivers,
+          maxSearchRadiusKm,
         });
       }
 
