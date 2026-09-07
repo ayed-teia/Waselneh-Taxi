@@ -38,7 +38,21 @@ export const paymentWebhook = onRequest(
     timeoutSeconds: 30,
   },
   async (req, res) => {
-    const provider = getPaymentProvider();
+    // Selection THROWS on a misconfiguration - flag on but no Lahza key, or the stub
+    // requested outside the emulator. That is deliberate (it must never quietly fall
+    // back to the stub), so it has to be caught here rather than escaping as an
+    // unhandled rejection. A 500 is right: the fault is ours, and Lahza should retry
+    // once we have fixed the configuration.
+    let provider;
+    try {
+      provider = getPaymentProvider();
+    } catch (error) {
+      logger.error('❌ [PaymentWebhook] Payment provider is misconfigured', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: 'Payment provider misconfigured' });
+      return;
+    }
 
     // Flag OFF: the module is inert. A 404 leaks nothing about whether the feature
     // exists, which is the right answer for an endpoint that is not in service.
