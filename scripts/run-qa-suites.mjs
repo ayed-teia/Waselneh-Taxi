@@ -32,6 +32,8 @@ const SUITES = [
   'qa-scheduled-functions-e2e.mjs',
   'qa-reconciliation-e2e.mjs',
   'qa-driver-onboarding-e2e.mjs',
+  'qa-manager-login-e2e.mjs',
+  'qa-otp-auth-e2e.mjs',
 ];
 
 const results = [];

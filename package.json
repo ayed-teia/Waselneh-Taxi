@@ -24,6 +24,8 @@
     "qa:driver-onboarding:e2e": "corepack pnpm --filter @taxi-line/functions qa:driver-onboarding:e2e",
     "qa:all": "node ./scripts/run-firebase-node20.cjs emulators:exec --project waselneh-prod-414e2 --only auth,firestore,functions,pubsub,storage \"node scripts/run-qa-suites.mjs\"",
     "qa:driver-eligibility:e2e:exec": "node ./scripts/run-firebase-node20.cjs emulators:exec --project waselneh-prod-414e2 --only auth,firestore,functions,pubsub,storage \"node backend/functions/scripts/qa-driver-eligibility-e2e.mjs\"",
+    "qa:manager-login:e2e": "corepack pnpm --filter @taxi-line/functions qa:manager-login:e2e",
+    "qa:otp-auth:e2e": "corepack pnpm --filter @taxi-line/functions qa:otp-auth:e2e",
     "backfill:driver-eligibility:dry-run": "corepack pnpm --filter @taxi-line/functions backfill:driver-eligibility -- --project waselneh-prod-414e2",
     "backfill:driver-eligibility:apply": "corepack pnpm --filter @taxi-line/functions backfill:driver-eligibility:apply -- --project waselneh-prod-414e2",
     "deploy:prod": "node ./scripts/run-firebase-node20.cjs deploy --project waselneh-prod-414e2 --only functions,firestore:rules",
