@@ -36,7 +36,7 @@
     "deploy:prod": "node ./scripts/run-firebase-node20.cjs deploy --project waselneh-prod-414e2 --only functions,firestore:rules",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "qa:unit": "node --test \"backend/functions/scripts/unit/*.test.mjs\"",
+    "qa:unit": "node scripts/run-unit-tests.mjs",
     "qa:verify": "corepack pnpm qa:unit && corepack pnpm qa:all"
   },
   "devDependencies": {
