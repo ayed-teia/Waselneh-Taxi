@@ -1,0 +1,124 @@
+/**
+ * ============================================================================
+ * DRIVER ONBOARDING DOCUMENTS
+ * ============================================================================
+ *
+ * Metadata lives at:  drivers/{driverId}/private/documents/{documentType}
+ * The file itself at: driver-documents/{driverId}/{documentType}/{fileName}  (Storage)
+ *
+ * WHY UNDER private/
+ * These records reference identity documents. The parent drivers/{driverId} document
+ * is readable by the passenger on an active trip (they need the driver card), so
+ * anything placed there is visible to them. `private/` carries its own rule - the
+ * same reason nationalId and phone were moved there.
+ *
+ * STATE MACHINE
+ *   pending  -> approved            (a manager verified it)
+ *   pending  -> rejected(reason)    (a manager refused it)
+ *   rejected -> pending             (the driver re-uploaded)
+ *   approved -> rejected            (revocation; e.g. a licence later found invalid)
+ *
+ * `approved -> pending` is NOT allowed: a re-upload over an approved document would
+ * silently drop verification. The driver must be rejected first, deliberately.
+ *
+ * RETENTION
+ * A single named constant, pending legal review. It is NOT enforced anywhere yet -
+ * deleting identity documents on a timer without a lawyer's sign-off would be worse
+ * than keeping them. See docs/REMAINING_PLAN.md.
+ * ============================================================================
+ */
+
+/** Document kinds a driver can be asked for. */
+export const DRIVER_DOCUMENT_TYPES = [
+  'national_id',
+  'driving_licence',
+  'vehicle_registration',
+  'insurance',
+  'profile_photo',
+] as const;
+
+export type DriverDocumentType = (typeof DRIVER_DOCUMENT_TYPES)[number];
+
+/**
+ * Documents that must be approved before a driver can be verified.
+ * profile_photo is useful but not an eligibility gate.
+ */
+export const REQUIRED_DRIVER_DOCUMENTS: readonly DriverDocumentType[] = [
+  'national_id',
+  'driving_licence',
+  'vehicle_registration',
+];
+
+export type DriverDocumentStatus = 'pending' | 'approved' | 'rejected';
+
+export interface DriverDocumentRecord {
+  driverId: string;
+  documentType: DriverDocumentType;
+  storagePath: string;
+  status: DriverDocumentStatus;
+  uploadedAt?: unknown;
+  reviewedAt?: unknown;
+  reviewedBy?: string | null;
+  reviewNote?: string | null;
+}
+
+/**
+ * PLACEHOLDER, pending legal review. Nothing enforces this yet - it exists so the
+ * number has one home rather than being invented separately in three places when
+ * someone finally implements deletion.
+ *
+ * Storing scans of national IDs creates a real retention obligation; the actual
+ * figure is a question for your DPO/lawyer, not for this file.
+ */
+export const DRIVER_DOCUMENT_RETENTION_DAYS = 365 * 2;
+
+export function isDriverDocumentType(value: unknown): value is DriverDocumentType {
+  return (
+    typeof value === 'string' &&
+    (DRIVER_DOCUMENT_TYPES as readonly string[]).includes(value)
+  );
+}
+
+/** Whether a status transition is permitted. */
+export function canTransition(
+  from: DriverDocumentStatus | null,
+  to: DriverDocumentStatus
+): boolean {
+  // A first upload always lands as pending.
+  if (from === null) return to === 'pending';
+
+  switch (from) {
+    case 'pending':
+      return to === 'approved' || to === 'rejected';
+    case 'rejected':
+      // Re-upload after a rejection.
+      return to === 'pending';
+    case 'approved':
+      // Revocation is allowed; silently reverting to pending is not, because a
+      // re-upload would otherwise drop an existing verification without review.
+      return to === 'rejected';
+    default:
+      return false;
+  }
+}
+
+/** The Storage path a document must live at. */
+export function documentStoragePath(
+  driverId: string,
+  documentType: DriverDocumentType,
+  fileName: string
+): string {
+  return `driver-documents/${driverId}/${documentType}/${fileName}`;
+}
+
+/**
+ * Whether every REQUIRED document is approved.
+ * Used to decide when a driver may be moved to verificationStatus 'approved'.
+ */
+export function allRequiredDocumentsApproved(
+  documents: readonly { documentType: string; status: string }[]
+): boolean {
+  return REQUIRED_DRIVER_DOCUMENTS.every((required) =>
+    documents.some((doc) => doc.documentType === required && doc.status === 'approved')
+  );
+}

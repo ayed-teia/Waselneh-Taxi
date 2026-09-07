@@ -1,0 +1,124 @@
+rules_version = '2';
+
+/**
+ * ============================================================================
+ * Waselneh - Firebase Storage Security Rules
+ * ============================================================================
+ *
+ * These govern driver onboarding documents: national ID, driving licence, vehicle
+ * registration, insurance, profile photo.
+ *
+ * THREAT MODEL
+ * These are scans of identity documents. The failure mode is not "a driver sees the
+ * wrong file" - it is a bulk leak of national IDs. So the rules are deliberately
+ * restrictive and default-deny:
+ *
+ *   - a driver may WRITE only under their own {driverId} prefix;
+ *   - a driver may READ only their own documents;
+ *   - a MANAGER may read any driver's documents (they must, to verify them);
+ *   - NOBODY may read another driver's documents, and passengers get nothing;
+ *   - NOBODY may delete from a client. Retention is a legal question, not a UI
+ *     button - deletion goes through a Cloud Function so it is auditable.
+ *
+ * Manager status is resolved the same way as in firestore.rules: an ACTIVE
+ * managerRoles/{uid} document, or a verified custom claim. It is never taken from
+ * users/{uid}, which is what R1 fixed.
+ *
+ * Content-type and size are enforced on CREATE, so a driver cannot upload a 2GB
+ * file or a script disguised as a licence.
+ * ============================================================================
+ */
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(driverId) {
+      return isAuthenticated() && request.auth.uid == driverId;
+    }
+
+    function isManagerRoleValue(value) {
+      return value == 'admin' ||
+        value == 'manager' ||
+        value == 'operations_manager' ||
+        value == 'dispatcher' ||
+        value == 'support';
+    }
+
+    /**
+     * A manager is someone with a verified custom claim, or an ACTIVE
+     * managerRoles/{uid} document. Mirrors isManager() in firestore.rules.
+     * Never trusts users/{uid} - see R1.
+     */
+    function isManager() {
+      return isAuthenticated() && (
+        ('role' in request.auth.token && (
+          request.auth.token.role == 'manager' || request.auth.token.role == 'admin'
+        )) ||
+        ('managerRole' in request.auth.token &&
+          isManagerRoleValue(request.auth.token.managerRole)) ||
+        (
+          firestore.exists(/databases/(default)/documents/managerRoles/$(request.auth.uid)) &&
+          firestore.get(/databases/(default)/documents/managerRoles/$(request.auth.uid))
+            .data.isActive == true &&
+          isManagerRoleValue(
+            firestore.get(/databases/(default)/documents/managerRoles/$(request.auth.uid)).data.role
+          )
+        )
+      );
+    }
+
+    /** Scans and photos only. A licence is never a .js file. */
+    function isAllowedDocumentType() {
+      return request.resource.contentType.matches('image/jpeg') ||
+        request.resource.contentType.matches('image/png') ||
+        request.resource.contentType.matches('image/heic') ||
+        request.resource.contentType.matches('application/pdf');
+    }
+
+    /** 10MB. Enough for a phone photo of a document, not enough to abuse. */
+    function isWithinSizeLimit() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // =========================================================================
+    // Driver onboarding documents
+    // Path: /driver-documents/{driverId}/{documentType}/{fileName}
+    // =========================================================================
+    match /driver-documents/{driverId}/{documentType}/{fileName} {
+
+      // The driver reads their own; a manager reads any (to verify them).
+      // Explicitly NOT readable by other drivers or by any passenger.
+      allow read: if isOwner(driverId) || isManager();
+
+      // A driver uploads only under their own prefix, and only a plausible
+      // document. Managers do not upload on a driver's behalf from the client -
+      // if that is ever needed it should go through a Cloud Function so it is
+      // attributable.
+      allow create: if isOwner(driverId) &&
+        isAllowedDocumentType() &&
+        isWithinSizeLimit();
+
+      // Re-uploading after a rejection is a create of a new file, not an update
+      // of the rejected one - so the rejected original stays auditable.
+      allow update: if false;
+
+      // Retention is a legal question, not a UI button. Deletion goes through a
+      // Cloud Function (Admin SDK bypasses these rules) so it is auditable.
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // Default deny - anything not matched above.
+    // =========================================================================
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

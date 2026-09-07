@@ -384,6 +384,18 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Onboarding document metadata:
+      // drivers/{driverId}/private/documents/items/{documentType}
+      //
+      // Same read scope as the PII doc above - the driver and managers only, never
+      // a passenger. Writes are Cloud-Functions-only because the status field is an
+      // AUTHORIZATION decision: a driver who could write it would approve their own
+      // licence. The file itself lives in Storage under storage.rules.
+      match /private/documents/items/{documentType} {
+        allow read: if isOwner(driverId) || isManager();
+        allow write: if false;
+      }
+
       // Inbox subcollection
       match /inbox/{requestId} {
         // Driver can read their own inbox items
