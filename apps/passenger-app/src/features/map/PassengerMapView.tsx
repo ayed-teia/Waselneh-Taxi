@@ -1,3 +1,12 @@
+import Mapbox, {
+  Camera,
+  CircleLayer,
+  LineLayer,
+  LocationPuck,
+  MapView,
+  PointAnnotation,
+  ShapeSource,
+} from '@rnmapbox/maps';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -9,22 +18,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Mapbox, {
-  Camera,
-  CircleLayer,
-  LineLayer,
-  LocationPuck,
-  MapView,
-  PointAnnotation,
-  ShapeSource,
-} from '@rnmapbox/maps';
-import {
-  DriverLocation,
-  RoadblockData,
-  getRoadblockStatusDisplay,
-  subscribeToAllRoadblocks,
-  subscribeToDriverLocation,
-} from '../../services/realtime';
+
 import {
   CAMERA_DEFAULTS,
   DEFAULT_REGION,
@@ -38,6 +32,13 @@ import {
   getMapboxToken,
 } from '../../config/map.config';
 import { useI18n } from '../../localization';
+import {
+  DriverLocation,
+  RoadblockData,
+  getRoadblockStatusDisplay,
+  subscribeToAllRoadblocks,
+  subscribeToDriverLocation,
+} from '../../services/realtime';
 
 const MAPBOX_TOKEN = getMapboxToken();
 const STREET_STYLE_URL = Mapbox.StyleURL?.Street ?? MAP_STYLE_URL;

@@ -1,6 +1,6 @@
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import {
+import { isTaxiLineQueueEnabled,
   ACTIVE_TRIP_STATUSES,
   BOOKING_TYPES,
   BookingType,
@@ -27,6 +27,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { calculateDynamicRidePrice } from '../../modules/pricing/services';
 import { publishTripStatusNotifications } from '../../modules/notifications';
 import { evaluateDriverEligibility } from '../../modules/auth';
+import { orderCandidatesByQueue } from '../../modules/queue/line-queue';
 
 /**
  * ============================================================================
@@ -717,6 +718,33 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       }
 
       driversWithDistance.sort((a, b) => a.distance - b.distance);
+
+      // TAXI-LINE QUEUE (flag OFF by default, and it needs driver sign-off before it
+      // is ever enabled - see docs/REMAINING_PLAN.md).
+      //
+      // When enabled and the request is scoped to a line, offer by FIFO position
+      // rather than proximity: a driver who has waited at the head of the rank
+      // expects the next fare even if someone just pulled up closer.
+      //
+      // This REORDERS the ranked list rather than filtering it - drivers not in the
+      // queue keep their distance-ranked order BEHIND those who are. So enabling the
+      // queue can never make a trip unmatchable; it changes who is asked first, not
+      // whether anyone is asked. With the flag off, the array is untouched and
+      // dispatch behaves exactly as before.
+      if (isTaxiLineQueueEnabled() && requestedLineId) {
+        const queueOrderedIds = await orderCandidatesByQueue(
+          db,
+          requestedLineId,
+          driversWithDistance.map((candidate) => candidate.driverId)
+        );
+        const rank = new Map(queueOrderedIds.map((id, index) => [id, index]));
+        driversWithDistance.sort(
+          (a, b) =>
+            (rank.get(a.driverId) ?? Number.MAX_SAFE_INTEGER) -
+            (rank.get(b.driverId) ?? Number.MAX_SAFE_INTEGER)
+        );
+      }
+
       const nearestDriver = driversWithDistance[0]!;
 
       // DISPATCH RELIABILITY: keep the whole ranked list, not just the winner.

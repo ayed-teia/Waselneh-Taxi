@@ -120,6 +120,30 @@ event. Authority is the PSP webhook.
 
 ## 3. The taxi-line FIFO queue
 
+> ## ⚠️ BUILT, BUT NEEDS DRIVER SIGN-OFF BEFORE IT IS EVER ENABLED
+>
+> The queue now EXISTS in code, behind `TAXI_LINE_QUEUE_ENABLED` (default **OFF**).
+> It is not waiting on engineering; it is waiting on **drivers agreeing to the
+> fairness rules below**.
+>
+> When this flag is on, the forfeit rules decide who earns money on a given day.
+> Shipping that without driver agreement is how a platform gets a strike rather than
+> a bug report. Treat the defaults as a starting point for that conversation, not a
+> decision that has been made.
+>
+> **Default policy as implemented:** FIFO position per line, assigned server-side.
+> A driver forfeits their place on **declining an offer**, **going offline**, or
+> **leaving the line's service area**, and re-joins at the **back**.
+>
+> **Still open** (deliberately not decided in code):
+> - should a very short trip return a driver to the head rather than the tail?
+> - should a brief geofence exit (traffic, a toilet break) forfeit a place?
+> - should a distance cap override FIFO for a far-away front-of-line driver?
+> - is the queue per line, per office, or per physical stand?
+> - can a passenger request a specific driver, and does that bypass the queue?
+> - who arbitrates a "I was skipped" dispute, and what evidence is retained?
+
+
 **Blocked on: a fairness policy. This is a social/operational design problem that
 happens to need code.**
 

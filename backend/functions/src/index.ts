@@ -96,6 +96,13 @@ export {
   managerUpsertPricingZone,
   managerUpsertStaffRole,
   reportClientError,
+  joinLineQueue,
+  leaveLineQueue,
+  getLineQueue,
+  registerDriverDocument,
+  reviewDriverDocument,
+  requestOtpPermission,
+  reportOtpResult,
   getSystemConfigCallable,
   // Step 33: Feature flag toggle
   managerToggleFeatureFlag,

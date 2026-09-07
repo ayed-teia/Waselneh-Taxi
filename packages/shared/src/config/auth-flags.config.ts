@@ -53,3 +53,43 @@ export const OTP_LIMITS = {
   /** Seconds a user must wait before requesting another code. */
   RESEND_COOLDOWN_SECONDS: 60,
 } as const;
+
+/**
+ * Whether manager-web offers production email+password sign-in.
+ * DEFAULTS TO FALSE. With it off, manager-web keeps using the emulator dev-token
+ * path and nothing changes.
+ *
+ * Vite exposes build-time vars on `import.meta.env`, so manager-web passes that in
+ * explicitly rather than relying on `process.env`, which does not exist in a browser
+ * bundle.
+ *
+ * TO ENABLE: set VITE_ENABLE_MANAGER_PASSWORD_AUTH=true for the manager-web build,
+ * AFTER creating the manager accounts and seeding their managerRoles documents. See
+ * docs/AUTH_ROLLOUT.md.
+ */
+export function isManagerPasswordAuthEnabled(env?: Record<string, string | undefined>): boolean {
+  const source =
+    env ?? (typeof process !== 'undefined' ? (process.env as Record<string, string | undefined>) : {});
+  return readEnvFlag(source?.VITE_ENABLE_MANAGER_PASSWORD_AUTH);
+}
+
+/**
+ * ⚠️  TAXI-LINE FIFO QUEUE - DEFAULT OFF, AND NEEDS DRIVER SIGN-OFF.
+ *
+ * This one is not merely a technical rollout switch. When it is on, dispatch offers
+ * trips by queue position rather than by proximity, so the forfeit rules decide who
+ * earns money on a given day. Those rules should be agreed WITH a group of drivers
+ * before anyone flips this - shipping a fairness policy drivers have not accepted is
+ * how a platform gets a strike rather than a bug report.
+ *
+ * See docs/REMAINING_PLAN.md for the default policy and the open questions.
+ *
+ * TO ENABLE: TAXI_LINE_QUEUE_ENABLED=true in the FUNCTIONS environment. It is a
+ * server-side flag because dispatch runs server-side; a client flag would be
+ * meaningless here.
+ */
+export function isTaxiLineQueueEnabled(env?: Record<string, string | undefined>): boolean {
+  const source =
+    env ?? (typeof process !== 'undefined' ? (process.env as Record<string, string | undefined>) : {});
+  return readEnvFlag(source?.TAXI_LINE_QUEUE_ENABLED);
+}

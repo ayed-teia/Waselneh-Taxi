@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { subscribeToPayments, type PaymentDocument } from '../services/payments.service';
 import {
+  classifyTrip,
+  findOrphanedPayments,
+  indexPaymentsByTrip,
+  type ReconcileState,
+} from '../services/reconciliation';
+import {
   subscribeToCompletedTrips,
   getPaymentStatusDisplay,
   type TripData,
@@ -34,12 +40,6 @@ import {
  * ============================================================================
  */
 
-import {
-  classifyTrip,
-  findOrphanedPayments,
-  indexPaymentsByTrip,
-  type ReconcileState,
-} from '../services/reconciliation';
 
 // The classification itself lives in ../services/reconciliation.ts as pure
 // functions, so it can be unit-tested directly rather than only by eye.
