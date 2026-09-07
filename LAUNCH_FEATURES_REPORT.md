@@ -6,13 +6,13 @@ Built off `main` @ `c88c1fb` (PRs #1–#3 merged). **Four separate PRs, one per 
 
 | PR | Feature | Flag (default OFF) | Status |
 |---|---|---|---|
-| [#4](https://github.com/ayed-teia/Waselneh-Taxi/pull/4) | Phone/OTP sign-in + server-side rate limiting | `EXPO_PUBLIC_ENABLE_PHONE_AUTH` | OPEN |
-| [#5](https://github.com/ayed-teia/Waselneh-Taxi/pull/5) | Manager email+password login | `VITE_ENABLE_MANAGER_PASSWORD_AUTH` | OPEN |
-| [#6](https://github.com/ayed-teia/Waselneh-Taxi/pull/6) | Driver onboarding + document upload | *(no flag — new surface, unreachable until used)* | OPEN |
-| [#7](https://github.com/ayed-teia/Waselneh-Taxi/pull/7) | Taxi-line FIFO queue | `TAXI_LINE_QUEUE_ENABLED` | OPEN |
-| [#8](https://github.com/ayed-teia/Waselneh-Taxi/pull/8) | This report + payments decision | *(docs only)* | OPEN |
+| [#4](https://github.com/ayed-teia/Waselneh-Taxi/pull/4) | Phone/OTP sign-in + server-side rate limiting | `EXPO_PUBLIC_ENABLE_PHONE_AUTH` | **MERGED** |
+| [#5](https://github.com/ayed-teia/Waselneh-Taxi/pull/5) | Manager email+password login | `VITE_ENABLE_MANAGER_PASSWORD_AUTH` | **MERGED** |
+| [#6](https://github.com/ayed-teia/Waselneh-Taxi/pull/6) | Driver onboarding + document upload | *(no flag — new surface, unreachable until used)* | **MERGED** |
+| [#7](https://github.com/ayed-teia/Waselneh-Taxi/pull/7) | Taxi-line FIFO queue | `TAXI_LINE_QUEUE_ENABLED` | **MERGED** |
+| [#8](https://github.com/ayed-teia/Waselneh-Taxi/pull/8) | This report + payments decision | *(docs only)* | merging |
 
-**None merged.** All testing was LOCAL via the emulator suite. Nothing was deployed, and the PII migration was **not** run.
+**All four feature PRs are now merged to main** (see `MERGE_REPORT.md` for the conflict resolutions). All testing was LOCAL via the emulator suite. Nothing was deployed, and the PII migration was **not** run.
 
 ---
 
