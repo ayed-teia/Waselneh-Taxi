@@ -95,14 +95,24 @@ function computeActivityState(driver: DriverDocument): ActivityState {
   }
 }
 
+/** A Firestore Timestamp, a Date, or anything else we might be handed. */
+type TimestampLike = { toDate?: () => Date } | Date | string | number | null | undefined;
+
 function formatRelativeTime(
-  timestamp: any,
+  timestamp: TimestampLike,
   txt: (ar: string, en: string) => string
 ): string {
   if (!timestamp) return txt('غير متوفر', 'N/A');
 
   try {
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    // Narrow explicitly: a Firestore Timestamp has toDate(), everything else is
+    // passed to the Date constructor.
+    const date =
+      typeof timestamp === 'object' &&
+      timestamp !== null &&
+      typeof (timestamp as { toDate?: unknown }).toDate === 'function'
+        ? (timestamp as { toDate: () => Date }).toDate()
+        : new Date(timestamp as string | number | Date);
     const ageMs = Date.now() - date.getTime();
     const ageSec = Math.floor(ageMs / 1000);
 

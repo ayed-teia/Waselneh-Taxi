@@ -96,11 +96,16 @@ export function subscribeToUserNotifications(
     .onSnapshot(
       (snapshot) => {
         const items: UserNotification[] = snapshot.docs.map((doc) => {
-          const data = doc.data() as Record<string, any>;
+          const data = doc.data() as Record<string, unknown>;
+          // A Firestore Timestamp exposes toMillis(); anything else (a raw number, a
+          // missing field, a server placeholder that has not resolved yet) falls
+          // back to now rather than producing NaN.
           const createdAt = data.createdAt;
           const createdAtMs =
-            typeof createdAt?.toMillis === 'function'
-              ? createdAt.toMillis()
+            typeof createdAt === 'object' &&
+            createdAt !== null &&
+            typeof (createdAt as { toMillis?: unknown }).toMillis === 'function'
+              ? (createdAt as { toMillis: () => number }).toMillis()
               : Date.now();
 
           return {
