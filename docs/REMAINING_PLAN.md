@@ -93,7 +93,23 @@ reconciliation page surfaces where trips and the ledger disagree.
 States: `pending → awaiting_payment → paid | failed | cancelled`, plus `paid → refunded`.
 `pending → paid` stays legal because that is what the cash path does.
 
-### ⚠️ TODO: write ONE concrete adapter
+### ✅ The adapter is written — Lahza
+
+**A concrete `LahzaProvider` now exists**
+(`backend/functions/src/modules/payments/lahza-provider.ts`), written against
+Lahza's published API. The processor question is answered: **Lahza settles ILS to
+West Bank accounts**, which was the blocking constraint.
+
+Nothing outside the adapter changed — the interface, the state machine and the
+webhook are exactly as they were. What remains is **not code**: creating the account,
+obtaining keys, registering the webhook and running one sandbox charge. **No real or
+sandbox Lahza call has been made.** See `docs/LAHZA_SETUP.md`.
+
+Still open: the in-app checkout screen (needs a device), a refund UI/manager
+callable, and reconciliation against Lahza's settlement report.
+
+<details>
+<summary>The original processor-agnostic checklist, kept for reference</summary>
 
 A real PSP adapter is a single class implementing `PaymentProvider`. **Nothing else
 should need to change.** It must:
@@ -123,9 +139,12 @@ Then, before enabling: a reconciliation job comparing our ledger against the
 processor's daily settlement report (the reconciliation page already models these
 mismatch states), and a manager-only refund callable.
 
+</details>
+
 ### Decisions I need
-1. **Which PSP?** Everything else follows. Needs ILS settlement to your actual bank.
-   **This is the deciding constraint and the reason no processor was chosen for you.**
+1. ~~**Which PSP?**~~ **Answered: Lahza**, which settles ILS to West Bank accounts.
+   The adapter is written; what remains is account setup and a sandbox charge —
+   see `docs/LAHZA_SETUP.md`.
 2. **Who bears the fee** — passenger, driver, or platform? This changes the fare
    calculation, not just the payment call.
 3. **Are drivers paid out through the platform** (marketplace/split payments, much more

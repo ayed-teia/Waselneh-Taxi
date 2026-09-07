@@ -45,7 +45,19 @@ const StartOnlinePaymentSchema = z.object({
 interface StartOnlinePaymentResponse {
   success: boolean;
   status: string;
+  /**
+   * With the Lahza adapter this is `data.authorization_url` - Lahza's HOSTED
+   * checkout page.
+   *
+   * THE CLIENT STEP, WHICH IS NOT BUILT AND NOT VERIFIED HERE: open this URL in an
+   * in-app browser / WebView (Lahza documents this at
+   * https://docs.lahza.io/guide/checkout-in-a-mobile-webview) and close it when the
+   * page redirects. The app must NOT treat that redirect as proof of payment - it is
+   * a UI event, not a money event. `paid` only ever arrives over the webhook. See
+   * docs/LAHZA_SETUP.md.
+   */
   clientActionUrl: string;
+  /** Lahza's transaction reference; the handle used by verify and refund. */
   providerChargeId: string;
 }
 

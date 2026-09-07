@@ -155,9 +155,30 @@ async function main() {
       getPaymentProvider({ ONLINE_PAYMENTS_ENABLED: 'yes' }) === null,
       'only the literal "true" may enable this'
     );
+    // The flag alone is no longer enough, and that is deliberate: since the Lahza
+    // adapter landed, `lahza` is the default and a missing key is a HARD failure
+    // rather than a silent fall back to the stub (which would mark trips paid for
+    // free). Both halves are asserted so this cannot pass by simply never selecting
+    // anything.
+    let threwWithoutKey = false;
+    try {
+      getPaymentProvider({ ONLINE_PAYMENTS_ENABLED: 'true' });
+    } catch {
+      threwWithoutKey = true;
+    }
+    assert(threwWithoutKey, 'flag on with no Lahza key must fail safe, not select the stub');
     assert(
-      getPaymentProvider({ ONLINE_PAYMENTS_ENABLED: 'true' }) !== null,
-      'the flag must actually work when set'
+      getPaymentProvider({ ONLINE_PAYMENTS_ENABLED: 'true', LAHZA_SECRET_KEY: 'sk_test_qa' })
+        ?.name === 'lahza',
+      'the flag must actually work when the key is present'
+    );
+    assert(
+      getPaymentProvider({
+        ONLINE_PAYMENTS_ENABLED: 'true',
+        PAYMENT_PROVIDER: 'stub',
+        FUNCTIONS_EMULATOR: 'true',
+      })?.name === 'stub',
+      'the stub must remain available under the emulator'
     );
     assert(isOnlinePaymentsEnabled({}) === false, 'the flag defaults OFF');
     pass('Flag: a provider is selected only when ONLINE_PAYMENTS_ENABLED is literally "true"');

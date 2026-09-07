@@ -5,6 +5,7 @@ import { getFirestore } from '../../core/config';
 import { asRecord, getString } from '../../core/firestore/doc-data';
 import { logger } from '../../core/logger';
 
+import { LahzaProvider } from './lahza-provider';
 import type { PaymentProvider, VerifiedPaymentEvent } from './payment-provider';
 import { StubProvider } from './payment-provider';
 import {
@@ -41,18 +42,61 @@ import {
 /** Payment documents are `payments/payment_<tripId>`. */
 const PAYMENTS_COLLECTION = 'payments';
 
+/** Adapter names accepted by PAYMENT_PROVIDER. */
+const PROVIDER_LAHZA = 'lahza';
+const PROVIDER_STUB = 'stub';
+
 /**
  * Provider selection.
  *
  * With the flag OFF this returns null and every entry point becomes a no-op, so the
- * module is genuinely inert rather than merely unused. There is no real adapter yet;
- * when one exists it is selected here by name and the stub stays emulator-only.
+ * module is inert rather than merely unused.
+ *
+ * WITH THE FLAG ON, THE RULES ARE DELIBERATELY UNFORGIVING:
+ *
+ *   - `lahza` is the DEFAULT, so a deployment cannot land on the stub by forgetting
+ *     to set PAYMENT_PROVIDER. It requires LAHZA_SECRET_KEY; missing or blank
+ *     THROWS. It does NOT quietly fall back to the stub - the stub marks trips paid
+ *     for free, so a silent fallback in a would-be production path is the worst
+ *     available failure mode. A hard error is loud, immediate and safe.
+ *
+ *   - `stub` is refused unless FUNCTIONS_EMULATOR is set, so it cannot be selected
+ *     in a deployed environment even deliberately.
  */
 export function getPaymentProvider(
   env: Record<string, string | undefined> = process.env
 ): PaymentProvider | null {
   if (!isOnlinePaymentsEnabled(env)) return null;
-  return new StubProvider();
+
+  const selected = (env.PAYMENT_PROVIDER ?? PROVIDER_LAHZA).trim().toLowerCase();
+
+  if (selected === PROVIDER_STUB) {
+    // The stub is a test double, not a payment processor.
+    if (env.FUNCTIONS_EMULATOR !== 'true') {
+      throw new Error(
+        'PAYMENT_PROVIDER=stub is only permitted under the emulator. The stub marks ' +
+          'trips paid without taking any money.'
+      );
+    }
+    return new StubProvider();
+  }
+
+  if (selected === PROVIDER_LAHZA) {
+    const secretKey = (env.LAHZA_SECRET_KEY ?? '').trim();
+    if (!secretKey) {
+      // Fail safe, and loudly. Never degrade to the stub.
+      throw new Error(
+        'ONLINE_PAYMENTS_ENABLED is on with PAYMENT_PROVIDER=lahza, but LAHZA_SECRET_KEY ' +
+          'is not set. Refusing to start a payment. See docs/LAHZA_SETUP.md.'
+      );
+    }
+    return new LahzaProvider({
+      secretKey,
+      ...(env.LAHZA_BASE_URL ? { baseUrl: env.LAHZA_BASE_URL } : {}),
+    });
+  }
+
+  throw new Error(`Unknown PAYMENT_PROVIDER "${selected}". Expected "lahza" or "stub".`);
 }
 
 export interface AdvanceResult {
