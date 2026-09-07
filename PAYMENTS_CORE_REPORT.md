@@ -157,3 +157,30 @@ is covered separately by the 404 case and the signature unit tests.
 
 `confirmCashPayment.callable.ts`, `firestore.rules`, all fare/pricing logic, every
 other feature flag (all still OFF), and the two working-tree `MapView.tsx` files.
+
+---
+
+## Unplanned: CI was already red, on main, for every run
+
+Not payments work, but the branch could not honestly be called verified without it.
+**Every CI run on this repository had been failing** — including the merges of PRs
+#8, #9 and #10. Three independent causes, all pre-existing:
+
+1. **`@taxi-line/shared` was never built in CI.** `packages/shared/dist` is
+   gitignored, so a fresh checkout had no built shared package and every consumer
+   failed with `Cannot find module '@taxi-line/shared'` — 60+ errors across both
+   jobs. It passed locally only because that dist happened to already be on disk,
+   which is precisely the failure mode CI exists to catch.
+2. **`qa:unit` relied on the shell expanding a glob.** Windows shells expand
+   `*.test.mjs`; Linux `sh -e` does not. Same command, passed locally, failed in CI.
+3. **firebase-tools now refuses to start under Java 21**, and the emulator job
+   pinned 17.
+
+Fixed in two commits. Each was diagnosed by reproducing the failure locally first —
+deleting `packages/shared/dist` reproduces CI's exact error set — rather than by
+guessing at the log. The unit runner now also **fails on an empty run**, so a rename
+cannot quietly reduce the suite to zero tests while still reporting success.
+
+**All four checks are now green on the runner**, with all 14 QA suites and 137
+assertions genuinely executing there. Worth knowing: the "fully green" status of the
+last few merges rested on local runs, not on CI.
