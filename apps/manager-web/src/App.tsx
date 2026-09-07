@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 
 import { useI18n } from './localization';
+import { ManagerLoginPage } from './pages/ManagerLoginPage';
 import { isUsingEmulators } from './services/firebase';
 import { MANAGER_PASSWORD_AUTH_ENABLED,
   ManagerRole,
@@ -12,7 +13,6 @@ import { MANAGER_PASSWORD_AUTH_ENABLED,
 } from './services/manager-auth.service';
 import { Button, Card, LanguageToggle, Text } from './ui';
 import './App.css';
-import { ManagerLoginPage } from './pages/ManagerLoginPage';
 
 const ROLE_OPTIONS: ManagerRole[] = [
   'admin',
