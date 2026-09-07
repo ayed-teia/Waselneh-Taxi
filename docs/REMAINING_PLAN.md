@@ -63,52 +63,69 @@ write, matching how every other privileged mutation works here).
 
 ## 2. Card / online payments
 
-> **STILL THE ONLY BLOCKER: which PSP.** Deliberately not built. The constraint is
-> not the SDK - it is settlement in ILS to West Bank accounts. Stripe does not
-> support Palestinian entities; the Israeli and regional processors (Tranzila,
-> PayPlus, Cardcom, and others) differ in KYC, settlement terms and fees.
+> **THE CORE IS NOW BUILT. WHAT REMAINS IS ONE ADAPTER, AND IT IS BLOCKED ON A
+> BUSINESS DECISION, NOT ON ENGINEERING.**
 >
-> **Pick the processor and the integration follows in days.** Everything below is
-> processor-agnostic and ready to be written against whichever you choose.
+> Everything processor-agnostic — the state machine, the adapter interface, the
+> webhook, the idempotency guards, the tests — ships in this branch behind
+> `ONLINE_PAYMENTS_ENABLED`, **default OFF**. Cash is still the only live path.
 >
-> The cash path already works (R6), and the reconciliation view already surfaces
-> where the trip and the ledger disagree.
-
-**Blocked on: choosing a PSP. That is the whole decision — the SDK is the easy part.**
+> **STILL THE ONLY BLOCKER: which PSP.** The constraint is not the SDK — it is
+> settlement in ILS to West Bank accounts. Stripe does not support Palestinian
+> entities; the Israeli and regional processors (Tranzila, PayPlus, Cardcom, and
+> others) differ in KYC, settlement terms and fees.
 
 ### Current state
-Cash only. `confirmCashPayment` — which was never deployed until this branch (R6) —
-flips `paymentStatus` to `paid` on the driver's word. `payments/{id}` exists and is
-read-only to clients. The new reconciliation page surfaces where trips and the ledger
-disagree.
+Cash works and is untouched. `confirmCashPayment` flips `paymentStatus` to `paid` on
+the driver's word; `payments/{id}` is client-unwritable in the rules; the
+reconciliation page surfaces where trips and the ledger disagree.
 
-### The real constraint
-Not the integration — **settlement in ILS to West Bank accounts**. Stripe does not
-support Palestinian entities; Israeli processors (Tranzila, PayPlus, Cardcom) and
-regional providers each have different KYC, settlement and fee terms. **Pick the
-processor first; the code follows in days.**
+**What this branch added, all inert while the flag is off:**
 
-### Design (processor-agnostic)
+| Piece | File |
+|---|---|
+| Payment state machine | `backend/functions/src/modules/payments/payment-state-machine.ts` |
+| `PaymentProvider` interface + `StubProvider` | `.../payment-provider.ts` |
+| Transactional, idempotent advance | `.../payment-core.service.ts` |
+| Webhook (signature-verified) | `backend/functions/src/api/http/paymentWebhook.http.ts` |
+| Charge entry point | `backend/functions/src/api/callable/startOnlinePayment.callable.ts` |
 
-**Never trust the client.** A client saying "payment succeeded" is a claim, not an
-event. Authority is the PSP webhook.
+States: `pending → awaiting_payment → paid | failed | cancelled`, plus `paid → refunded`.
+`pending → paid` stays legal because that is what the cash path does.
 
-1. `createPaymentIntent` callable → PSP intent, store `payments/{tripId}` as
-   `pending` with an **idempotency key derived from the tripId**, so a retry or a
-   double tap cannot charge twice.
-2. Client completes the card flow in the PSP's SDK/web view. It never sees a secret key,
-   and card data never touches your servers (this is what keeps you out of PCI scope).
-3. **PSP webhook → an HTTP function that verifies the signature** and transitions
-   `payments/{tripId}` to `paid`/`failed`, then updates the trip. Signature verification
-   is the security boundary: an unverified webhook endpoint is an open "mark as paid" API.
-4. Reconciliation job comparing your ledger against the PSP's daily settlement report —
-   the reconciliation page already models exactly these mismatch states.
+### ⚠️ TODO: write ONE concrete adapter
 
-**Refunds and disputes** need a state machine of their own (`refund_pending`,
-`refunded`, `disputed`) and a manager-only callable. Do not bolt them on later.
+A real PSP adapter is a single class implementing `PaymentProvider`. **Nothing else
+should need to change.** It must:
+
+1. **`createCharge(input)`** — create a charge/intent at the processor, passing
+   `input.idempotencyKey` through as the processor's own idempotency key. Return the
+   processor's charge id and a URL (or client secret) for **the processor's own
+   payment UI**. It must never accept a card number: card data touching our servers is
+   what puts us in PCI scope.
+2. **`parseAndVerifyWebhook(rawBody, headers)`** — verify the processor's signature
+   over the **raw bytes** (re-serialising a parsed body changes key order and breaks
+   verification), then map the processor's event vocabulary onto ours. **It must
+   return `null` for anything it cannot verify** — this function is the entire
+   security boundary; an adapter that returns an event from an unverified request
+   turns the webhook into an open "mark this trip paid" API.
+   - The webhook must be reachable **unauthenticated** (the processor has no Firebase
+     identity) — so the signature is the only thing standing in front of it.
+   - Keys go in Secret Manager, never in `.env` or the repo.
+3. **`refund(input)`** — call the processor's refund API. Return `settled: false` if
+   the processor settles asynchronously; the confirming webhook then drives
+   `paid → refunded`.
+4. **Select it in `getPaymentProvider()`**, and make the `StubProvider` unreachable
+   outside the emulator. **The stub marks trips paid for free** — enabling the flag
+   today would do exactly that.
+
+Then, before enabling: a reconciliation job comparing our ledger against the
+processor's daily settlement report (the reconciliation page already models these
+mismatch states), and a manager-only refund callable.
 
 ### Decisions I need
 1. **Which PSP?** Everything else follows. Needs ILS settlement to your actual bank.
+   **This is the deciding constraint and the reason no processor was chosen for you.**
 2. **Who bears the fee** — passenger, driver, or platform? This changes the fare
    calculation, not just the payment call.
 3. **Are drivers paid out through the platform** (marketplace/split payments, much more
