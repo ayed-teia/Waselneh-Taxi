@@ -27,7 +27,10 @@ interface CompleteTripResponse {
   status: string;
   finalPriceIls: number;
   paymentId: string;
+  loyaltyPointsAwarded: number;
 }
+
+const LOYALTY_POINTS_PER_ILS = 1;
 
 export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
   {
@@ -83,6 +86,10 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
         const tripPassengerId = getString(tripData, 'passengerId', '');
         passengerIdForNotify = tripPassengerId;
         const finalPriceIls = getNumber(tripData, 'estimatedPriceIls', 0);
+        const loyaltyPointsAwarded = Math.max(1, Math.floor(Math.max(0, finalPriceIls) * LOYALTY_POINTS_PER_ILS));
+        const passengerRef = tripPassengerId ? db.collection('users').doc(tripPassengerId) : null;
+        const loyaltyLedgerRef = passengerRef?.collection('loyaltyLedger').doc(tripId) ?? null;
+        const existingLoyaltyEntry = loyaltyLedgerRef ? await transaction.get(loyaltyLedgerRef) : null;
 
         const seatCapacity = normalizeSeatCapacity(
           driverData.seatCapacity,
@@ -158,17 +165,40 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
           });
         }
 
+        // The ledger document makes rewards auditable and prevents a second credit
+        // if this completion flow is ever retried or extended in the future.
+        if (passengerRef && loyaltyLedgerRef && !existingLoyaltyEntry?.exists) {
+          transaction.set(loyaltyLedgerRef, {
+            tripId,
+            type: 'trip_completed',
+            points: loyaltyPointsAwarded,
+            finalPriceIls,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+          transaction.set(
+            passengerRef,
+            {
+              loyaltyPoints: FieldValue.increment(loyaltyPointsAwarded),
+              loyaltyTripsCompleted: FieldValue.increment(1),
+              loyaltyUpdatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+
         logger.tripEvent('TRIP_COMPLETED', tripId, {
           driverId,
           finalPriceIls,
           bookingType,
           reservedSeats,
+          loyaltyPointsAwarded: existingLoyaltyEntry?.exists ? 0 : loyaltyPointsAwarded,
         });
 
         return {
           status: TripStatus.COMPLETED,
           finalPriceIls,
           paymentId,
+          loyaltyPointsAwarded: existingLoyaltyEntry?.exists ? 0 : loyaltyPointsAwarded,
         };
       });
 
@@ -206,6 +236,7 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
         status: result.status,
         finalPriceIls: result.finalPriceIls,
         paymentId: result.paymentId,
+        loyaltyPointsAwarded: result.loyaltyPointsAwarded,
       };
     } catch (error) {
       throw handleError(error);
