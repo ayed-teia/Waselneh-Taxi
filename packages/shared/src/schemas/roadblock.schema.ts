@@ -56,6 +56,11 @@ export const RoadblockSchema = z.object({
   
   /** Optional note/description */
   note: z.string().optional(),
+
+  /** Operational impact used by server-side ETA and fare calculation */
+  delayMin: z.number().min(0).max(240).default(0),
+  surchargeIls: z.number().min(0).max(200).default(0),
+  source: z.enum(['operations', 'driver_report', 'official', 'ai_assisted']).default('operations'),
   
   /** Timestamp of last update */
   updatedAt: z.any(), // Firestore Timestamp

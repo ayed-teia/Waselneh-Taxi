@@ -61,6 +61,20 @@ export interface EstimateTripResponse {
   durationMin: number;
   priceIls: number;
   rideOptions?: RideOptions;
+  roadblockImpact?: {
+    affected: boolean;
+    hasClosure: boolean;
+    delayMin: number;
+    surchargeIls: number;
+    items: Array<{
+      id: string;
+      name: string;
+      status: 'closed' | 'congested';
+      delayMin: number;
+      surchargeIls: number;
+      distanceToRouteKm: number;
+    }>;
+  };
 }
 
 export interface RideOptions {

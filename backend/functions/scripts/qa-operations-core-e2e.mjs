@@ -96,6 +96,7 @@ async function main() {
   let destinationCityId;
   let officeId;
   let lineId;
+  let roadblockId;
 
   try {
     const origin = await callCallable('managerUpsertCity', {
@@ -233,6 +234,54 @@ async function main() {
     pass('Inter-city validation rejects identical origin and destination');
   } catch (error) {
     fail('Inter-city validation rejects identical origin and destination', String(error));
+  }
+
+  try {
+    const created = await callCallable('managerUpsertRoadblock', {
+      devUserId: managerId,
+      name: 'QA checkpoint',
+      area: 'Jenin - Ramallah',
+      lat: 32.22,
+      lng: 35.255,
+      radiusMeters: 5000,
+      status: 'congested',
+      delayMin: 12,
+      surchargeIls: 3,
+      source: 'operations',
+    });
+    roadblockId = created.roadblockId;
+    cleanup.push(db.collection('roadblocks').doc(roadblockId));
+    const estimate = await callCallable('estimateTrip', {
+      pickup: { lat: 32.4618, lng: 35.3003 },
+      dropoff: { lat: 31.9038, lng: 35.2034 },
+    });
+    assert(estimate.roadblockImpact?.affected === true, 'route impact was not detected');
+    assert(estimate.roadblockImpact?.delayMin === 12, 'checkpoint delay was not applied');
+    assert(estimate.roadblockImpact?.surchargeIls === 3, 'checkpoint surcharge was not applied');
+    pass('Authorised checkpoint changes affect server ETA and fare estimates');
+  } catch (error) {
+    fail('Authorised checkpoint changes affect server ETA and fare estimates', String(error));
+  }
+
+  try {
+    await expectCallableFailure(
+      'managerUpsertRoadblock',
+      { devUserId: scopedManagerId, name: 'Forbidden update' },
+      'manage_alerts'
+    );
+    pass('Manager without manage_alerts cannot change checkpoints');
+  } catch (error) {
+    fail('Manager without manage_alerts cannot change checkpoints', String(error));
+  }
+
+  if (roadblockId) {
+    try {
+      await callCallable('managerDeleteRoadblock', { devUserId: managerId, roadblockId });
+      assert(!(await db.collection('roadblocks').doc(roadblockId).get()).exists, 'checkpoint still exists');
+      pass('Authorised manager can remove a checkpoint');
+    } catch (error) {
+      fail('Authorised manager can remove a checkpoint', String(error));
+    }
   }
 
   for (const ref of cleanup.reverse()) {

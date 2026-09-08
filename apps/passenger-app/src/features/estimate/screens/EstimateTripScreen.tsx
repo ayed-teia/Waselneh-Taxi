@@ -275,6 +275,23 @@ export function EstimateTripScreen() {
               </View>
             </View>
 
+            {estimate.roadblockImpact?.affected ? (
+              <View style={styles.roadblockWarning}>
+                <Text style={styles.roadblockTitle}>
+                  {estimate.roadblockImpact.hasClosure ? '🚧 Closed checkpoint on route' : '⚠️ Congestion on route'}
+                </Text>
+                <Text style={styles.roadblockText}>
+                  Added delay: {estimate.roadblockImpact.delayMin} min
+                  {estimate.roadblockImpact.surchargeIls > 0
+                    ? ` · Fare adjustment: ₪${estimate.roadblockImpact.surchargeIls}`
+                    : ''}
+                </Text>
+                {estimate.roadblockImpact.items.map((item) => (
+                  <Text key={item.id} style={styles.roadblockText}>• {item.name}</Text>
+                ))}
+              </View>
+            ) : null}
+
             <Text style={styles.pricingNote}>
               Pricing: ₪1 per 2 km (minimum ₪5)
             </Text>
@@ -382,6 +399,17 @@ const styles = StyleSheet.create({
     color: '#1C1C1E',
     marginBottom: 16,
   },
+  roadblockWarning: {
+    marginTop: 12,
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    gap: 4,
+  },
+  roadblockTitle: { color: '#9A3412', fontWeight: '700' },
+  roadblockText: { color: '#7C2D12' },
   resultCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,

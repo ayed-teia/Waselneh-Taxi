@@ -4,15 +4,11 @@ import {
   query, 
   orderBy, 
   Unsubscribe,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  serverTimestamp,
   where
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 
-import { getFirestoreDb } from './firebase';
+import { getFirestoreDb, getFunctionsInstance } from './firebase';
 
 /**
  * Roadblock status constants
@@ -39,6 +35,9 @@ export interface RoadblockData {
   createdAt: Date | null;
   createdBy?: string;
   updatedBy?: string;
+  delayMin?: number;
+  surchargeIls?: number;
+  source?: 'operations' | 'driver_report' | 'official' | 'ai_assisted';
 }
 
 /**
@@ -85,6 +84,9 @@ export function subscribeToRoadblocks(
           createdAt: data.createdAt?.toDate() ?? null,
           createdBy: data.createdBy,
           updatedBy: data.updatedBy,
+          delayMin: data.delayMin,
+          surchargeIls: data.surchargeIls,
+          source: data.source,
         };
       });
       onData(roadblocks);
@@ -105,25 +107,15 @@ export async function createRoadblock(data: {
   status?: 'open' | 'closed' | 'congested';
   note?: string;
   createdBy?: string;
+  delayMin?: number;
+  surchargeIls?: number;
 }): Promise<string> {
-  const db = getFirestoreDb();
-  const roadblocksRef = collection(db, 'roadblocks');
-  
-  const docRef = await addDoc(roadblocksRef, {
-    name: data.name,
-    area: data.area ?? '',
-    lat: data.lat,
-    lng: data.lng,
-    radiusMeters: data.radiusMeters ?? 100,
-    status: data.status ?? 'closed',
-    note: data.note ?? '',
-    createdBy: data.createdBy ?? 'manager',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  
-  console.log('🚧 [Roadblocks] Created:', docRef.id);
-  return docRef.id;
+  const callable = httpsCallable<typeof data, { roadblockId: string }>(
+    getFunctionsInstance(),
+    'managerUpsertRoadblock'
+  );
+  const result = await callable(data);
+  return result.data.roadblockId;
 }
 
 /**
@@ -140,29 +132,26 @@ export async function updateRoadblock(
     status: 'open' | 'closed' | 'congested';
     note: string;
     updatedBy: string;
+    delayMin: number;
+    surchargeIls: number;
   }>
 ): Promise<void> {
-  const db = getFirestoreDb();
-  const roadblockRef = doc(db, 'roadblocks', id);
-  
-  await updateDoc(roadblockRef, {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
-  
-  console.log('🚧 Roadblock status updated:', id, data);
+  const callable = httpsCallable<typeof data & { roadblockId: string }, { success: true }>(
+    getFunctionsInstance(),
+    'managerUpsertRoadblock'
+  );
+  await callable({ roadblockId: id, ...data });
 }
 
 /**
  * Delete a roadblock
  */
 export async function deleteRoadblock(id: string): Promise<void> {
-  const db = getFirestoreDb();
-  const roadblockRef = doc(db, 'roadblocks', id);
-  
-  await deleteDoc(roadblockRef);
-  
-  console.log('🚧 [Roadblocks] Deleted:', id);
+  const callable = httpsCallable<{ roadblockId: string }, { success: true }>(
+    getFunctionsInstance(),
+    'managerDeleteRoadblock'
+  );
+  await callable({ roadblockId: id });
 }
 
 /**

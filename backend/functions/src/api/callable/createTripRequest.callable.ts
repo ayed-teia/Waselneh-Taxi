@@ -28,6 +28,7 @@ import { calculateDynamicRidePrice } from '../../modules/pricing/services';
 import { publishTripStatusNotifications } from '../../modules/notifications';
 import { evaluateDriverEligibility } from '../../modules/auth';
 import { orderCandidatesByQueue } from '../../modules/queue/line-queue';
+import { calculateRoadblockImpact } from '../../modules/routes/roadblock-impact';
 
 /**
  * ============================================================================
@@ -468,7 +469,10 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         officeId: requestedOfficeId,
         lineId: requestedLineId,
       });
-      const serverCalculatedPriceIls = pricingResult.priceIls;
+      const roadblockImpact = await calculateRoadblockImpact(pickup, dropoff);
+      const serverCalculatedPriceIls = pricingResult.priceIls + roadblockImpact.surchargeIls;
+      const serverEstimatedDurationMin =
+        Math.round((estimate.durationMin + roadblockImpact.delayMin) * 10) / 10;
       
       // Log if client price differs from server calculation
       if (serverCalculatedPriceIls !== estimate.priceIls) {
@@ -489,7 +493,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         pickup: { lat: pickup.lat, lng: pickup.lng },
         dropoff: { lat: dropoff.lat, lng: dropoff.lng },
         estimatedDistanceKm: estimate.distanceKm,
-        estimatedDurationMin: estimate.durationMin,
+        estimatedDurationMin: serverEstimatedDurationMin,
         estimatedPriceIls: serverCalculatedPriceIls,
         rideOptions: {
           ...normalizedRideOptions,
@@ -944,7 +948,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           pickup: { lat: pickup.lat, lng: pickup.lng },
           dropoff: { lat: dropoff.lat, lng: dropoff.lng },
           estimatedDistanceKm: estimate.distanceKm,
-          estimatedDurationMin: estimate.durationMin,
+          estimatedDurationMin: serverEstimatedDurationMin,
           estimatedPriceIls: serverCalculatedPriceIls,
           bookingType: normalizedRideOptions.bookingType,
           requestedSeats: normalizedRideOptions.requestedSeats,
@@ -986,7 +990,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           pickup: { lat: pickup.lat, lng: pickup.lng },
           dropoff: { lat: dropoff.lat, lng: dropoff.lng },
           estimatedDistanceKm: estimate.distanceKm,
-          estimatedDurationMin: estimate.durationMin,
+          estimatedDurationMin: serverEstimatedDurationMin,
           estimatedPriceIls: serverCalculatedPriceIls,
           bookingType: normalizedRideOptions.bookingType,
           requestedSeats: normalizedRideOptions.requestedSeats,
