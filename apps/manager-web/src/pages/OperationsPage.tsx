@@ -14,6 +14,12 @@ import {
   upsertStaffRole,
   upsertVehicle,
 } from '../services/operations.service';
+import {
+  ManifestRow,
+  RouteRunRow,
+  subscribeRouteRunManifest,
+  subscribeRouteRuns,
+} from '../services/route-runs.service';
 import './OperationsPage.css';
 
 type GenericDoc = Record<string, unknown>;
@@ -61,6 +67,9 @@ export function OperationsPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [routeRuns, setRouteRuns] = useState<RouteRunRow[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState('');
+  const [manifest, setManifest] = useState<ManifestRow[]>([]);
 
   const [cityForm, setCityForm] = useState({
     cityId: '',
@@ -205,6 +214,23 @@ export function OperationsPage() {
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, []);
+
+  useEffect(
+    () => subscribeRouteRuns(setRouteRuns, (runError) => setError(runError.message)),
+    []
+  );
+
+  useEffect(() => {
+    if (!selectedRunId) {
+      setManifest([]);
+      return undefined;
+    }
+    return subscribeRouteRunManifest(
+      selectedRunId,
+      setManifest,
+      (manifestError) => setError(manifestError.message)
+    );
+  }, [selectedRunId]);
 
   const cityOptions = useMemo(
     () =>
@@ -610,6 +636,30 @@ export function OperationsPage() {
           <div><strong>{txt('مناطق التسعير', 'Pricing Zones')}</strong><span>{snapshots.pricingZones.length}</span></div>
           <div><strong>{txt('أدوار الإدارة', 'Manager Roles')}</strong><span>{snapshots.managerRoles.length}</span></div>
         </div>
+      </section>
+
+      <section className="ops-snapshot">
+        <h3>{txt('الرحلات المباشرة وقائمة الركاب', 'Live Route Runs & Passenger Manifest')}</h3>
+        <select value={selectedRunId} onChange={(event) => setSelectedRunId(event.target.value)}>
+          <option value="">{txt('اختر رحلة خط', 'Select a route run')}</option>
+          {routeRuns.map((run) => (
+            <option key={run.id} value={run.id}>
+              {run.lineId} · {run.status} · {run.bookedSeats}/{run.seatCapacity}
+            </option>
+          ))}
+        </select>
+        {selectedRunId ? (
+          <div className="snapshot-grid">
+            {manifest.map((passenger) => (
+              <div key={passenger.id}>
+                <strong>{passenger.passengerName}</strong>
+                <span>{passenger.seats} {txt('مقاعد', 'seats')} · {passenger.status}</span>
+                <small>{passenger.pickupLabel || '—'} → {passenger.destinationLabel || '—'}</small>
+              </div>
+            ))}
+            {manifest.length === 0 ? <p>{txt('لا يوجد ركاب بعد.', 'No passengers yet.')}</p> : null}
+          </div>
+        ) : null}
       </section>
 
       <datalist id="city-list">

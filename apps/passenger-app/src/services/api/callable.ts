@@ -139,6 +139,39 @@ export async function createTripRequest(
   );
 }
 
+export interface BookRouteRunResponse {
+  bookingId: string;
+  availableSeats: number;
+  status: string;
+}
+
+export async function bookRouteRun(
+  runId: string,
+  seats: number,
+  pickupLabel?: string,
+  destinationLabel?: string
+): Promise<BookRouteRunResponse> {
+  const payload = {
+    runId,
+    seats,
+    ...(pickupLabel ? { pickupLabel } : {}),
+    ...(destinationLabel ? { destinationLabel } : {}),
+  };
+  return callFunction<
+    { runId: string; seats: number; pickupLabel?: string; destinationLabel?: string },
+    BookRouteRunResponse
+  >('bookRouteRun', payload);
+}
+
+export async function cancelRouteBooking(
+  runId: string
+): Promise<{ cancelled: true; availableSeats: number }> {
+  return callFunction<{ runId: string }, { cancelled: true; availableSeats: number }>(
+    'cancelRouteBooking',
+    { runId }
+  );
+}
+
 export interface CancelTripRequestInput {
   requestId: string;
 }
@@ -240,4 +273,3 @@ export async function passengerCancelTrip(tripId: string): Promise<PassengerCanc
     { tripId }
   );
 }
-
