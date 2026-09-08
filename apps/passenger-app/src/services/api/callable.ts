@@ -75,6 +75,12 @@ export interface EstimateTripResponse {
       distanceToRouteKm: number;
     }>;
   };
+  smartRoute?: {
+    selectedIndex: number;
+    blocked: boolean;
+    requiresDriverConfirmation: boolean;
+    reason: 'fastest_clear_route' | 'avoids_closed_checkpoint' | 'least_affected_route';
+  };
 }
 
 export interface RideOptions {

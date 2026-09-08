@@ -289,6 +289,11 @@ export function EstimateTripScreen() {
                 {estimate.roadblockImpact.items.map((item) => (
                   <Text key={item.id} style={styles.roadblockText}>• {item.name}</Text>
                 ))}
+                {estimate.smartRoute?.reason === 'avoids_closed_checkpoint' ? (
+                  <Text style={styles.roadblockText}>✓ تم اختيار مسار بديل لتجنّب حاجز مغلق.</Text>
+                ) : estimate.smartRoute?.requiresDriverConfirmation ? (
+                  <Text style={styles.roadblockText}>⚠️ لا يوجد مسار خالٍ بالكامل؛ السائق سيؤكد الطريق الآمن.</Text>
+                ) : null}
               </View>
             ) : null}
 

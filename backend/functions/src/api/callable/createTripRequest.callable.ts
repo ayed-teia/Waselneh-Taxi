@@ -24,11 +24,12 @@ import { logger } from '../../core/logger';
 import { MAX_DISPATCH_ATTEMPTS } from '../../modules/trips/reoffer-trip';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { calculateDynamicRidePrice } from '../../modules/pricing/services';
+import { calculateDynamicRidePrice, calculateRouteAlternatives } from '../../modules/pricing/services';
 import { publishTripStatusNotifications } from '../../modules/notifications';
 import { evaluateDriverEligibility } from '../../modules/auth';
 import { orderCandidatesByQueue } from '../../modules/queue/line-queue';
-import { calculateRoadblockImpact } from '../../modules/routes/roadblock-impact';
+import { getActiveRoadblockCandidates } from '../../modules/routes/roadblock-impact';
+import { selectSmartRoute } from '../../modules/routes/smart-route-selection';
 
 /**
  * ============================================================================
@@ -149,6 +150,11 @@ interface TripRequestDocument {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  smartRoute: {
+    selectedIndex: number;
+    reason: string;
+    requiresDriverConfirmation: boolean;
+  };
   rideOptions: {
     bookingType: BookingType;
     requestedSeats: number;
@@ -179,6 +185,11 @@ interface TripDocument {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  smartRoute: {
+    selectedIndex: number;
+    reason: string;
+    requiresDriverConfirmation: boolean;
+  };
   bookingType: BookingType;
   requestedSeats: number;
   reservedSeats: number;
@@ -213,6 +224,11 @@ interface DriverRequestDocument {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  smartRoute: {
+    selectedIndex: number;
+    reason: string;
+    requiresDriverConfirmation: boolean;
+  };
   bookingType: BookingType;
   requestedSeats: number;
   requiredSeats: number;
@@ -461,25 +477,34 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       // ========================================
       // 4. Create tripRequest document for passenger tracking
       // ========================================
+      const routeAlternatives = await calculateRouteAlternatives(pickup, dropoff);
+      const roadblockCandidates = await getActiveRoadblockCandidates();
+      const smartRoute = selectSmartRoute(routeAlternatives, roadblockCandidates);
       const pricingResult = await calculateDynamicRidePrice({
-        distanceKm: estimate.distanceKm,
+        distanceKm: smartRoute.distanceKm,
         pickup,
         dropoff,
         rideOptions: normalizedRideOptions,
         officeId: requestedOfficeId,
         lineId: requestedLineId,
       });
-      const roadblockImpact = await calculateRoadblockImpact(pickup, dropoff);
-      const serverCalculatedPriceIls = pricingResult.priceIls + roadblockImpact.surchargeIls;
-      const serverEstimatedDurationMin =
-        Math.round((estimate.durationMin + roadblockImpact.delayMin) * 10) / 10;
+      const serverRoadblockSurchargeIls = Math.ceil(
+        smartRoute.affectedRoadblocks.reduce((sum, item) => sum + item.surchargeIls, 0)
+      );
+      const serverCalculatedPriceIls = pricingResult.priceIls + serverRoadblockSurchargeIls;
+      const serverEstimatedDurationMin = smartRoute.durationMin;
+      const serverSmartRoute = {
+        selectedIndex: smartRoute.selectedIndex,
+        reason: smartRoute.reason,
+        requiresDriverConfirmation: smartRoute.requiresDriverConfirmation,
+      };
       
       // Log if client price differs from server calculation
       if (serverCalculatedPriceIls !== estimate.priceIls) {
         logger.warn('💰 [CreateTrip] Price mismatch - using server calculation', {
           clientPrice: estimate.priceIls,
           serverPrice: serverCalculatedPriceIls,
-          distanceKm: estimate.distanceKm,
+          distanceKm: smartRoute.distanceKm,
           pricingProfileId: pricingResult.breakdown.profileId,
         });
       }
@@ -492,9 +517,10 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         passengerId,
         pickup: { lat: pickup.lat, lng: pickup.lng },
         dropoff: { lat: dropoff.lat, lng: dropoff.lng },
-        estimatedDistanceKm: estimate.distanceKm,
+        estimatedDistanceKm: smartRoute.distanceKm,
         estimatedDurationMin: serverEstimatedDurationMin,
         estimatedPriceIls: serverCalculatedPriceIls,
+        smartRoute: serverSmartRoute,
         rideOptions: {
           ...normalizedRideOptions,
           officeId: requestedOfficeId,
@@ -947,9 +973,10 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           status: TripStatus.PENDING,
           pickup: { lat: pickup.lat, lng: pickup.lng },
           dropoff: { lat: dropoff.lat, lng: dropoff.lng },
-          estimatedDistanceKm: estimate.distanceKm,
+          estimatedDistanceKm: smartRoute.distanceKm,
           estimatedDurationMin: serverEstimatedDurationMin,
           estimatedPriceIls: serverCalculatedPriceIls,
+          smartRoute: serverSmartRoute,
           bookingType: normalizedRideOptions.bookingType,
           requestedSeats: normalizedRideOptions.requestedSeats,
           reservedSeats: 0,
@@ -989,9 +1016,10 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           passengerId,
           pickup: { lat: pickup.lat, lng: pickup.lng },
           dropoff: { lat: dropoff.lat, lng: dropoff.lng },
-          estimatedDistanceKm: estimate.distanceKm,
+          estimatedDistanceKm: smartRoute.distanceKm,
           estimatedDurationMin: serverEstimatedDurationMin,
           estimatedPriceIls: serverCalculatedPriceIls,
+          smartRoute: serverSmartRoute,
           bookingType: normalizedRideOptions.bookingType,
           requestedSeats: normalizedRideOptions.requestedSeats,
           requiredSeats: normalizedRideOptions.requiredSeats,
@@ -1065,7 +1093,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         passengerId,
         driverId: nearestDriver.driverId,
         estimatedPriceIls: serverCalculatedPriceIls,
-        distanceKm: estimate.distanceKm,
+        distanceKm: smartRoute.distanceKm,
         requiredSeats: normalizedRideOptions.requiredSeats,
         requestedSeats: normalizedRideOptions.requestedSeats,
         bookingType: normalizedRideOptions.bookingType,

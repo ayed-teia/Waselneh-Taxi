@@ -27,6 +27,10 @@ export interface RouteResult {
   durationMin: number;
 }
 
+export interface RouteAlternative extends RouteResult {
+  coordinates: LatLng[];
+}
+
 let hasLoggedMissingMapboxToken = false;
 
 /**
@@ -123,6 +127,52 @@ export async function calculateRoute(
       'Failed to calculate route via Mapbox',
       'mapbox'
     );
+  }
+}
+
+function routeToAlternative(route: MapboxRoute, fallbackCoordinates: LatLng[]): RouteAlternative {
+  const geometry = route.geometry as { coordinates?: unknown } | null;
+  const coordinates = Array.isArray(geometry?.coordinates)
+    ? geometry.coordinates
+      .filter((item): item is [number, number] => Array.isArray(item) && typeof item[0] === 'number' && typeof item[1] === 'number')
+      .map(([lng, lat]) => ({ lat, lng }))
+    : [];
+  return {
+    distanceMeters: route.distance,
+    durationSeconds: route.duration,
+    distanceKm: route.distance / 1000,
+    durationMin: route.duration / 60,
+    coordinates: coordinates.length >= 2 ? coordinates : fallbackCoordinates,
+  };
+}
+
+/** Returns Mapbox alternatives when available; the fallback is a single straight-line route. */
+export async function calculateRouteAlternatives(
+  pickup: LatLng,
+  dropoff: LatLng
+): Promise<RouteAlternative[]> {
+  const accessToken = (process.env.MAPBOX_ACCESS_TOKEN ?? '').trim();
+  if (!accessToken || accessToken === 'your-mapbox-token-here') {
+    const route = await calculateRoute(pickup, dropoff);
+    return [{ ...route, coordinates: [pickup, dropoff] }];
+  }
+  const coordinates = `${pickup.lng},${pickup.lat};${dropoff.lng},${dropoff.lat}`;
+  const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}?access_token=${accessToken}&geometries=geojson&alternatives=true`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) return [{ ...(await calculateRoute(pickup, dropoff)), coordinates: [pickup, dropoff] }];
+    const data = (await response.json()) as MapboxDirectionsResponse;
+    if (data.code !== 'Ok' || !Array.isArray(data.routes) || data.routes.length === 0) {
+      return [{ ...(await calculateRoute(pickup, dropoff)), coordinates: [pickup, dropoff] }];
+    }
+    return data.routes.slice(0, 3).map((route) => routeToAlternative(route, [pickup, dropoff]));
+  } catch (error) {
+    logger.warn('Could not load route alternatives; using the primary route.', { error });
+    return [{ ...(await calculateRoute(pickup, dropoff)), coordinates: [pickup, dropoff] }];
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

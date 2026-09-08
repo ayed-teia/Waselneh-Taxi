@@ -9,8 +9,9 @@ import {
 import { REGION } from '../../core/env';
 import { handleError, ValidationError } from '../../core/errors';
 import { logger } from '../../core/logger';
-import { calculateDynamicRidePrice, calculateRoute } from '../../modules/pricing/services';
-import { calculateRoadblockImpact, RoadblockImpact } from '../../modules/routes/roadblock-impact';
+import { calculateDynamicRidePrice, calculateRouteAlternatives } from '../../modules/pricing/services';
+import { RoadblockImpact, getActiveRoadblockCandidates } from '../../modules/routes/roadblock-impact';
+import { selectSmartRoute, SmartRouteResult } from '../../modules/routes/smart-route-selection';
 
 /**
  * Request schema for trip estimation
@@ -41,6 +42,7 @@ interface EstimateTripResponse {
     appliedPeakWindowIds: string[];
   };
   roadblockImpact: RoadblockImpact;
+  smartRoute: SmartRouteResult;
 }
 
 /**
@@ -89,20 +91,28 @@ export const estimateTrip = onCall<unknown, Promise<EstimateTripResponse>>(
       });
 
       // Calculate route using Mapbox (or mock if token not configured)
-      const route = await calculateRoute(pickup, dropoff);
+      const alternatives = await calculateRouteAlternatives(pickup, dropoff);
+      const roadblocks = await getActiveRoadblockCandidates();
+      const smartRoute = selectSmartRoute(alternatives, roadblocks);
 
       const pricing = await calculateDynamicRidePrice({
-        distanceKm: route.distanceKm,
+        distanceKm: smartRoute.distanceKm,
         pickup,
         dropoff,
         rideOptions: normalizedRideOptions,
       });
-      const roadblockImpact = await calculateRoadblockImpact(pickup, dropoff);
+      const roadblockImpact: RoadblockImpact = {
+        affected: smartRoute.affectedRoadblocks.length > 0,
+        hasClosure: smartRoute.blocked,
+        delayMin: smartRoute.delayMin,
+        surchargeIls: Math.ceil(smartRoute.affectedRoadblocks.reduce((sum, item) => sum + item.surchargeIls, 0)),
+        items: smartRoute.affectedRoadblocks,
+      };
       const priceIls = pricing.priceIls + roadblockImpact.surchargeIls;
 
       // Round to reasonable precision
-      const distanceKm = Math.round(route.distanceKm * 100) / 100;
-      const durationMin = Math.round((route.durationMin + roadblockImpact.delayMin) * 10) / 10;
+      const distanceKm = smartRoute.distanceKm;
+      const durationMin = smartRoute.durationMin;
 
       logger.info('Trip estimated', {
         userId,
@@ -110,6 +120,7 @@ export const estimateTrip = onCall<unknown, Promise<EstimateTripResponse>>(
         durationMin,
         priceIls,
         roadblockImpact,
+        smartRoute,
       });
 
       return {
@@ -129,6 +140,7 @@ export const estimateTrip = onCall<unknown, Promise<EstimateTripResponse>>(
           appliedPeakWindowIds: pricing.breakdown.appliedPeakWindowIds,
         },
         roadblockImpact,
+        smartRoute,
       };
     } catch (error) {
       throw handleError(error);

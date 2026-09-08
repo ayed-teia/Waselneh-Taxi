@@ -76,3 +76,12 @@ export async function calculateRoadblockImpact(
     snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) }))
   );
 }
+
+export async function getActiveRoadblockCandidates(): Promise<RoadblockCandidate[]> {
+  const snapshot = await getFirestore()
+    .collection('roadblocks')
+    .where('status', 'in', ['closed', 'congested'])
+    .limit(100)
+    .get();
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) }));
+}
