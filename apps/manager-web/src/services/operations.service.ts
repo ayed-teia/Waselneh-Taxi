@@ -32,7 +32,8 @@ export const upsertOffice = callable<
     officeId?: string;
     name: string;
     code: string;
-    city: string;
+    cityId?: string;
+    city?: string;
     status?: 'active' | 'inactive';
     contactPhone?: string;
     dispatchMode?: 'line_based' | 'hybrid';
@@ -40,10 +41,25 @@ export const upsertOffice = callable<
   { officeId: string; success: true }
 >('managerUpsertOffice');
 
+export const upsertCity = callable<
+  {
+    cityId?: string;
+    code: string;
+    nameAr: string;
+    nameEn?: string;
+    governorateAr?: string;
+    governorateEn?: string;
+    center?: { lat: number; lng: number };
+    serviceRadiusKm?: number;
+    status?: 'active' | 'inactive';
+  },
+  { cityId: string; success: true }
+>('managerUpsertCity');
+
 export const upsertLine = callable<
   {
     lineId?: string;
-    officeId: string;
+    officeId?: string;
     name: string;
     code: string;
     status?: 'active' | 'inactive';
@@ -52,6 +68,17 @@ export const upsertLine = callable<
     allowedVehicleTypes?: string[];
     pricingProfileId?: string;
     serviceAreaLabel?: string;
+    serviceType?: 'intra_city' | 'inter_city';
+    operatorType?: 'office' | 'independent';
+    originCityId?: string;
+    destinationCityId?: string;
+    originLabel?: string;
+    destinationLabel?: string;
+    distanceKm?: number;
+    estimatedDurationMin?: number;
+    pricingStrategy?: 'distance' | 'fixed' | 'hybrid';
+    fixedPriceIls?: number | null;
+    bidirectional?: boolean;
   },
   { lineId: string; success: true }
 >('managerUpsertLine');

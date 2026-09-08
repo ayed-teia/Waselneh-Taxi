@@ -2,7 +2,9 @@ import { onCall } from 'firebase-functions/v2/https';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import {
+  LineRouteInputSchema,
   MANAGER_ROLE_VALUES,
+  ManagerUpsertCityInputSchema,
   ManagerPermission,
   ManagerRole,
   VEHICLE_MAX_CAPACITY,
@@ -30,15 +32,18 @@ const ManagerUpsertOfficeSchema = z.object({
   officeId: z.string().trim().min(1).optional(),
   name: z.string().trim().min(2),
   code: z.string().trim().min(2),
-  city: z.string().trim().min(2),
+  cityId: z.string().trim().min(1).optional(),
+  city: z.string().trim().min(2).optional(),
   status: z.enum(['active', 'inactive']).default('active'),
   contactPhone: z.string().trim().optional(),
   dispatchMode: z.enum(['line_based', 'hybrid']).default('line_based'),
+}).refine((value) => Boolean(value.cityId || value.city), {
+  message: 'cityId is required (legacy city text is accepted during migration)',
+  path: ['cityId'],
 });
 
 const ManagerUpsertLineSchema = z.object({
   lineId: z.string().trim().min(1).optional(),
-  officeId: z.string().trim().min(1),
   name: z.string().trim().min(2),
   code: z.string().trim().min(2),
   status: z.enum(['active', 'inactive']).default('active'),
@@ -47,7 +52,7 @@ const ManagerUpsertLineSchema = z.object({
   allowedVehicleTypes: z.array(z.enum(VEHICLE_TYPE_VALUES as [string, ...string[]])).optional(),
   pricingProfileId: z.string().trim().optional(),
   serviceAreaLabel: z.string().trim().optional(),
-});
+}).and(LineRouteInputSchema);
 
 const ManagerUpsertLicenseSchema = z.object({
   licenseId: z.string().trim().min(1).optional(),
@@ -161,6 +166,15 @@ async function ensureOfficeExists(officeId: string): Promise<void> {
   }
 }
 
+async function ensureCityExists(cityId: string): Promise<FirebaseFirestore.DocumentData> {
+  const db = getFirestore();
+  const cityDoc = await db.collection('cities').doc(cityId).get();
+  if (!cityDoc.exists) {
+    throw new NotFoundError('City', cityId);
+  }
+  return cityDoc.data() ?? {};
+}
+
 async function ensureLineExists(lineId: string): Promise<FirebaseFirestore.DocumentData> {
   const db = getFirestore();
   const lineDoc = await db.collection('lines').doc(lineId).get();
@@ -178,6 +192,57 @@ async function ensureLicenseExists(licenseId: string): Promise<FirebaseFirestore
   }
   return licenseDoc.data() ?? {};
 }
+
+export const managerUpsertCity = onCall<unknown, Promise<{ cityId: string; success: true }>>(
+  {
+    region: REGION,
+    memory: '256MiB',
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    try {
+      const managerId = getAuthenticatedUserId(request);
+      if (!managerId) throw new UnauthorizedError('Authentication required');
+
+      const parsed = ManagerUpsertCityInputSchema.safeParse(request.data);
+      if (!parsed.success) {
+        throw new ValidationError('Invalid city payload', parsed.error.flatten());
+      }
+
+      const data = parsed.data;
+      const cityId =
+        normalizeOptional(data.cityId) ?? `CITY_${normalizeIdFromCode(data.code)}`;
+      const profile = await assertManagerPermission(managerId, 'manage_cities');
+      if (!profile.isGlobalScope) {
+        throw new ForbiddenError('Only a global manager can create/update cities');
+      }
+
+      const db = getFirestore();
+      await db.collection('cities').doc(cityId).set(
+        {
+          cityId,
+          code: data.code.toUpperCase(),
+          nameAr: data.nameAr,
+          nameEn: normalizeOptional(data.nameEn ?? undefined),
+          governorateAr: normalizeOptional(data.governorateAr ?? undefined),
+          governorateEn: normalizeOptional(data.governorateEn ?? undefined),
+          center: data.center ?? null,
+          serviceRadiusKm: data.serviceRadiusKm ?? null,
+          status: data.status,
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: managerId,
+          createdAt: FieldValue.serverTimestamp(),
+          createdBy: managerId,
+        },
+        { merge: true }
+      );
+
+      return { cityId, success: true };
+    } catch (error) {
+      throw handleError(error);
+    }
+  }
+);
 
 export const managerUpsertOffice = onCall<unknown, Promise<{ officeId: string; success: true }>>(
   {
@@ -204,13 +269,21 @@ export const managerUpsertOffice = onCall<unknown, Promise<{ officeId: string; s
         throw new ForbiddenError('You cannot create/update this office');
       }
 
+      const cityId = normalizeOptional(data.cityId);
+      const cityData = cityId ? await ensureCityExists(cityId) : null;
+      const cityName = cityData
+        ? String(cityData.nameAr || cityData.nameEn || cityId)
+        : data.city!;
+
       const db = getFirestore();
       await db.collection('offices').doc(officeId).set(
         {
           officeId,
           name: data.name,
           code: data.code.toUpperCase(),
-          city: data.city,
+          cityId,
+          // Keep the old display field during migration; cityId is authoritative.
+          city: cityName,
           status: data.status,
           contactPhone: normalizeOptional(data.contactPhone),
           dispatchMode: data.dispatchMode,
@@ -245,21 +318,49 @@ export const managerUpsertLine = onCall<unknown, Promise<{ lineId: string; succe
       }
       const data = parsed.data;
       const lineId = normalizeOptional(data.lineId) ?? `LINE_${normalizeIdFromCode(data.code)}`;
+      const officeId = normalizeOptional(data.officeId ?? undefined);
 
-      await assertManagerPermission(managerId, 'manage_lines', {
-        officeId: data.officeId,
-        lineId,
-      });
-      await ensureOfficeExists(data.officeId);
+      const profile =
+        data.operatorType === 'independent'
+          ? await assertManagerPermission(managerId, 'manage_lines')
+          : await assertManagerPermission(managerId, 'manage_lines', {
+              officeId,
+              lineId,
+            });
+      if (data.operatorType === 'independent' && !profile.isGlobalScope) {
+        throw new ForbiddenError('Only a global manager can manage independent lines');
+      }
+      if (officeId) {
+        await ensureOfficeExists(officeId);
+      }
+      if (data.originCityId) await ensureCityExists(data.originCityId);
+      if (data.destinationCityId && data.destinationCityId !== data.originCityId) {
+        await ensureCityExists(data.destinationCityId);
+      }
 
       const minSeats = Math.min(data.minSeats, data.maxSeats);
       const maxSeats = Math.max(data.minSeats, data.maxSeats);
+      const routeFields = data.serviceType
+        ? {
+            serviceType: data.serviceType,
+            operatorType: data.operatorType,
+            originCityId: data.originCityId,
+            destinationCityId: data.destinationCityId,
+            originLabel: normalizeOptional(data.originLabel),
+            destinationLabel: normalizeOptional(data.destinationLabel),
+            distanceKm: data.distanceKm,
+            estimatedDurationMin: data.estimatedDurationMin,
+            pricingStrategy: data.pricingStrategy,
+            fixedPriceIls: data.fixedPriceIls ?? null,
+            bidirectional: data.bidirectional ?? false,
+          }
+        : {};
 
       const db = getFirestore();
       await db.collection('lines').doc(lineId).set(
         {
           lineId,
-          officeId: data.officeId,
+          officeId,
           name: data.name,
           code: data.code.toUpperCase(),
           status: data.status,
@@ -271,6 +372,7 @@ export const managerUpsertLine = onCall<unknown, Promise<{ lineId: string; succe
               : [...VEHICLE_TYPE_VALUES],
           pricingProfileId: normalizeOptional(data.pricingProfileId) ?? 'default',
           serviceAreaLabel: normalizeOptional(data.serviceAreaLabel),
+          ...routeFields,
           updatedAt: FieldValue.serverTimestamp(),
           updatedBy: managerId,
           createdAt: FieldValue.serverTimestamp(),

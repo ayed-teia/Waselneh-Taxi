@@ -559,6 +559,11 @@ service cloud.firestore {
     // =========================================================================
     // Operations Core Collections
     // =========================================================================
+    match /cities/{cityId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
     match /offices/{officeId} {
       allow read: if isManager();
       allow write: if false;
