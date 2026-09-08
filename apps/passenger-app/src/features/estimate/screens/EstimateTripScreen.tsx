@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Switch,
 } from 'react-native';
 
 import { estimateTrip, createTripRequest, EstimateTripResponse } from '../../../services/api';
@@ -41,6 +42,7 @@ export function EstimateTripScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
 
   // Handle estimate
   const handleEstimate = useCallback(async () => {
@@ -96,7 +98,13 @@ export function EstimateTripScreen() {
         lng: parseFloat(dropoffLng),
       };
 
-      const result = await createTripRequest(pickup, dropoff, estimate);
+      const result = await createTripRequest(
+        pickup,
+        dropoff,
+        estimate,
+        undefined,
+        useLoyaltyPoints ? Math.floor(estimate.priceIls * 10) : undefined
+      );
       
       // If already matched with a driver and trip created, go directly to trip screen
       if (result.status === 'matched' && result.tripId) {
@@ -129,7 +137,7 @@ export function EstimateTripScreen() {
     } finally {
       setIsRequesting(false);
     }
-  }, [estimate, pickupLat, pickupLng, dropoffLat, dropoffLng, router]);
+  }, [estimate, pickupLat, pickupLng, dropoffLat, dropoffLng, router, useLoyaltyPoints]);
 
   // Preset route buttons
   const setNablusToRamallah = () => {
@@ -301,6 +309,14 @@ export function EstimateTripScreen() {
               Pricing: ₪1 per 2 km (minimum ₪5)
             </Text>
 
+            <View style={styles.loyaltyRow}>
+              <View style={styles.loyaltyCopy}>
+                <Text style={styles.loyaltyTitle}>استخدم نقاطي</Text>
+                <Text style={styles.loyaltyText}>سيُطبّق أفضل خصم متاح من رصيدك (10 نقاط = ₪1).</Text>
+              </View>
+              <Switch value={useLoyaltyPoints} onValueChange={setUseLoyaltyPoints} />
+            </View>
+
             {/* Request Trip Button */}
             <View style={styles.requestButtonContainer}>
               <Button
@@ -464,6 +480,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
+  loyaltyRow: {
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderColor: '#6EE7B7',
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    padding: 14,
+  },
+  loyaltyCopy: { flex: 1, marginRight: 12 },
+  loyaltyTitle: { color: '#065F46', fontSize: 16, fontWeight: '700', textAlign: 'right' },
+  loyaltyText: { color: '#047857', fontSize: 12, lineHeight: 18, marginTop: 3, textAlign: 'right' },
   requestButtonContainer: {
     marginTop: 24,
   },

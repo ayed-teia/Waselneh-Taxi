@@ -125,6 +125,7 @@ export interface CreateTripRequestInput {
     priceIls: number;
   };
   rideOptions?: RideOptions;
+  loyaltyPointsToRedeem?: number;
 }
 
 /**
@@ -146,11 +147,15 @@ export async function createTripRequest(
   pickup: LatLng,
   dropoff: LatLng,
   estimate: EstimateTripResponse,
-  rideOptions?: RideOptions
+  rideOptions?: RideOptions,
+  loyaltyPointsToRedeem?: number
 ): Promise<CreateTripRequestResponse> {
   const payload: CreateTripRequestInput = { pickup, dropoff, estimate };
   if (rideOptions) {
     payload.rideOptions = rideOptions;
+  }
+  if (typeof loyaltyPointsToRedeem === 'number' && loyaltyPointsToRedeem > 0) {
+    payload.loyaltyPointsToRedeem = Math.floor(loyaltyPointsToRedeem);
   }
 
   return callFunction<CreateTripRequestInput, CreateTripRequestResponse>(
