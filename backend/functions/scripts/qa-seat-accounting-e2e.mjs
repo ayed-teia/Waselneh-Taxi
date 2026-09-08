@@ -214,28 +214,22 @@ async function main() {
       rideOptions,
     });
 
-    let rejectedBeforeOffer = false;
-    try {
-      await callCallable('createTripRequest', {
-        pickup,
-        dropoff,
-        estimate: {
-          distanceKm: estimate.distanceKm,
-          durationMin: estimate.durationMin,
-          priceIls: estimate.priceIls,
-        },
-        devUserId: passengerId,
-        rideOptions,
-      });
-    } catch (error) {
-      rejectedBeforeOffer = /no available drivers/i.test(
-        error instanceof Error ? error.message : String(error)
-      );
-    }
+    const created = await callCallable('createTripRequest', {
+      pickup,
+      dropoff,
+      estimate: {
+        distanceKm: estimate.distanceKm,
+        durationMin: estimate.durationMin,
+        priceIls: estimate.priceIls,
+      },
+      devUserId: passengerId,
+      rideOptions,
+    });
+    if (created?.requestId) cleanup.push(db.collection('tripRequests').doc(created.requestId));
 
     assert(
-      rejectedBeforeOffer,
-      `${SEAT_CAPACITY + 1}-seat request must not be offered to a ${SEAT_CAPACITY}-seat taxi`
+      created?.status === 'searching' && !created?.tripId,
+      `${SEAT_CAPACITY + 1}-seat request must stay searching instead of being offered to a ${SEAT_CAPACITY}-seat taxi`
     );
 
     const requests = await db.collection('driverRequests').doc(driverId).collection('requests').get();
