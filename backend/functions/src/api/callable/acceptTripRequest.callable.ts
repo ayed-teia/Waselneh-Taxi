@@ -36,6 +36,15 @@ function resolveDriverSeatState(driverData: Record<string, unknown>): {
   return { seatCapacity, availableSeats };
 }
 
+function requiresDriverRouteConfirmation(tripData: Record<string, unknown>): boolean {
+  const smartRoute = tripData.smartRoute;
+  return (
+    typeof smartRoute === 'object' &&
+    smartRoute !== null &&
+    (smartRoute as Record<string, unknown>).requiresDriverConfirmation === true
+  );
+}
+
 export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestResponse>>(
   {
     region: REGION,
@@ -98,7 +107,8 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
           throw new ForbiddenError('You are not assigned to this trip');
         }
 
-        if (tripData.smartRoute?.requiresDriverConfirmation === true && !routeSafetyConfirmed) {
+        const requiresRouteConfirmation = requiresDriverRouteConfirmation(tripData);
+        if (requiresRouteConfirmation && !routeSafetyConfirmed) {
           throw new ForbiddenError('Confirm the safe route before accepting this trip');
         }
 
@@ -152,7 +162,7 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
           requestedSeats,
           reservedSeats: seatsToReserve,
           routeSafetyConfirmedAt:
-            tripData.smartRoute?.requiresDriverConfirmation === true
+            requiresRouteConfirmation
               ? FieldValue.serverTimestamp()
               : null,
         });
@@ -161,7 +171,7 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
           status: 'accepted',
           acceptedAt: FieldValue.serverTimestamp(),
           reservedSeats: seatsToReserve,
-          routeSafetyConfirmed: routeSafetyConfirmed || tripData.smartRoute?.requiresDriverConfirmation !== true,
+          routeSafetyConfirmed: routeSafetyConfirmed || !requiresRouteConfirmation,
         });
 
         transaction.set(
