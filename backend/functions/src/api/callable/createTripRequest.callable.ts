@@ -543,8 +543,9 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         if (loyaltyPointsToRedeem > 0) {
           const passengerRef = db.collection('users').doc(passengerId);
           const passengerDoc = await transaction.get(passengerRef);
-          const availablePoints = typeof passengerDoc.data()?.loyaltyPoints === 'number'
-            ? Math.max(0, Math.floor(passengerDoc.data()!.loyaltyPoints))
+          const storedLoyaltyPoints: unknown = passengerDoc.data()?.loyaltyPoints;
+          const availablePoints = typeof storedLoyaltyPoints === 'number' && Number.isFinite(storedLoyaltyPoints)
+            ? Math.max(0, Math.floor(storedLoyaltyPoints))
             : 0;
           const maxRedeemablePoints = Math.min(availablePoints, Math.floor(serverCalculatedPriceIls * LOYALTY_POINTS_PER_ILS));
           loyaltyPointsRedeemed = Math.min(loyaltyPointsToRedeem, maxRedeemablePoints);
