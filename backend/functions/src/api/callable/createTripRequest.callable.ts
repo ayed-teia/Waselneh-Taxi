@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 10558)
-Total output lines: 1133
-
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
 import { isTaxiLineQueueEnabled,
@@ -581,7 +578,63 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       // R5 - SINGLE SOURCE OF TRUTH FOR THE SEARCH RADIUS.
       //
       // Two constants existed and BOTH were dead code, and they disagreed:
-      // …558 tokens truncated…      if (!driverData.lastLocation) {
+      //   PILOT_LIMITS.MAX_DRIVER_SEARCH_RADIUS_KM = 15  (shared, hardcoded)
+      //   MAX_SEARCH_RADIUS_METERS = 5000                (backend env)
+      //
+      // env.maxSearchRadiusMeters wins, because it is genuinely operator-tunable per
+      // environment (it is already set in backend/functions/.env) whereas a hardcoded
+      // shared constant would need a code change and a redeploy to adjust. The shared
+      // constant is now documented as deprecated and points here.
+      const maxSearchRadiusKm = env.maxSearchRadiusMeters / 1000;
+      let skippedVehicleTypeDrivers = 0;
+      let skippedCapacityDrivers = 0;
+      let skippedScopeDrivers = 0;
+      const driversWithDistance: Array<{
+        driverId: string;
+        distance: number;
+        vehicleType: VehicleType | null;
+        seatCapacity: number;
+        availableSeats: number;
+        doc: DriverDoc;
+      }> = [];
+
+      driversSnapshot.forEach((doc) => {
+        const driverData = doc.data() as DriverDoc;
+        const eligibility = evaluateDriverEligibility(driverData);
+        if (!eligibility.isEligible) {
+          skippedIneligibleDrivers += 1;
+          logger.debug(`Driver ${doc.id}: Ineligible - skipping`, {
+            reasons: eligibility.reasons,
+            driverType: eligibility.driverType,
+            verificationStatus: eligibility.verificationStatus,
+            lineId: eligibility.lineId,
+            licenseId: eligibility.licenseId,
+          });
+          return;
+        }
+
+        const driverOfficeId = sanitizeId(driverData.officeId);
+        const driverLineId = sanitizeId(driverData.lineId);
+        if (requestedLineId && driverLineId !== requestedLineId) {
+          skippedScopeDrivers += 1;
+          logger.debug(`Driver ${doc.id}: Line scope mismatch - skipping`, {
+            requestedLineId,
+            driverLineId,
+          });
+          return;
+        }
+
+        if (requestedOfficeId && driverOfficeId !== requestedOfficeId) {
+          skippedScopeDrivers += 1;
+          logger.debug(`Driver ${doc.id}: Office scope mismatch - skipping`, {
+            requestedOfficeId,
+            driverOfficeId,
+          });
+          return;
+        }
+        
+        // Skip drivers without location data
+        if (!driverData.lastLocation) {
           logger.debug(`Driver ${doc.id}: No location data - skipping`);
           return;
         }
