@@ -393,7 +393,12 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       const normalizedRideOptions: RideRequirements = {
         bookingType,
         requestedSeats,
-        requiredSeats: bookingType === BOOKING_TYPES.SEAT_ONLY ? 1 : normalizeRequestedSeats(rideOptions?.requiredSeats),
+        // Seat-only dispatch must filter on the passenger's complete seat request.
+        // Keeping this at 1 lets an undersized taxi receive the offer and delays the
+        // inevitable rejection until acceptTripRequest, after the passenger has
+        // already been told that a driver was found. Full-taxi reservations resolve
+        // their exact seat count from the driver's live capacity at acceptance.
+        requiredSeats: bookingType === BOOKING_TYPES.SEAT_ONLY ? requestedSeats : 1,
         vehicleType: normalizeVehicleType(rideOptions?.vehicleType),
         officeId: sanitizeId(rideOptions?.officeId),
         lineId: sanitizeId(rideOptions?.lineId),
