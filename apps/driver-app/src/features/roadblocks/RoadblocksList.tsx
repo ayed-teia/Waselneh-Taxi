@@ -11,10 +11,12 @@
   waselnehShadows,
   waselnehSpacing,
 } from '@waselneh/ui';
+import * as Location from 'expo-location';
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { useI18n } from '../../localization';
+import { reportCheckpoint } from '../../services/api';
 import { RoadblockData, getRoadblockStatusDisplay, subscribeToAllRoadblocks } from '../../services/realtime';
 
 /**
@@ -26,6 +28,7 @@ export function RoadblocksList() {
   const [roadblocks, setRoadblocks] = useState<RoadblockData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     const unsubscribe = subscribeToAllRoadblocks(
@@ -83,12 +86,44 @@ export function RoadblocksList() {
     );
   };
 
+  const handleReport = async (status: 'closed' | 'congested' | 'open') => {
+    setReporting(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') throw new Error(isRTL ? 'لازم تسمح بالوصول للموقع.' : 'Location permission is required.');
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const result = await reportCheckpoint(
+        { lat: position.coords.latitude, lng: position.coords.longitude },
+        status
+      );
+      Alert.alert(
+        isRTL ? 'تم إرسال البلاغ' : 'Report submitted',
+        isRTL
+          ? `بانتظار مراجعة الإدارة. درجة الثقة الحالية ${Math.round(result.confidence * 100)}٪.`
+          : `Awaiting operations review. Current confidence is ${Math.round(result.confidence * 100)}%.`
+      );
+    } catch (reportError) {
+      Alert.alert(isRTL ? 'تعذّر إرسال البلاغ' : 'Report failed', reportError instanceof Error ? reportError.message : String(reportError));
+    } finally {
+      setReporting(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Header
         title={isRTL ? 'إغلاقات الطريق' : 'Roadblocks'}
         subtitle={isRTL ? `${activeCount} حالة نشطة` : `${activeCount} active condition${activeCount !== 1 ? 's' : ''}`}
       />
+
+      <View style={styles.reportBar}>
+        <UIText style={styles.reportTitle}>{isRTL ? 'بلّغ من موقعك الحالي' : 'Report from current location'}</UIText>
+        <View style={styles.reportActions}>
+          <Pressable disabled={reporting} style={[styles.reportButton, styles.closed]} onPress={() => handleReport('closed')}><UIText style={styles.reportButtonText}>{isRTL ? 'مغلق' : 'Closed'}</UIText></Pressable>
+          <Pressable disabled={reporting} style={[styles.reportButton, styles.congested]} onPress={() => handleReport('congested')}><UIText style={styles.reportButtonText}>{isRTL ? 'ازدحام' : 'Congested'}</UIText></Pressable>
+          <Pressable disabled={reporting} style={[styles.reportButton, styles.open]} onPress={() => handleReport('open')}><UIText style={styles.reportButtonText}>{isRTL ? 'سالِك' : 'Clear'}</UIText></Pressable>
+        </View>
+      </View>
 
       {loading ? (
         <LoadingState title={isRTL ? 'جارٍ تحميل حالة الطريق...' : 'Loading road conditions...'} />
@@ -128,6 +163,14 @@ const styles = StyleSheet.create({
     padding: waselnehSpacing.lg,
     gap: waselnehSpacing.sm,
   },
+  reportBar: { paddingHorizontal: waselnehSpacing.lg, paddingBottom: waselnehSpacing.sm, gap: 8 },
+  reportTitle: { fontWeight: '700' },
+  reportActions: { flexDirection: 'row', gap: 8 },
+  reportButton: { flex: 1, minHeight: 42, borderRadius: waselnehRadius.md, alignItems: 'center', justifyContent: 'center' },
+  reportButtonText: { color: '#FFFFFF', fontWeight: '800' },
+  closed: { backgroundColor: '#DC2626' },
+  congested: { backgroundColor: '#D97706' },
+  open: { backgroundColor: '#16A34A' },
   card: {
     borderRadius: waselnehRadius.xl,
     borderColor: '#DDE3F0',
