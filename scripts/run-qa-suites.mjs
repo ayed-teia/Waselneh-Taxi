@@ -34,6 +34,7 @@ const SUITES = [
   'qa-seat-accounting-e2e.mjs',
   'qa-search-radius-e2e.mjs',
   'qa-line-queue-e2e.mjs',
+  'qa-operations-core-e2e.mjs',
   'qa-driver-onboarding-e2e.mjs',
   'qa-manager-login-e2e.mjs',
   'qa-otp-auth-e2e.mjs',

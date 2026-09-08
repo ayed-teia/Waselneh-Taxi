@@ -5,6 +5,7 @@ import {
   CollectionItem,
   linkDriverToOperations,
   subscribeCollection,
+  upsertCity,
   upsertLicense,
   upsertLine,
   upsertOffice,
@@ -18,6 +19,7 @@ import './OperationsPage.css';
 type GenericDoc = Record<string, unknown>;
 
 interface SnapshotState {
+  cities: CollectionItem<GenericDoc>[];
   offices: CollectionItem<GenericDoc>[];
   lines: CollectionItem<GenericDoc>[];
   licenses: CollectionItem<GenericDoc>[];
@@ -28,6 +30,7 @@ interface SnapshotState {
 }
 
 const INITIAL_SNAPSHOTS: SnapshotState = {
+  cities: [],
   offices: [],
   lines: [],
   licenses: [],
@@ -48,6 +51,10 @@ function commaSeparatedList(input: string): string[] {
     .filter((value) => value.length > 0);
 }
 
+function optionalNumber(input: string): number | undefined {
+  return input.trim() ? Number(input) : undefined;
+}
+
 export function OperationsPage() {
   const { txt } = useI18n();
   const [snapshots, setSnapshots] = useState<SnapshotState>(INITIAL_SNAPSHOTS);
@@ -55,11 +62,23 @@ export function OperationsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [cityForm, setCityForm] = useState({
+    cityId: '',
+    code: '',
+    nameAr: '',
+    nameEn: '',
+    governorateAr: '',
+    governorateEn: '',
+    centerLat: '',
+    centerLng: '',
+    serviceRadiusKm: '',
+  });
+
   const [officeForm, setOfficeForm] = useState({
     officeId: '',
     name: '',
     code: '',
-    city: '',
+    cityId: '',
     contactPhone: '',
     dispatchMode: 'line_based' as 'line_based' | 'hybrid',
   });
@@ -74,6 +93,17 @@ export function OperationsPage() {
     pricingProfileId: 'default',
     serviceAreaLabel: '',
     allowedVehicleTypes: 'taxi_standard,family_van,minibus,premium',
+    serviceType: 'inter_city' as 'intra_city' | 'inter_city',
+    operatorType: 'office' as 'office' | 'independent',
+    originCityId: '',
+    destinationCityId: '',
+    originLabel: '',
+    destinationLabel: '',
+    distanceKm: '',
+    estimatedDurationMin: '',
+    pricingStrategy: 'distance' as 'distance' | 'fixed' | 'hybrid',
+    fixedPriceIls: '',
+    bidirectional: true,
   });
 
   const [licenseForm, setLicenseForm] = useState({
@@ -147,6 +177,9 @@ export function OperationsPage() {
 
   useEffect(() => {
     const unsubscribers = [
+      subscribeCollection('cities', (items) =>
+        setSnapshots((current) => ({ ...current, cities: items }))
+      ),
       subscribeCollection('offices', (items) =>
         setSnapshots((current) => ({ ...current, offices: items }))
       ),
@@ -172,6 +205,15 @@ export function OperationsPage() {
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, []);
+
+  const cityOptions = useMemo(
+    () =>
+      snapshots.cities.map((city) => ({
+        id: city.id,
+        label: `${asString(city.data.code) || city.id} - ${asString(city.data.nameAr) || asString(city.data.nameEn) || 'Unnamed city'}`,
+      })),
+    [snapshots.cities]
+  );
 
   const officeOptions = useMemo(
     () =>
@@ -205,6 +247,28 @@ export function OperationsPage() {
     }
   };
 
+  const onSubmitCity = async (event: FormEvent) => {
+    event.preventDefault();
+    await safeRun('city', async () => {
+      const hasCenter = cityForm.centerLat.trim() && cityForm.centerLng.trim();
+      const result = await upsertCity({
+        cityId: cityForm.cityId || undefined,
+        code: cityForm.code,
+        nameAr: cityForm.nameAr,
+        nameEn: cityForm.nameEn || undefined,
+        governorateAr: cityForm.governorateAr || undefined,
+        governorateEn: cityForm.governorateEn || undefined,
+        center: hasCenter
+          ? { lat: Number(cityForm.centerLat), lng: Number(cityForm.centerLng) }
+          : undefined,
+        serviceRadiusKm: optionalNumber(cityForm.serviceRadiusKm),
+      });
+      if (!cityForm.cityId) {
+        setCityForm((current) => ({ ...current, cityId: result.cityId }));
+      }
+    });
+  };
+
   const onSubmitOffice = async (event: FormEvent) => {
     event.preventDefault();
     await safeRun('office', async () => {
@@ -212,7 +276,7 @@ export function OperationsPage() {
         officeId: officeForm.officeId || undefined,
         name: officeForm.name,
         code: officeForm.code,
-        city: officeForm.city,
+        cityId: officeForm.cityId,
         contactPhone: officeForm.contactPhone || undefined,
         dispatchMode: officeForm.dispatchMode,
       });
@@ -227,7 +291,7 @@ export function OperationsPage() {
     await safeRun('line', async () => {
       const result = await upsertLine({
         lineId: lineForm.lineId || undefined,
-        officeId: lineForm.officeId,
+        officeId: lineForm.operatorType === 'office' ? lineForm.officeId : undefined,
         name: lineForm.name,
         code: lineForm.code,
         minSeats: Number(lineForm.minSeats),
@@ -235,6 +299,17 @@ export function OperationsPage() {
         pricingProfileId: lineForm.pricingProfileId || undefined,
         serviceAreaLabel: lineForm.serviceAreaLabel || undefined,
         allowedVehicleTypes: commaSeparatedList(lineForm.allowedVehicleTypes),
+        serviceType: lineForm.serviceType,
+        operatorType: lineForm.operatorType,
+        originCityId: lineForm.originCityId,
+        destinationCityId: lineForm.destinationCityId,
+        originLabel: lineForm.originLabel || undefined,
+        destinationLabel: lineForm.destinationLabel || undefined,
+        distanceKm: Number(lineForm.distanceKm),
+        estimatedDurationMin: Number(lineForm.estimatedDurationMin),
+        pricingStrategy: lineForm.pricingStrategy,
+        fixedPriceIls: optionalNumber(lineForm.fixedPriceIls),
+        bidirectional: lineForm.bidirectional,
       });
       if (!lineForm.lineId) {
         setLineForm((current) => ({ ...current, lineId: result.lineId }));
@@ -363,12 +438,26 @@ export function OperationsPage() {
       {error ? <div className="ops-banner error">{error}</div> : null}
 
       <section className="ops-grid">
+        <form className="ops-card" onSubmit={onSubmitCity}>
+          <h3>City</h3>
+          <input placeholder="cityId (optional)" value={cityForm.cityId} onChange={(e) => setCityForm((s) => ({ ...s, cityId: e.target.value }))} />
+          <input placeholder="Code" value={cityForm.code} onChange={(e) => setCityForm((s) => ({ ...s, code: e.target.value }))} required />
+          <input placeholder="Arabic name" value={cityForm.nameAr} onChange={(e) => setCityForm((s) => ({ ...s, nameAr: e.target.value }))} required />
+          <input placeholder="English name (optional)" value={cityForm.nameEn} onChange={(e) => setCityForm((s) => ({ ...s, nameEn: e.target.value }))} />
+          <input placeholder="Arabic governorate (optional)" value={cityForm.governorateAr} onChange={(e) => setCityForm((s) => ({ ...s, governorateAr: e.target.value }))} />
+          <input placeholder="English governorate (optional)" value={cityForm.governorateEn} onChange={(e) => setCityForm((s) => ({ ...s, governorateEn: e.target.value }))} />
+          <input placeholder="Center latitude (optional)" value={cityForm.centerLat} onChange={(e) => setCityForm((s) => ({ ...s, centerLat: e.target.value }))} />
+          <input placeholder="Center longitude (optional)" value={cityForm.centerLng} onChange={(e) => setCityForm((s) => ({ ...s, centerLng: e.target.value }))} />
+          <input placeholder="Service radius KM (optional)" value={cityForm.serviceRadiusKm} onChange={(e) => setCityForm((s) => ({ ...s, serviceRadiusKm: e.target.value }))} />
+          <button disabled={saving === 'city'} type="submit">{saving === 'city' ? txt('جارٍ الحفظ...', 'Saving...') : txt('حفظ المدينة', 'Save City')}</button>
+        </form>
+
         <form className="ops-card" onSubmit={onSubmitOffice}>
           <h3>Office</h3>
           <input placeholder="officeId (optional)" value={officeForm.officeId} onChange={(e) => setOfficeForm((s) => ({ ...s, officeId: e.target.value }))} />
           <input placeholder="Name" value={officeForm.name} onChange={(e) => setOfficeForm((s) => ({ ...s, name: e.target.value }))} required />
           <input placeholder="Code" value={officeForm.code} onChange={(e) => setOfficeForm((s) => ({ ...s, code: e.target.value }))} required />
-          <input placeholder="City" value={officeForm.city} onChange={(e) => setOfficeForm((s) => ({ ...s, city: e.target.value }))} required />
+          <input placeholder="City ID" list="city-list" value={officeForm.cityId} onChange={(e) => setOfficeForm((s) => ({ ...s, cityId: e.target.value }))} required />
           <input placeholder="Contact phone" value={officeForm.contactPhone} onChange={(e) => setOfficeForm((s) => ({ ...s, contactPhone: e.target.value }))} />
           <select value={officeForm.dispatchMode} onChange={(e) => setOfficeForm((s) => ({ ...s, dispatchMode: e.target.value as 'line_based' | 'hybrid' }))}>
             <option value="line_based">line_based</option>
@@ -380,13 +469,38 @@ export function OperationsPage() {
         <form className="ops-card" onSubmit={onSubmitLine}>
           <h3>Line</h3>
           <input placeholder="lineId (optional)" value={lineForm.lineId} onChange={(e) => setLineForm((s) => ({ ...s, lineId: e.target.value }))} />
-          <input placeholder="Office ID" list="office-list" value={lineForm.officeId} onChange={(e) => setLineForm((s) => ({ ...s, officeId: e.target.value }))} required />
+          <select value={lineForm.operatorType} onChange={(e) => setLineForm((s) => ({ ...s, operatorType: e.target.value as 'office' | 'independent' }))}>
+            <option value="office">office</option>
+            <option value="independent">independent</option>
+          </select>
+          <input placeholder="Office ID" list="office-list" value={lineForm.officeId} onChange={(e) => setLineForm((s) => ({ ...s, officeId: e.target.value }))} required={lineForm.operatorType === 'office'} disabled={lineForm.operatorType === 'independent'} />
           <input placeholder="Name" value={lineForm.name} onChange={(e) => setLineForm((s) => ({ ...s, name: e.target.value }))} required />
           <input placeholder="Code" value={lineForm.code} onChange={(e) => setLineForm((s) => ({ ...s, code: e.target.value }))} required />
+          <select value={lineForm.serviceType} onChange={(e) => setLineForm((s) => ({ ...s, serviceType: e.target.value as 'intra_city' | 'inter_city' }))}>
+            <option value="inter_city">inter_city</option>
+            <option value="intra_city">intra_city</option>
+          </select>
+          <input placeholder="Origin city ID" list="city-list" value={lineForm.originCityId} onChange={(e) => setLineForm((s) => ({ ...s, originCityId: e.target.value }))} required />
+          <input placeholder="Destination city ID" list="city-list" value={lineForm.destinationCityId} onChange={(e) => setLineForm((s) => ({ ...s, destinationCityId: e.target.value }))} required />
+          <input placeholder="Origin label (optional)" value={lineForm.originLabel} onChange={(e) => setLineForm((s) => ({ ...s, originLabel: e.target.value }))} />
+          <input placeholder="Destination label (optional)" value={lineForm.destinationLabel} onChange={(e) => setLineForm((s) => ({ ...s, destinationLabel: e.target.value }))} />
+          <input placeholder="Distance KM" value={lineForm.distanceKm} onChange={(e) => setLineForm((s) => ({ ...s, distanceKm: e.target.value }))} required />
+          <input placeholder="Estimated duration minutes" value={lineForm.estimatedDurationMin} onChange={(e) => setLineForm((s) => ({ ...s, estimatedDurationMin: e.target.value }))} required />
           <input placeholder="Min seats" value={lineForm.minSeats} onChange={(e) => setLineForm((s) => ({ ...s, minSeats: e.target.value }))} required />
           <input placeholder="Max seats" value={lineForm.maxSeats} onChange={(e) => setLineForm((s) => ({ ...s, maxSeats: e.target.value }))} required />
           <input placeholder="Pricing profile id" value={lineForm.pricingProfileId} onChange={(e) => setLineForm((s) => ({ ...s, pricingProfileId: e.target.value }))} />
+          <select value={lineForm.pricingStrategy} onChange={(e) => setLineForm((s) => ({ ...s, pricingStrategy: e.target.value as 'distance' | 'fixed' | 'hybrid' }))}>
+            <option value="distance">distance</option>
+            <option value="fixed">fixed</option>
+            <option value="hybrid">hybrid</option>
+          </select>
+          <input placeholder="Fixed price ILS" value={lineForm.fixedPriceIls} onChange={(e) => setLineForm((s) => ({ ...s, fixedPriceIls: e.target.value }))} required={lineForm.pricingStrategy !== 'distance'} />
+          <input placeholder="Service area label (optional)" value={lineForm.serviceAreaLabel} onChange={(e) => setLineForm((s) => ({ ...s, serviceAreaLabel: e.target.value }))} />
           <input placeholder="Allowed vehicle types (csv)" value={lineForm.allowedVehicleTypes} onChange={(e) => setLineForm((s) => ({ ...s, allowedVehicleTypes: e.target.value }))} />
+          <label className="checkbox">
+            <input type="checkbox" checked={lineForm.bidirectional} onChange={(e) => setLineForm((s) => ({ ...s, bidirectional: e.target.checked }))} />
+            {txt('اتجاهان', 'Bidirectional')}
+          </label>
           <button disabled={saving === 'line'} type="submit">{saving === 'line' ? txt('جارٍ الحفظ...', 'Saving...') : txt('حفظ الخط', 'Save Line')}</button>
         </form>
 
@@ -487,6 +601,7 @@ export function OperationsPage() {
       <section className="ops-snapshot">
         <h3>{txt('اللقطة الحالية', 'Current Snapshot')}</h3>
         <div className="snapshot-grid">
+          <div><strong>{txt('المدن', 'Cities')}</strong><span>{snapshots.cities.length}</span></div>
           <div><strong>{txt('المكاتب', 'Offices')}</strong><span>{snapshots.offices.length}</span></div>
           <div><strong>{txt('الخطوط', 'Lines')}</strong><span>{snapshots.lines.length}</span></div>
           <div><strong>{txt('الرخص', 'Licenses')}</strong><span>{snapshots.licenses.length}</span></div>
@@ -497,6 +612,13 @@ export function OperationsPage() {
         </div>
       </section>
 
+      <datalist id="city-list">
+        {cityOptions.map((city) => (
+          <option key={city.id} value={city.id}>
+            {city.label}
+          </option>
+        ))}
+      </datalist>
       <datalist id="office-list">
         {officeOptions.map((office) => (
           <option key={office.id} value={office.id}>

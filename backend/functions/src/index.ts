@@ -88,6 +88,7 @@ export {
   devIssueDriverToken,
   devIssueManagerToken,
   getManagerSession,
+  managerUpsertCity,
   managerUpsertOffice,
   managerUpsertLine,
   managerUpsertLicense,
