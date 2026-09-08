@@ -743,5 +743,10 @@ service cloud.firestore {
       // Writes go through validated, audited manager callables only.
       allow write: if false;
     }
+
+    match /checkpointReports/{reportId} {
+      allow read: if isManager() || (isAuthenticated() && resource.data.driverId == request.auth.uid);
+      allow write: if false;
+    }
   }
 }

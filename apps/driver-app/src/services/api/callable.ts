@@ -99,6 +99,14 @@ export async function advanceRouteRun(
   >('advanceRouteRun', { runId, targetStatus });
 }
 
+export async function reportCheckpoint(
+  location: LatLng,
+  status: 'closed' | 'congested' | 'open',
+  note?: string
+): Promise<{ reportId: string; moderationStatus: 'pending'; confidence: number; corroboratingDrivers: number }> {
+  return callFunction('reportCheckpoint', { location, status, note });
+}
+
 /**
  * Lifecycle response type
  */

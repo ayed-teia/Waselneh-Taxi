@@ -2,6 +2,11 @@ import { FormEvent, useEffect, useState } from 'react';
 
 import { useI18n } from '../localization';
 import {
+  CheckpointReportData,
+  reviewCheckpointReport,
+  subscribeToPendingCheckpointReports,
+} from '../services/checkpoint-reports.service';
+import {
   RoadblockData,
   createRoadblock,
   deleteRoadblock,
@@ -44,6 +49,7 @@ export function RoadblocksPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNote, setEditNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [pendingReports, setPendingReports] = useState<CheckpointReportData[]>([]);
 
   useEffect(() => {
     const unsubscribe = subscribeToRoadblocks(
@@ -58,6 +64,28 @@ export function RoadblocksPage() {
     );
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => subscribeToPendingCheckpointReports(
+    setPendingReports,
+    (error) => console.error('Checkpoint reports subscription error:', error)
+  ), []);
+
+  const handleReportReview = async (report: CheckpointReportData, decision: 'approved' | 'rejected') => {
+    setSaving(true);
+    try {
+      await reviewCheckpointReport(report.id, decision, decision === 'approved' ? {
+        name: report.note || txt('حاجز مُبلّغ من السائقين', 'Driver-reported checkpoint'),
+        radiusMeters: 500,
+        delayMin: report.status === 'closed' ? 20 : report.status === 'congested' ? 10 : 0,
+        surchargeIls: 0,
+      } : undefined);
+    } catch (error) {
+      console.error('Failed to review checkpoint report:', error);
+      alert(txt('تعذّرت مراجعة البلاغ.', 'Failed to review report.'));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
@@ -236,6 +264,32 @@ export function RoadblocksPage() {
             </button>
           </div>
         </form>
+      ) : null}
+
+      {pendingReports.length > 0 ? (
+        <section className="pending-reports">
+          <h3>{txt(`بلاغات بانتظار المراجعة (${pendingReports.length})`, `Pending driver reports (${pendingReports.length})`)}</h3>
+          <div className="roadblocks-list">
+            {pendingReports.map((report) => (
+              <div key={report.id} className={`roadblock-card status-${report.status}`}>
+                <div className="roadblock-header">
+                  <div>
+                    <strong>{report.note || txt('بلاغ سائق عن الطريق', 'Driver road report')}</strong>
+                    <div>{report.lat.toFixed(4)}, {report.lng.toFixed(4)}</div>
+                    <small>{txt(
+                      `${report.corroboratingDrivers} سائق · ثقة ${Math.round(report.confidence * 100)}٪`,
+                      `${report.corroboratingDrivers} driver(s) · ${Math.round(report.confidence * 100)}% confidence`
+                    )}</small>
+                  </div>
+                  <div className="roadblock-actions">
+                    <button className="btn-save" disabled={saving} onClick={() => handleReportReview(report, 'approved')}>{txt('اعتماد', 'Approve')}</button>
+                    <button className="btn-delete" disabled={saving} onClick={() => handleReportReview(report, 'rejected')}>{txt('رفض', 'Reject')}</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       <div className="summary-cards">

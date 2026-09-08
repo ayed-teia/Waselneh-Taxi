@@ -73,7 +73,9 @@ async function main() {
   const scopedManagerId = 'qa-operations-scoped-' + suffix;
   const managerRoleRef = db.collection('managerRoles').doc(managerId);
   const scopedRoleRef = db.collection('managerRoles').doc(scopedManagerId);
-  cleanup.push(managerRoleRef, scopedRoleRef);
+  const reportingDriverId = 'qa-reporting-driver-' + suffix;
+  const reportingDriverRef = db.collection('drivers').doc(reportingDriverId);
+  cleanup.push(managerRoleRef, scopedRoleRef, reportingDriverRef);
 
   await managerRoleRef.set({
     uid: managerId,
@@ -91,6 +93,7 @@ async function main() {
     lineIds: [],
     isActive: true,
   });
+  await reportingDriverRef.set({ verificationStatus: 'approved', isOnline: true });
 
   let originCityId;
   let destinationCityId;
@@ -234,6 +237,42 @@ async function main() {
     pass('Inter-city validation rejects identical origin and destination');
   } catch (error) {
     fail('Inter-city validation rejects identical origin and destination', String(error));
+  }
+
+  try {
+    const submitted = await callCallable('reportCheckpoint', {
+      devUserId: reportingDriverId,
+      location: { lat: 32.3, lng: 35.27 },
+      status: 'closed',
+      note: 'QA driver report',
+    });
+    const reportRef = db.collection('checkpointReports').doc(submitted.reportId);
+    cleanup.push(reportRef);
+    assert(submitted.moderationStatus === 'pending', 'driver report bypassed moderation');
+    const reviewed = await callCallable('managerReviewCheckpointReport', {
+      devUserId: managerId,
+      reportId: submitted.reportId,
+      decision: 'approved',
+      name: 'Approved QA checkpoint',
+      radiusMeters: 500,
+      delayMin: 20,
+      surchargeIls: 2,
+    });
+    assert(reviewed.roadblockId, 'approved report did not create a roadblock');
+    const approvedRef = db.collection('roadblocks').doc(reviewed.roadblockId);
+    cleanup.push(approvedRef);
+    const approved = (await approvedRef.get()).data() ?? {};
+    assert(approved.source === 'driver_report', 'approved checkpoint source is incorrect');
+    assert(approved.delayMin === 20, 'approved delay was not persisted');
+    await expectCallableFailure(
+      'managerReviewCheckpointReport',
+      { devUserId: managerId, reportId: submitted.reportId, decision: 'approved' },
+      'already reviewed'
+    );
+    await callCallable('managerDeleteRoadblock', { devUserId: managerId, roadblockId: reviewed.roadblockId });
+    pass('Approved driver report becomes an operational checkpoint only after moderation');
+  } catch (error) {
+    fail('Approved driver report becomes an operational checkpoint only after moderation', String(error));
   }
 
   try {
