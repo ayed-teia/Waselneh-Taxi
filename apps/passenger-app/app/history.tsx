@@ -61,6 +61,11 @@ export default function History() {
             <Text style={styles.backButtonText}>{isRTL ? 'رجوع >' : '< Back'}</Text>
           </Pressable>
         }
+        rightAction={
+          <Pressable onPress={() => router.push('/loyalty')} style={styles.backButton}>
+            <Text style={styles.backButtonText}>{isRTL ? 'نقاطي' : 'My points'}</Text>
+          </Pressable>
+        }
       />
 
       {loading ? (
