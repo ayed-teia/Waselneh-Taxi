@@ -93,7 +93,10 @@ const CreateTripRequestSchema = z.object({
   dropoff: LatLngSchema,
   estimate: TripEstimateSchema,
   rideOptions: RideOptionsSchema.optional(),
+  loyaltyPointsToRedeem: z.number().int().min(0).max(100_000).optional(),
 });
+
+const LOYALTY_POINTS_PER_ILS = 10;
 
 /**
  * Response type for trip request creation
@@ -150,6 +153,8 @@ interface TripRequestDocument {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  loyaltyDiscountIls: number;
+  loyaltyPointsRedeemed: number;
   smartRoute: {
     selectedIndex: number;
     reason: string;
@@ -401,7 +406,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         );
       }
 
-      const { pickup, dropoff, estimate, rideOptions } = parsed.data;
+      const { pickup, dropoff, estimate, rideOptions, loyaltyPointsToRedeem = 0 } = parsed.data;
       const bookingType = normalizeBookingType(rideOptions?.bookingType);
       const requestedSeats = getRequestedSeatsForBookingType(
         bookingType,
@@ -491,7 +496,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       const serverRoadblockSurchargeIls = Math.ceil(
         smartRoute.affectedRoadblocks.reduce((sum, item) => sum + item.surchargeIls, 0)
       );
-      const serverCalculatedPriceIls = pricingResult.priceIls + serverRoadblockSurchargeIls;
+      let serverCalculatedPriceIls = pricingResult.priceIls + serverRoadblockSurchargeIls;
       const serverEstimatedDurationMin = smartRoute.durationMin;
       const serverSmartRoute = {
         selectedIndex: smartRoute.selectedIndex,
@@ -511,6 +516,8 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
 
       const tripRequestRef = db.collection('tripRequests').doc();
       const requestId = tripRequestRef.id;
+      let loyaltyPointsRedeemed = 0;
+      let loyaltyDiscountIls = 0;
 
       const tripRequestDoc: TripRequestDocument = {
         requestId,
@@ -520,6 +527,8 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         estimatedDistanceKm: smartRoute.distanceKm,
         estimatedDurationMin: serverEstimatedDurationMin,
         estimatedPriceIls: serverCalculatedPriceIls,
+        loyaltyDiscountIls,
+        loyaltyPointsRedeemed,
         smartRoute: serverSmartRoute,
         rideOptions: {
           ...normalizedRideOptions,
@@ -530,7 +539,36 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         createdAt: FieldValue.serverTimestamp(),
       };
 
-      await tripRequestRef.set(tripRequestDoc);
+      await db.runTransaction(async (transaction) => {
+        if (loyaltyPointsToRedeem > 0) {
+          const passengerRef = db.collection('users').doc(passengerId);
+          const passengerDoc = await transaction.get(passengerRef);
+          const availablePoints = typeof passengerDoc.data()?.loyaltyPoints === 'number'
+            ? Math.max(0, Math.floor(passengerDoc.data()!.loyaltyPoints))
+            : 0;
+          const maxRedeemablePoints = Math.min(availablePoints, Math.floor(serverCalculatedPriceIls * LOYALTY_POINTS_PER_ILS));
+          loyaltyPointsRedeemed = Math.min(loyaltyPointsToRedeem, maxRedeemablePoints);
+          loyaltyDiscountIls = Math.floor(loyaltyPointsRedeemed / LOYALTY_POINTS_PER_ILS);
+          serverCalculatedPriceIls -= loyaltyDiscountIls;
+          transaction.set(passengerRef.collection('loyaltyLedger').doc(requestId), {
+            tripRequestId: requestId,
+            type: 'trip_discount_redeemed',
+            points: -loyaltyPointsRedeemed,
+            discountIls: loyaltyDiscountIls,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+          transaction.set(passengerRef, {
+            loyaltyPoints: FieldValue.increment(-loyaltyPointsRedeemed),
+            loyaltyUpdatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+        transaction.set(tripRequestRef, {
+          ...tripRequestDoc,
+          estimatedPriceIls: serverCalculatedPriceIls,
+          loyaltyDiscountIls,
+          loyaltyPointsRedeemed,
+        });
+      });
       logger.info('📋 [CreateTrip] Trip request created', { requestId });
 
       // ========================================
