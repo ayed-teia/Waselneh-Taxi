@@ -145,10 +145,13 @@ export function TripRequestModal() {
       return;
     }
 
+    const requiresRouteConfirmation = pendingRequest.smartRoute?.requiresDriverConfirmation === true;
     const hasConfirmed = await new Promise<boolean>((resolve) => {
       Alert.alert(
-        t('request.accept_confirm_title'),
-        t('request.accept_confirm_body'),
+        requiresRouteConfirmation ? 'تأكيد الطريق الآمن' : t('request.accept_confirm_title'),
+        requiresRouteConfirmation
+          ? 'كل المسارات المتاحة متأثرة بحاجز. أكّد أنك راجعت الطريق الآمن قبل قبول هذه الرحلة.'
+          : t('request.accept_confirm_body'),
         [
           { text: t('request.cancel'), style: 'cancel', onPress: () => resolve(false) },
           { text: t('request.accept'), onPress: () => resolve(true) },
@@ -165,7 +168,7 @@ export function TripRequestModal() {
     console.log('[TripRequestModal] Accepting trip:', pendingRequest.tripId);
 
     try {
-      const result = await acceptTripRequest(pendingRequest.tripId);
+      const result = await acceptTripRequest(pendingRequest.tripId, requiresRouteConfirmation);
       console.log('[TripRequestModal] Trip accepted:', result.tripId);
 
       hideRequest();
@@ -185,7 +188,7 @@ export function TripRequestModal() {
 
       setError(message);
     }
-  }, [isAcceptReady, isProcessing, pendingRequest, router, hideRequest, setProcessing, setError]);
+  }, [isAcceptReady, isProcessing, pendingRequest, router, hideRequest, setProcessing, setError, t]);
 
   const handleReject = useCallback(async () => {
     if (!pendingRequest) {
@@ -348,6 +351,14 @@ export function TripRequestModal() {
                 </View>
               </View>
             ) : null}
+
+            {pendingRequest.smartRoute?.requiresDriverConfirmation ? (
+              <View style={styles.routeSafetyNotice}>
+                <Text style={styles.routeSafetyText}>
+                  تنبيه: لا يوجد مسار خالٍ بالكامل من الحواجز. يلزم تأكيدك للطريق الآمن قبل القبول.
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {errorMessage && (
@@ -480,6 +491,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
+  routeSafetyNotice: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FB923C',
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 12,
+  },
+  routeSafetyText: {
+    color: '#9A3412',
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+    textAlign: 'right',
+  },
   buttonsContainer: {
     flexDirection: 'row',
     gap: 12,
@@ -491,4 +517,3 @@ const styles = StyleSheet.create({
     flex: 2,
   },
 });
-

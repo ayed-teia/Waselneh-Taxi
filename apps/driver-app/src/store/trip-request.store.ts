@@ -36,6 +36,10 @@ export interface TripRequest {
   requestedVehicleType?: string | null;
   driverVehicleType?: string | null;
   driverSeatCapacity?: number;
+  smartRoute?: {
+    reason?: string;
+    requiresDriverConfirmation?: boolean;
+  };
   pickupDistanceKm: number; // Calculated from driver's location
   status: 'pending' | 'accepted' | 'rejected' | 'expired';
   createdAt: Date | null;

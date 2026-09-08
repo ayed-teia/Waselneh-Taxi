@@ -12,6 +12,7 @@ import { assertDriverIsLicensedLineOwner } from '../../modules/auth';
 
 const AcceptTripRequestSchema = z.object({
   tripId: z.string().min(1),
+  routeSafetyConfirmed: z.boolean().optional(),
 });
 
 interface AcceptTripRequestResponse {
@@ -54,7 +55,7 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
         throw new ValidationError('Invalid accept request', parsed.error.flatten());
       }
 
-      const { tripId } = parsed.data;
+      const { tripId, routeSafetyConfirmed = false } = parsed.data;
       logger.info('[AcceptTrip] START', { driverId, tripId });
 
       const db = getFirestore();
@@ -95,6 +96,10 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
 
         if (tripData.driverId !== driverId) {
           throw new ForbiddenError('You are not assigned to this trip');
+        }
+
+        if (tripData.smartRoute?.requiresDriverConfirmation === true && !routeSafetyConfirmed) {
+          throw new ForbiddenError('Confirm the safe route before accepting this trip');
         }
 
         passengerIdForNotify = String(tripData.passengerId || '');
@@ -146,12 +151,17 @@ export const acceptTripRequest = onCall<unknown, Promise<AcceptTripRequestRespon
           bookingType,
           requestedSeats,
           reservedSeats: seatsToReserve,
+          routeSafetyConfirmedAt:
+            tripData.smartRoute?.requiresDriverConfirmation === true
+              ? FieldValue.serverTimestamp()
+              : null,
         });
 
         transaction.update(driverRequestRef, {
           status: 'accepted',
           acceptedAt: FieldValue.serverTimestamp(),
           reservedSeats: seatsToReserve,
+          routeSafetyConfirmed: routeSafetyConfirmed || tripData.smartRoute?.requiresDriverConfirmation !== true,
         });
 
         transaction.set(
