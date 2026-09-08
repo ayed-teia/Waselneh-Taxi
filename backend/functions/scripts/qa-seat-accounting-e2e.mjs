@@ -190,6 +190,65 @@ async function main() {
   });
 
   // ===========================================================================
+  // 0. Dispatch must reject an undersized taxi BEFORE creating an offer.
+  //    A previous normalization bug forced requiredSeats to 1 for every
+  //    seat-only request, so a passenger asking for 5 seats could be matched to a
+  //    4-seat taxi and would only be rejected later when the driver accepted.
+  // ===========================================================================
+  try {
+    const driverId = `qa-seat-capacity-${suffix}`;
+    const lineId = `LINE_CAPACITY_${suffix}`;
+    await seedDriver(driverId, lineId);
+
+    const passengerId = `qa-seat-pax-capacity-${suffix}`;
+    const rideOptions = {
+      bookingType: 'seat_only',
+      requiredSeats: SEAT_CAPACITY + 1,
+      officeId,
+      lineId,
+    };
+    const estimate = await callCallable('estimateTrip', {
+      pickup,
+      dropoff,
+      devUserId: passengerId,
+      rideOptions,
+    });
+
+    let rejectedBeforeOffer = false;
+    try {
+      await callCallable('createTripRequest', {
+        pickup,
+        dropoff,
+        estimate: {
+          distanceKm: estimate.distanceKm,
+          durationMin: estimate.durationMin,
+          priceIls: estimate.priceIls,
+        },
+        devUserId: passengerId,
+        rideOptions,
+      });
+    } catch (error) {
+      rejectedBeforeOffer = /no available drivers/i.test(
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+
+    assert(
+      rejectedBeforeOffer,
+      `${SEAT_CAPACITY + 1}-seat request must not be offered to a ${SEAT_CAPACITY}-seat taxi`
+    );
+
+    const requests = await db.collection('driverRequests').doc(driverId).collection('requests').get();
+    assert(requests.empty, 'undersized driver must not receive a request document');
+    pass('Dispatch rejects an undersized taxi before creating an offer');
+  } catch (error) {
+    fail(
+      'Dispatch rejects an undersized taxi before creating an offer',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+
+  // ===========================================================================
   // 1. FORCE-CANCEL a SEAT_ONLY trip: seats must come back.
   // ===========================================================================
   try {
