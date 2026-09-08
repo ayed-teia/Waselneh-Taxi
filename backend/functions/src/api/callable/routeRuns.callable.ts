@@ -20,10 +20,12 @@ import {
 } from '../../core/errors';
 import { logger } from '../../core/logger';
 import { ensureDriverIsLicensedLineOwnerData } from '../../modules/auth';
+import { publishTripStatusNotifications } from '../../modules/notifications';
 import {
   releaseRouteRunSeats,
   reserveRouteRunSeats,
 } from '../../modules/routes/route-run-capacity';
+import { readGeoPoint } from '../../modules/routes/route-proximity';
 
 function optionalString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -83,6 +85,25 @@ export const openRouteRun = onCall<unknown, Promise<{ runId: string; status: 'bo
           throw new ForbiddenError('Driver already has an active route run');
         }
 
+        let originPoint = readGeoPoint(lineData.originPoint);
+        let destinationPoint = readGeoPoint(lineData.destinationPoint);
+        const originCityId = optionalString(lineData.originCityId);
+        const destinationCityId = optionalString(lineData.destinationCityId);
+        if ((!originPoint && originCityId) || (!destinationPoint && destinationCityId)) {
+          const [originCityDoc, destinationCityDoc] = await Promise.all([
+            originCityId
+              ? transaction.get(db.collection('cities').doc(originCityId))
+              : Promise.resolve(null),
+            destinationCityId
+              ? transaction.get(db.collection('cities').doc(destinationCityId))
+              : Promise.resolve(null),
+          ]);
+          const originCityData = (originCityDoc?.data() ?? {}) as Record<string, unknown>;
+          const destinationCityData = (destinationCityDoc?.data() ?? {}) as Record<string, unknown>;
+          originPoint = originPoint ?? readGeoPoint(originCityData.center);
+          destinationPoint = destinationPoint ?? readGeoPoint(destinationCityData.center);
+        }
+
         const seatCapacity = normalizeSeatCapacity(
           driverData.seatCapacity,
           normalizeVehicleType(driverData.vehicleType)
@@ -99,8 +120,10 @@ export const openRouteRun = onCall<unknown, Promise<{ runId: string; status: 'bo
           availableSeats: seatCapacity,
           bookedSeats: 0,
           bookingCount: 0,
-          originCityId: optionalString(lineData.originCityId),
-          destinationCityId: optionalString(lineData.destinationCityId),
+          originCityId,
+          destinationCityId,
+          originPoint,
+          destinationPoint,
           originLabel: optionalString(lineData.originLabel),
           destinationLabel: optionalString(lineData.destinationLabel),
           lineName: optionalString(lineData.name),
@@ -141,6 +164,8 @@ export const bookRouteRun = onCall<unknown, Promise<{ bookingId: string; availab
       const passengerRef = db.collection('users').doc(passengerId);
       let availableSeats = 0;
       let status = 'boarding';
+      let driverIdForNotify = '';
+      let bookingCreated = false;
 
       await db.runTransaction(async (transaction) => {
         const [runDoc, bookingDoc, passengerDoc] = await Promise.all([
@@ -152,6 +177,7 @@ export const bookRouteRun = onCall<unknown, Promise<{ bookingId: string; availab
         const runData = runDoc.data() ?? {};
         const lineId = optionalString(runData.lineId);
         if (!lineId) throw new ValidationError('Route run is missing its lineId');
+        driverIdForNotify = optionalString(runData.driverId) ?? '';
 
         if (bookingDoc.exists && bookingDoc.data()?.status === 'confirmed') {
           if (bookingDoc.data()?.seats !== parsed.data.seats) {
@@ -204,7 +230,20 @@ export const bookRouteRun = onCall<unknown, Promise<{ bookingId: string; availab
           bookedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
+        bookingCreated = true;
       });
+
+      if (bookingCreated) {
+        await publishTripStatusNotifications({
+          tripId: parsed.data.runId,
+          status: 'route_booking_confirmed',
+          recipients: [
+            { userId: passengerId, role: 'passenger' },
+            { userId: driverIdForNotify, role: 'driver' },
+          ],
+          metadata: { runId: parsed.data.runId, seats: parsed.data.seats },
+        });
+      }
 
       return { bookingId: passengerId, availableSeats, status };
     } catch (error) {
@@ -229,6 +268,8 @@ export const cancelRouteBooking = onCall<unknown, Promise<{ cancelled: true; ava
       const runRef = db.collection('routeRuns').doc(parsed.data.runId);
       const bookingRef = runRef.collection('bookings').doc(passengerId);
       let availableSeats = 0;
+      let driverIdForNotify = '';
+      let bookingCancelled = false;
 
       await db.runTransaction(async (transaction) => {
         const [runDoc, bookingDoc] = await Promise.all([
@@ -239,6 +280,7 @@ export const cancelRouteBooking = onCall<unknown, Promise<{ cancelled: true; ava
         if (!bookingDoc.exists) throw new NotFoundError('Route booking not found');
 
         const runData = runDoc.data() ?? {};
+        driverIdForNotify = optionalString(runData.driverId) ?? '';
         const bookingData = bookingDoc.data() ?? {};
         if (bookingData.passengerId !== passengerId) {
           throw new ForbiddenError('You cannot cancel this booking');
@@ -265,7 +307,20 @@ export const cancelRouteBooking = onCall<unknown, Promise<{ cancelled: true; ava
           cancelledAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
+        bookingCancelled = true;
       });
+
+      if (bookingCancelled) {
+        await publishTripStatusNotifications({
+          tripId: parsed.data.runId,
+          status: 'route_booking_cancelled',
+          recipients: [
+            { userId: passengerId, role: 'passenger' },
+            { userId: driverIdForNotify, role: 'driver' },
+          ],
+          metadata: { runId: parsed.data.runId },
+        });
+      }
 
       return { cancelled: true, availableSeats };
     } catch (error) {
@@ -323,6 +378,17 @@ export const advanceRouteRun = onCall<unknown, Promise<{ runId: string; status: 
             { merge: true }
           );
         }
+      });
+
+      const bookings = await runRef.collection('bookings').where('status', '==', 'confirmed').get();
+      await publishTripStatusNotifications({
+        tripId: parsed.data.runId,
+        status: `route_run_${parsed.data.targetStatus}`,
+        recipients: bookings.docs.map((doc) => ({
+          userId: String(doc.data().passengerId ?? ''),
+          role: 'passenger' as const,
+        })),
+        metadata: { runId: parsed.data.runId, driverId },
       });
 
       return { runId: parsed.data.runId, status: parsed.data.targetStatus };

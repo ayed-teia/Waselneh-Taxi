@@ -24,6 +24,35 @@ export function subscribeToRouteRun(
     );
 }
 
+export function subscribeToMyActiveRouteRun(
+  driverId: string,
+  onData: (run: ({ id: string } & Record<string, unknown>) | null) => void,
+  onError: (error: Error) => void
+): Unsubscribe {
+  return firebaseDB
+    .collection('routeRuns')
+    .where('driverId', '==', driverId)
+    .onSnapshot(
+      (snapshot) => {
+        const active = snapshot.docs
+          .map(
+            (doc) =>
+              ({ id: doc.id, ...(doc.data() as Record<string, unknown>) }) as {
+                id: string;
+              } & Record<string, unknown>
+          )
+          .filter((run) => ['boarding', 'full', 'departed'].includes(String(run.status)))
+          .sort((left, right) => {
+            const leftTime = Number((left.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0);
+            const rightTime = Number((right.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0);
+            return rightTime - leftTime;
+          })[0];
+        onData(active ?? null);
+      },
+      onError
+    );
+}
+
 export function subscribeToPassengerManifest(
   runId: string,
   onData: (passengers: ManifestPassenger[]) => void,

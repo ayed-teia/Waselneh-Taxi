@@ -195,6 +195,9 @@ export function MapScreen() {
             <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/history')}>
               <Text style={styles.topActionText}>{isRTL ? 'السجل' : 'History'}</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/lines')}>
+              <Text style={styles.topActionText}>{isRTL ? 'الخطوط' : 'Lines'}</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.topActionChip} onPress={() => router.push('/promo')}>
               <Text style={styles.topActionText}>{isRTL ? 'العروض' : 'Promo'}</Text>
             </TouchableOpacity>

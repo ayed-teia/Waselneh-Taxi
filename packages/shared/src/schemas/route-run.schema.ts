@@ -40,6 +40,15 @@ export const AdvanceRouteRunInputSchema = z.object({
   targetStatus: z.enum(['departed', 'completed']),
 });
 
+export const FindNearbyRouteRunsInputSchema = z.object({
+  location: z.object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+  }),
+  seats: z.number().int().min(1).max(VEHICLE_MAX_CAPACITY).default(1),
+  maxRouteDistanceKm: z.number().positive().max(50).default(5),
+});
+
 export const RouteRunSchema = z.object({
   runId: z.string().trim().min(1),
   lineId: z.string().trim().min(1),

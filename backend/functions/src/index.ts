@@ -105,6 +105,7 @@ export {
   bookRouteRun,
   cancelRouteBooking,
   advanceRouteRun,
+  findNearbyRouteRuns,
   registerDriverDocument,
   reviewDriverDocument,
   requestOtpPermission,

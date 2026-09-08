@@ -27,6 +27,7 @@ import {
 } from '../../core/errors';
 import { logger } from '../../core/logger';
 import { assertManagerPermission } from '../../modules/auth';
+import { readGeoPoint } from '../../modules/routes/route-proximity';
 
 const ManagerUpsertOfficeSchema = z.object({
   officeId: z.string().trim().min(1).optional(),
@@ -333,10 +334,14 @@ export const managerUpsertLine = onCall<unknown, Promise<{ lineId: string; succe
       if (officeId) {
         await ensureOfficeExists(officeId);
       }
-      if (data.originCityId) await ensureCityExists(data.originCityId);
-      if (data.destinationCityId && data.destinationCityId !== data.originCityId) {
-        await ensureCityExists(data.destinationCityId);
-      }
+      const originCityData = data.originCityId
+        ? await ensureCityExists(data.originCityId)
+        : null;
+      const destinationCityData = data.destinationCityId
+        ? data.destinationCityId === data.originCityId
+          ? originCityData
+          : await ensureCityExists(data.destinationCityId)
+        : null;
 
       const minSeats = Math.min(data.minSeats, data.maxSeats);
       const maxSeats = Math.max(data.minSeats, data.maxSeats);
@@ -346,6 +351,8 @@ export const managerUpsertLine = onCall<unknown, Promise<{ lineId: string; succe
             operatorType: data.operatorType,
             originCityId: data.originCityId,
             destinationCityId: data.destinationCityId,
+            originPoint: readGeoPoint(originCityData?.center),
+            destinationPoint: readGeoPoint(destinationCityData?.center),
             originLabel: normalizeOptional(data.originLabel),
             destinationLabel: normalizeOptional(data.destinationLabel),
             distanceKm: data.distanceKm,

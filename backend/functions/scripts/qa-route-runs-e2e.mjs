@@ -84,6 +84,8 @@ async function main() {
     destinationCityId: 'CITY_RAMALLAH',
     originLabel: 'Jenin station',
     destinationLabel: 'Ramallah station',
+    originPoint: { lat: 32.4618, lng: 35.3003 },
+    destinationPoint: { lat: 31.9038, lng: 35.2034 },
   });
   await refs[2].set({ fullName: 'Passenger A' });
   await refs[3].set({ fullName: 'Passenger B' });
@@ -98,6 +100,24 @@ async function main() {
     runId = opened.runId;
     const runRef = db.collection('routeRuns').doc(runId);
     refs.push(runRef);
+
+    const nearby = await callCallable('findNearbyRouteRuns', passengerA, {
+      location: { lat: 32.22, lng: 35.255 },
+      seats: 2,
+      maxRouteDistanceKm: 5,
+    });
+    if (!nearby.runs.some((item) => item.runId === runId)) {
+      throw new Error('Passenger near the route did not receive the RouteRun match');
+    }
+
+    const farAway = await callCallable('findNearbyRouteRuns', passengerA, {
+      location: { lat: 31.5, lng: 34.45 },
+      seats: 1,
+      maxRouteDistanceKm: 5,
+    });
+    if (farAway.runs.some((item) => item.runId === runId)) {
+      throw new Error('Passenger far from the route received an invalid match');
+    }
 
     const first = await callCallable('bookRouteRun', passengerA, { runId, seats: 2 });
     if (first.availableSeats !== 2) throw new Error('First booking did not reserve two seats');
@@ -123,6 +143,13 @@ async function main() {
     if (manifest.docs.find((doc) => doc.id === passengerA)?.data().passengerName !== 'Passenger A') {
       throw new Error('Passenger manifest identity was not snapshotted');
     }
+    const driverNotifications = await db
+      .collection('userNotifications')
+      .doc(driverId)
+      .collection('items')
+      .where('status', '==', 'route_booking_confirmed')
+      .get();
+    if (driverNotifications.empty) throw new Error('Driver did not receive booking notification');
 
     const cancelled = await callCallable('cancelRouteBooking', passengerA, { runId });
     if (cancelled.availableSeats !== 2) throw new Error('Cancellation did not restore seats');
@@ -147,6 +174,10 @@ async function main() {
     if (runId) {
       const bookings = await db.collection('routeRuns').doc(runId).collection('bookings').get();
       await Promise.all(bookings.docs.map((doc) => doc.ref.delete()));
+    }
+    for (const userId of [driverId, passengerA, passengerB, passengerC]) {
+      const items = await db.collection('userNotifications').doc(userId).collection('items').get();
+      await Promise.all(items.docs.map((doc) => doc.ref.delete()));
     }
     for (const ref of refs.reverse()) await ref.delete().catch(() => undefined);
     await app.delete().catch(() => undefined);
