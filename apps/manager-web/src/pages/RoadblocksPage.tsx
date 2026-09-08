@@ -20,6 +20,8 @@ interface CreateFormData {
   lng: string;
   status: RoadblockStatus;
   note: string;
+  delayMin: string;
+  surchargeIls: string;
 }
 
 const DEFAULT_FORM: CreateFormData = {
@@ -29,6 +31,8 @@ const DEFAULT_FORM: CreateFormData = {
   lng: '35.2621',
   status: 'closed',
   note: '',
+  delayMin: '10',
+  surchargeIls: '0',
 };
 
 export function RoadblocksPage() {
@@ -66,7 +70,8 @@ export function RoadblocksPage() {
         lng: parseFloat(formData.lng),
         status: formData.status,
         note: formData.note,
-        createdBy: 'manager-web',
+        delayMin: Number(formData.delayMin),
+        surchargeIls: Number(formData.surchargeIls),
       });
       setFormData(DEFAULT_FORM);
       setShowCreateForm(false);
@@ -191,6 +196,17 @@ export function RoadblocksPage() {
 
           <div className="form-row">
             <div className="form-group">
+              <label>{txt('التأخير المتوقع (دقيقة)', 'Expected delay (minutes)')}</label>
+              <input type="number" min="0" max="240" value={formData.delayMin} onChange={(event) => setFormData({ ...formData, delayMin: event.target.value })} required />
+            </div>
+            <div className="form-group">
+              <label>{txt('زيادة الأجرة (₪)', 'Fare surcharge (NIS)')}</label>
+              <input type="number" min="0" max="200" value={formData.surchargeIls} onChange={(event) => setFormData({ ...formData, surchargeIls: event.target.value })} required />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
               <label>{txt('الحالة', 'Status')}</label>
               <select
                 value={formData.status}
@@ -255,6 +271,12 @@ export function RoadblocksPage() {
                     <span className="status-emoji">{statusDisplay.emoji}</span>
                     <span className="name">{roadblock.name}</span>
                     {roadblock.area ? <span className="area">({roadblock.area})</span> : null}
+                  </div>
+                  <div className="roadblock-impact">
+                    {txt(
+                      `تأخير ${roadblock.delayMin ?? 0} دقيقة · زيادة ₪${roadblock.surchargeIls ?? 0}`,
+                      `${roadblock.delayMin ?? 0} min delay · NIS ${roadblock.surchargeIls ?? 0} adjustment`
+                    )}
                   </div>
                   <div className="roadblock-actions">
                     <select

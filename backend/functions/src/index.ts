@@ -106,6 +106,8 @@ export {
   cancelRouteBooking,
   advanceRouteRun,
   findNearbyRouteRuns,
+  managerUpsertRoadblock,
+  managerDeleteRoadblock,
   registerDriverDocument,
   reviewDriverDocument,
   requestOtpPermission,

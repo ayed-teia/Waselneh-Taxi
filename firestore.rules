@@ -720,7 +720,7 @@ service cloud.firestore {
     // Path: /roadblocks/{roadblockId}
     // 
     // Road closure and congestion information managed by managers.
-    // - Managers can read and write all roadblocks
+    // - Managers mutate roadblocks through permission-checked Cloud Functions
     // - Drivers and passengers can read only (for route planning/awareness)
     // 
     // Fields:
@@ -740,8 +740,8 @@ service cloud.firestore {
       // Anyone authenticated can read roadblocks
       allow read: if isAuthenticated();
       
-      // Only managers can create, update, or delete roadblocks
-      allow write: if isManager();
+      // Writes go through validated, audited manager callables only.
+      allow write: if false;
     }
   }
 }

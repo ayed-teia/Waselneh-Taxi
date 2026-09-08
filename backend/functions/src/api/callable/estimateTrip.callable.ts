@@ -10,6 +10,7 @@ import { REGION } from '../../core/env';
 import { handleError, ValidationError } from '../../core/errors';
 import { logger } from '../../core/logger';
 import { calculateDynamicRidePrice, calculateRoute } from '../../modules/pricing/services';
+import { calculateRoadblockImpact, RoadblockImpact } from '../../modules/routes/roadblock-impact';
 
 /**
  * Request schema for trip estimation
@@ -39,6 +40,7 @@ interface EstimateTripResponse {
     appliedZoneIds: string[];
     appliedPeakWindowIds: string[];
   };
+  roadblockImpact: RoadblockImpact;
 }
 
 /**
@@ -95,17 +97,19 @@ export const estimateTrip = onCall<unknown, Promise<EstimateTripResponse>>(
         dropoff,
         rideOptions: normalizedRideOptions,
       });
-      const priceIls = pricing.priceIls;
+      const roadblockImpact = await calculateRoadblockImpact(pickup, dropoff);
+      const priceIls = pricing.priceIls + roadblockImpact.surchargeIls;
 
       // Round to reasonable precision
       const distanceKm = Math.round(route.distanceKm * 100) / 100;
-      const durationMin = Math.round(route.durationMin * 10) / 10;
+      const durationMin = Math.round((route.durationMin + roadblockImpact.delayMin) * 10) / 10;
 
       logger.info('Trip estimated', {
         userId,
         distanceKm,
         durationMin,
         priceIls,
+        roadblockImpact,
       });
 
       return {
@@ -124,6 +128,7 @@ export const estimateTrip = onCall<unknown, Promise<EstimateTripResponse>>(
           appliedZoneIds: pricing.breakdown.appliedZoneIds,
           appliedPeakWindowIds: pricing.breakdown.appliedPeakWindowIds,
         },
+        roadblockImpact,
       };
     } catch (error) {
       throw handleError(error);
