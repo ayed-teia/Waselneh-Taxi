@@ -1,5 +1,14 @@
 import { firebaseDB, Unsubscribe } from '../firebase';
 
+export interface PassengerLine {
+  id: string;
+  name: string;
+  code: string;
+  originLabel: string | null;
+  destinationLabel: string | null;
+  fixedPriceIls: number | null;
+}
+
 export interface PassengerRouteRun {
   id: string;
   lineId: string;
@@ -10,6 +19,35 @@ export interface PassengerRouteRun {
   availableSeats: number;
   originLabel: string | null;
   destinationLabel: string | null;
+}
+
+export function subscribeToPassengerLines(
+  onData: (lines: PassengerLine[]) => void,
+  onError: (error: Error) => void
+): Unsubscribe {
+  return firebaseDB.collection('lines').onSnapshot(
+    (snapshot) =>
+      onData(
+        snapshot.docs
+          .map((doc) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              name: String(data.name ?? data.code ?? doc.id),
+              code: String(data.code ?? doc.id),
+              originLabel: typeof data.originLabel === 'string' ? data.originLabel : null,
+              destinationLabel:
+                typeof data.destinationLabel === 'string' ? data.destinationLabel : null,
+              fixedPriceIls:
+                typeof data.fixedPriceIls === 'number' ? data.fixedPriceIls : null,
+              active: data.status === 'active',
+              routed: typeof data.originCityId === 'string',
+            };
+          })
+          .filter((line) => line.active && line.routed)
+      ),
+    onError
+  );
 }
 
 export function subscribeToRouteRuns(

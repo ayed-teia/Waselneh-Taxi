@@ -82,6 +82,9 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
           <StatusToggle status={status} isLoading={isUpdatingStatus} onToggle={onToggleStatus} />
 
           <View style={[styles.quickRow, isRTL && styles.rowReverse]}>
+            <TouchableOpacity style={styles.quickChip} onPress={() => router.push('/route-run')} activeOpacity={0.9}>
+              <Text style={styles.quickChipText}>{isRTL ? 'رحلة الخط' : 'Route Run'}</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.quickChip} onPress={() => router.push('/history')} activeOpacity={0.9}>
               <Text style={styles.quickChipText}>{isRTL ? 'السجل' : 'History'}</Text>
             </TouchableOpacity>

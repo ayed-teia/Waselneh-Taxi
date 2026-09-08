@@ -156,6 +156,48 @@ function getStatusContent(status: string, role: NotificationRole): LocalizedCont
         bodyEn: 'This trip was cancelled by the system.',
         bodyAr: 'تم إلغاء هذه الرحلة من النظام.',
       };
+    case 'route_booking_confirmed':
+      return role === 'driver'
+        ? {
+            titleEn: 'New line booking',
+            titleAr: 'حجز جديد على الخط',
+            bodyEn: 'A passenger reserved seats on your upcoming route run.',
+            bodyAr: 'راكب حجز مقاعد على رحلة الخط القادمة.',
+          }
+        : {
+            titleEn: 'Seats confirmed',
+            titleAr: 'تم تأكيد المقاعد',
+            bodyEn: 'Your seats are confirmed and the driver was notified.',
+            bodyAr: 'تم تأكيد مقاعدك وإشعار السائق.',
+          };
+    case 'route_booking_cancelled':
+      return role === 'driver'
+        ? {
+            titleEn: 'Line booking cancelled',
+            titleAr: 'تم إلغاء حجز على الخط',
+            bodyEn: 'A passenger cancelled and the seats are available again.',
+            bodyAr: 'راكب ألغى الحجز والمقاعد صارت متاحة من جديد.',
+          }
+        : {
+            titleEn: 'Booking cancelled',
+            titleAr: 'تم إلغاء الحجز',
+            bodyEn: 'Your line booking was cancelled successfully.',
+            bodyAr: 'تم إلغاء حجز الخط بنجاح.',
+          };
+    case 'route_run_departed':
+      return {
+        titleEn: 'Line taxi departed',
+        titleAr: 'تحرك تاكسي الخط',
+        bodyEn: 'Your booked line taxi has started the route.',
+        bodyAr: 'تاكسي الخط المحجوز تحرك وبدأ المسار.',
+      };
+    case 'route_run_completed':
+      return {
+        titleEn: 'Line trip completed',
+        titleAr: 'اكتملت رحلة الخط',
+        bodyEn: 'The line route run was completed successfully.',
+        bodyAr: 'اكتملت رحلة الخط بنجاح.',
+      };
     default:
       return {
         titleEn: 'Trip update',
@@ -362,4 +404,3 @@ export async function publishTripStatusNotifications(
     })
   );
 }
-

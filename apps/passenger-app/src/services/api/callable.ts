@@ -172,6 +172,30 @@ export async function cancelRouteBooking(
   );
 }
 
+export interface NearbyRouteRunResult {
+  runId: string;
+  lineId: string;
+  driverId: string;
+  status: string;
+  availableSeats: number;
+  seatCapacity: number;
+  departureTime: string | null;
+  originLabel: string | null;
+  destinationLabel: string | null;
+  distanceToRouteKm: number;
+}
+
+export async function findNearbyRouteRuns(
+  location: LatLng,
+  seats = 1,
+  maxRouteDistanceKm = 5
+): Promise<{ runs: NearbyRouteRunResult[] }> {
+  return callFunction<
+    { location: LatLng; seats: number; maxRouteDistanceKm: number },
+    { runs: NearbyRouteRunResult[] }
+  >('findNearbyRouteRuns', { location, seats, maxRouteDistanceKm });
+}
+
 export interface CancelTripRequestInput {
   requestId: string;
 }

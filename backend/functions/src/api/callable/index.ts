@@ -28,6 +28,7 @@ export * from './managerOperations.callable';
 export * from './reportClientError.callable';
 export * from './lineQueue.callable';
 export * from './routeRuns.callable';
+export * from './findNearbyRouteRuns.callable';
 export * from './driverDocuments.callable';
 export * from './otpRateLimit.callable';
 export * from './startOnlinePayment.callable';
