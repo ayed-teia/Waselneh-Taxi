@@ -72,10 +72,13 @@ export interface AcceptTripRequestResponse {
   tripId: string;
 }
 
-export async function acceptTripRequest(tripId: string): Promise<AcceptTripRequestResponse> {
-  return callFunction<{ tripId: string }, AcceptTripRequestResponse>(
+export async function acceptTripRequest(
+  tripId: string,
+  routeSafetyConfirmed = false
+): Promise<AcceptTripRequestResponse> {
+  return callFunction<{ tripId: string; routeSafetyConfirmed?: boolean }, AcceptTripRequestResponse>(
     'acceptTripRequest',
-    { tripId }
+    { tripId, routeSafetyConfirmed }
   );
 }
 

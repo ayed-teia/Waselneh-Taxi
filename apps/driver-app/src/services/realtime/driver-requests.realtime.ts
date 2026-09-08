@@ -152,6 +152,10 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
           requestedVehicleType?: string | null;
           driverVehicleType?: string | null;
           driverSeatCapacity?: number;
+          smartRoute?: {
+            reason?: string;
+            requiresDriverConfirmation?: boolean;
+          };
           createdAt?: unknown;
           expiresAt?: unknown;
         };
@@ -226,6 +230,16 @@ export async function startDriverRequestsListener(driverId: string): Promise<voi
             : {}),
           ...(normalizedDriverSeatCapacity !== null
             ? { driverSeatCapacity: normalizedDriverSeatCapacity }
+            : {}),
+          ...(data.smartRoute
+            ? {
+                smartRoute: {
+                  ...(typeof data.smartRoute.reason === 'string'
+                    ? { reason: data.smartRoute.reason }
+                    : {}),
+                  requiresDriverConfirmation: data.smartRoute.requiresDriverConfirmation === true,
+                },
+              }
             : {}),
           pickupDistanceKm,
           status: 'pending',
