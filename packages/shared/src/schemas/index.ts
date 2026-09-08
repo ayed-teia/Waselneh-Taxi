@@ -2,6 +2,7 @@ export * from './city.schema';
 export * from './driver.schema';
 export * from './lat-lng.schema';
 export * from './line.schema';
+export * from './route-run.schema';
 export * from './money.schema';
 export * from './payment.schema';
 export * from './ride-options.schema';

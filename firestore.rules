@@ -588,6 +588,22 @@ service cloud.firestore {
       }
     }
 
+    // Live departures are visible to authenticated users so passenger and driver
+    // apps can subscribe in real time. Manifests contain passenger identity and
+    // are restricted to that passenger, the assigned driver, or a manager.
+    match /routeRuns/{runId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+
+      match /bookings/{bookingId} {
+        allow read: if isManager() ||
+          (isAuthenticated() && resource.data.passengerId == request.auth.uid) ||
+          (isAuthenticated() &&
+            get(/databases/$(database)/documents/routeRuns/$(runId)).data.driverId == request.auth.uid);
+        allow write: if false;
+      }
+    }
+
     match /licenses/{licenseId} {
       allow read: if isManager();
       allow write: if false;

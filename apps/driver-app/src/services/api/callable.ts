@@ -79,6 +79,26 @@ export async function acceptTripRequest(tripId: string): Promise<AcceptTripReque
   );
 }
 
+export async function openRouteRun(
+  lineId: string,
+  departureTime: string
+): Promise<{ runId: string; status: 'boarding' }> {
+  return callFunction<
+    { lineId: string; departureTime: string },
+    { runId: string; status: 'boarding' }
+  >('openRouteRun', { lineId, departureTime });
+}
+
+export async function advanceRouteRun(
+  runId: string,
+  targetStatus: 'departed' | 'completed'
+): Promise<{ runId: string; status: string }> {
+  return callFunction<
+    { runId: string; targetStatus: 'departed' | 'completed' },
+    { runId: string; status: string }
+  >('advanceRouteRun', { runId, targetStatus });
+}
+
 /**
  * Lifecycle response type
  */
