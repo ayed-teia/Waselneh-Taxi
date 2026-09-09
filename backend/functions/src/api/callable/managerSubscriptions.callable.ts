@@ -105,6 +105,8 @@ export const managerAssignSubscription = onCall({ region: REGION }, async (reque
         subscriptionId: assignmentId,
         subscriptionPlanId: parsed.data.planId,
         subscriptionStatus: parsed.data.status,
+        subscriptionStartsAt: startsAt,
+        subscriptionEndsAt: endsAt,
         commissionBps: plan.commissionBps,
         subscriptionUpdatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
