@@ -24,6 +24,7 @@ export * from './managerAcknowledgeAlert.callable';
 export * from './devIssueDriverToken.callable';
 export * from './devIssueManagerToken.callable';
 export * from './getManagerSession.callable';
+export * from './getManagerOfficeDashboard.callable';
 export * from './managerOperations.callable';
 export * from './reportClientError.callable';
 export * from './lineQueue.callable';

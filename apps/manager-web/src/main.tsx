@@ -8,6 +8,7 @@ import { CommissionsPage } from './pages/CommissionsPage';
 import { DriversListPage } from './pages/DriversListPage';
 import { LiveMapPage } from './pages/LiveMapPage';
 import { MonitoringPage } from './pages/MonitoringPage';
+import { OfficeDetailsPage } from './pages/OfficeDetailsPage';
 import { OperationsPage } from './pages/OperationsPage';
 import { PaymentReconciliationPage } from './pages/PaymentReconciliationPage';
 import { PaymentsListPage } from './pages/PaymentsListPage';
@@ -37,6 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="settings" element={<SystemSettingsPage />} />
             <Route path="subscriptions" element={<SubscriptionsPage />} />
             <Route path="operations" element={<OperationsPage />} />
+            <Route path="offices/:officeId" element={<OfficeDetailsPage />} />
             <Route path="monitoring" element={<MonitoringPage />} />
           </Route>
         </Routes>

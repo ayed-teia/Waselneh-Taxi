@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { useI18n } from '../localization';
 import {
@@ -636,6 +637,15 @@ export function OperationsPage() {
           <div><strong>{txt('مناطق التسعير', 'Pricing Zones')}</strong><span>{snapshots.pricingZones.length}</span></div>
           <div><strong>{txt('أدوار الإدارة', 'Manager Roles')}</strong><span>{snapshots.managerRoles.length}</span></div>
         </div>
+        {snapshots.offices.length > 0 ? (
+          <div className="snapshot-grid">
+            {snapshots.offices.map((office) => (
+              <Link key={office.id} to={`/offices/${office.id}`}>
+                {asString(office.data.name) || office.id} →
+              </Link>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section className="ops-snapshot">
