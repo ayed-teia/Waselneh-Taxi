@@ -3,6 +3,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
 import { advancePaymentFromEvent, getPaymentProvider } from '../../modules/payments';
+import { advanceSubscriptionInvoicePayment, isSubscriptionInvoicePaymentSubject } from '../../modules/billing/subscription-online-payment';
 
 /**
  * ============================================================================
@@ -86,12 +87,14 @@ export const paymentWebhook = onRequest(
     }
 
     try {
-      const result = await advancePaymentFromEvent(event, provider.name);
+      const result = isSubscriptionInvoicePaymentSubject(event.tripId)
+        ? await advanceSubscriptionInvoicePayment(event, provider.name)
+        : await advancePaymentFromEvent(event, provider.name);
 
       if (!result.ok) {
         // Logged inside the service. Acknowledged so the processor stops retrying
         // something a retry will never fix.
-        res.status(200).json({ received: true, applied: false, reason: result.reason });
+        res.status(200).json({ received: true, applied: false, reason: 'reason' in result ? result.reason : undefined });
         return;
       }
 
