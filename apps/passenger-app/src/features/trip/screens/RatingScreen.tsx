@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useI18n } from '../../../localization';
+import { PaymentState } from '../../../services/realtime';
 import { Button } from '../../../ui';
 
 interface RatingScreenProps {
@@ -19,6 +21,11 @@ interface RatingScreenProps {
   finalPriceIls: number;
   onSubmit: (rating: number, comment?: string, lowRatingReason?: string) => Promise<void>;
   onSkip: () => void;
+  paymentStatus: PaymentState;
+  paymentProvider?: string | null;
+  paymentFailureReason?: string | null;
+  onPayOnline: () => Promise<void>;
+  paymentLoading?: boolean;
 }
 
 const RATING_LABELS: Record<number, string> = {
@@ -39,10 +46,16 @@ export function RatingScreen({
   finalPriceIls,
   onSubmit,
   onSkip,
+  paymentStatus,
+  paymentProvider,
+  paymentFailureReason,
+  onPayOnline,
+  paymentLoading = false,
 }: RatingScreenProps) {
   void _tripId;
 
   const insets = useSafeAreaInsets();
+  const { isRTL } = useI18n();
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - 20, 560);
 
@@ -52,6 +65,8 @@ export function RatingScreen({
   const [submitting, setSubmitting] = useState(false);
 
   const ratingText = useMemo(() => (rating ? RATING_LABELS[rating] : 'Tap a score'), [rating]);
+  const paymentComplete = paymentStatus === 'paid';
+  const paymentWaiting = paymentStatus === 'awaiting_payment';
 
   const handleSubmit = async () => {
     if (rating === 0 || submitting) {
@@ -85,15 +100,36 @@ export function RatingScreen({
         </View>
 
         <View style={[styles.card, styles.paymentCard, { width: cardWidth }]}> 
-          <Text style={styles.sectionTitle}>Payment</Text>
+          <Text style={styles.sectionTitle}>{isRTL ? 'الدفع' : 'Payment'}</Text>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Amount</Text>
+            <Text style={styles.summaryLabel}>{isRTL ? 'المبلغ' : 'Amount'}</Text>
             <Text style={styles.summaryValue}>NIS {finalPriceIls.toFixed(2)}</Text>
           </View>
           <View style={[styles.summaryRow, styles.summaryRowLast]}>
-            <Text style={styles.summaryLabel}>Method</Text>
-            <Text style={styles.summaryValue}>Cash</Text>
+            <Text style={styles.summaryLabel}>{isRTL ? 'الحالة' : 'Status'}</Text>
+            <Text style={[styles.summaryValue, paymentComplete && styles.paidText]}>
+              {paymentComplete
+                ? isRTL ? 'مدفوع' : 'Paid'
+                : paymentWaiting
+                  ? isRTL ? 'بانتظار التأكيد' : 'Awaiting confirmation'
+                  : isRTL ? 'غير مدفوع' : 'Unpaid'}
+            </Text>
           </View>
+          {paymentFailureReason ? <Text style={styles.paymentError}>{paymentFailureReason}</Text> : null}
+          {paymentWaiting ? <Text style={styles.paymentNotice}>{isRTL ? 'لا تغلق التطبيق. سيتم تأكيد الدفع تلقائياً من مزود الدفع.' : 'Keep the app open. Confirmation arrives automatically from the payment provider.'}</Text> : null}
+          {!paymentComplete && paymentStatus !== 'refunded' ? (
+            <Button
+              title={paymentLoading
+                ? isRTL ? 'جاري فتح الدفع...' : 'Opening checkout...'
+                : paymentWaiting
+                  ? isRTL ? 'فتح صفحة الدفع مرة أخرى' : 'Reopen payment page'
+                  : isRTL ? 'الدفع إلكترونياً' : 'Pay online'}
+              onPress={onPayOnline}
+              disabled={paymentLoading}
+              loading={paymentLoading}
+            />
+          ) : null}
+          {paymentComplete && paymentProvider ? <Text style={styles.paymentNotice}>{isRTL ? `تم التأكيد بواسطة ${paymentProvider}` : `Confirmed by ${paymentProvider}`}</Text> : null}
         </View>
 
         <View style={[styles.card, { width: cardWidth }]}> 
@@ -240,6 +276,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#0F172A',
     fontWeight: '700',
+  },
+  paidText: {
+    color: '#15803D',
+  },
+  paymentNotice: {
+    color: '#475569',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  paymentError: {
+    color: '#B91C1C',
+    fontSize: 13,
+    fontWeight: '600',
   },
   ratingRow: {
     flexDirection: 'row',

@@ -7,17 +7,19 @@ import { Alert, Linking, Share } from 'react-native';
 import { ActiveTripScreen, RatingScreen } from '../src/features/trip';
 import { useI18n } from '../src/localization';
 import { RetryQueue } from '../src/services';
-import { estimateTrip, passengerCancelTrip, submitRating } from '../src/services/api';
+import { estimateTrip, passengerCancelTrip, startOnlinePayment, submitRating } from '../src/services/api';
 import {
   DriverLocation,
   DriverProfile,
   TripChatMessage,
   TripData,
+  PassengerPayment,
   sendTripChatMessage,
   subscribeToDriverLocation,
   subscribeToDriverProfile,
   subscribeToTrip,
   subscribeToTripChat,
+  subscribeToPayment,
 } from '../src/services/realtime';
 import { useAuthStore } from '../src/store';
 import { BackButton } from '../src/ui';
@@ -73,10 +75,13 @@ export default function Trip() {
   const [etaToPickupMin, setEtaToPickupMin] = useState<number | null>(null);
   const [etaToDropoffMin, setEtaToDropoffMin] = useState<number | null>(null);
   const [etaUpdatedAt, setEtaUpdatedAt] = useState<Date | null>(null);
+  const [payment, setPayment] = useState<PassengerPayment | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   const tripId = params.tripId;
   const previousStatusRef = useRef<TripStatus | null>(null);
   const retryQueueRef = useRef(new RetryQueue());
+  const paymentAlertedRef = useRef(false);
 
   useEffect(() => {
     const unsubscribe = retryQueueRef.current.subscribe(setQueuedActions);
@@ -182,6 +187,21 @@ export default function Trip() {
   }, [tripId]);
 
   useEffect(() => {
+    if (!tripId) return;
+    return subscribeToPayment(
+      tripId,
+      (nextPayment) => {
+        setPayment(nextPayment);
+        if (nextPayment?.status === 'paid' && !paymentAlertedRef.current) {
+          paymentAlertedRef.current = true;
+          Alert.alert(t('common.trip_update'), t('payment.confirmed'));
+        }
+      },
+      (paymentError) => console.error('Payment subscription failed:', paymentError)
+    );
+  }, [tripId, t]);
+
+  useEffect(() => {
     if (!trip || !driverLocation) {
       setEtaToPickupMin(null);
       setEtaToDropoffMin(null);
@@ -268,6 +288,28 @@ export default function Trip() {
     setShowRating(false);
     router.replace('/home');
   }, [router]);
+
+  const handlePayOnline = useCallback(async () => {
+    if (!tripId || paymentLoading) return;
+    setPaymentLoading(true);
+    try {
+      const result = await startOnlinePayment(tripId);
+      if (!/^https:\/\//i.test(result.clientActionUrl)) {
+        throw new Error(t('payment.invalid_url'));
+      }
+      const supported = await Linking.canOpenURL(result.clientActionUrl);
+      if (!supported) throw new Error(t('payment.cannot_open'));
+      await Linking.openURL(result.clientActionUrl);
+      Alert.alert(t('payment.waiting_title'), t('payment.waiting_message'));
+    } catch (paymentError) {
+      Alert.alert(
+        t('payment.failed_title'),
+        paymentError instanceof Error ? paymentError.message : t('payment.failed_message')
+      );
+    } finally {
+      setPaymentLoading(false);
+    }
+  }, [paymentLoading, t, tripId]);
 
   const handleSendChat = useCallback(
     async (message: string, quickReply?: boolean) => {
@@ -367,6 +409,11 @@ export default function Trip() {
           finalPriceIls={trip.finalPriceIls ?? trip.estimatedPriceIls}
           onSubmit={handleSubmitRating}
           onSkip={handleSkipRating}
+          paymentStatus={payment?.status ?? 'pending'}
+          paymentProvider={payment?.provider ?? null}
+          paymentFailureReason={payment?.failureReason ?? null}
+          onPayOnline={handlePayOnline}
+          paymentLoading={paymentLoading}
         />
       </ScreenContainer>
     );
