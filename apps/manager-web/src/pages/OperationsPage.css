@@ -144,16 +144,85 @@
   color: #0f172a;
 }
 
-.ops-table-wrap { margin-top: 0.7rem; overflow-x: auto; }
-.ops-table { width: 100%; border-collapse: collapse; min-width: 720px; font-size: 0.86rem; }
-.ops-table th, .ops-table td { padding: 0.65rem; border-bottom: 1px solid #e2e8f0; text-align: start; }
-.ops-table th { color: #475569; background: #f8fafc; }
-.invoice-status { display: inline-block; padding: 0.2rem 0.48rem; border-radius: 999px; font-weight: 800; background: #f1f5f9; }
-.invoice-status.paid { color: #166534; background: #dcfce7; }
-.invoice-status.pending { color: #854d0e; background: #fef9c3; }
-.invoice-status.past_due, .invoice-status.suspended { color: #9f1239; background: #ffe4e6; }
-.ops-table .inline-action { border: 0; border-radius: 0.55rem; padding: 0.4rem 0.65rem; color: white; background: #0f172a; font: inherit; font-weight: 800; cursor: pointer; }
-.ops-table .inline-action:disabled { opacity: 0.6; cursor: default; }
+.ops-table-wrap {
+  margin-top: 0.7rem;
+  overflow-x: auto;
+}
+.ops-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+  font-size: 0.86rem;
+}
+.ops-table th,
+.ops-table td {
+  padding: 0.65rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: start;
+}
+.ops-table th {
+  color: #475569;
+  background: #f8fafc;
+}
+.invoice-status {
+  display: inline-block;
+  padding: 0.2rem 0.48rem;
+  border-radius: 999px;
+  font-weight: 800;
+  background: #f1f5f9;
+}
+.invoice-status.paid {
+  color: #166534;
+  background: #dcfce7;
+}
+.invoice-status.pending {
+  color: #854d0e;
+  background: #fef9c3;
+}
+.invoice-status.past_due,
+.invoice-status.suspended {
+  color: #9f1239;
+  background: #ffe4e6;
+}
+.ops-table .inline-action {
+  border: 0;
+  border-radius: 0.55rem;
+  padding: 0.4rem 0.65rem;
+  color: white;
+  background: #0f172a;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ops-table .inline-action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.billing-filters {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.billing-filters select,
+.billing-filters input,
+.billing-filters button {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.6rem;
+  padding: 0.48rem 0.6rem;
+  background: #fff;
+  font: inherit;
+}
+
+.billing-filters button {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
 
 @media (max-width: 900px) {
   .ops-grid {
