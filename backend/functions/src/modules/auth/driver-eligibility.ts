@@ -1,6 +1,7 @@
 import { getFirestore } from '../../core/config';
 import { ForbiddenError } from '../../core/errors';
 import { logger } from '../../core/logger';
+import { getSubscriptionBlockReason } from '../billing/subscription-access';
 
 const REQUIRED_DRIVER_TYPE = 'licensed_line_owner';
 const REQUIRED_VERIFICATION_STATUS = 'approved';
@@ -55,6 +56,9 @@ export function evaluateDriverEligibility(
     reasons.push('missing_line_or_license_link');
   }
 
+  const subscriptionBlockReason = getSubscriptionBlockReason(data);
+  if (subscriptionBlockReason) reasons.push(subscriptionBlockReason);
+
   return {
     isEligible: reasons.length === 0,
     driverType,
@@ -71,6 +75,9 @@ function getEligibilityFailureMessage(reasons: string[]): string {
     invalid_driver_type: `driverType must be '${REQUIRED_DRIVER_TYPE}'.`,
     driver_not_approved: `verificationStatus must be '${REQUIRED_VERIFICATION_STATUS}'.`,
     missing_line_or_license_link: 'A valid lineId or licenseId is required.',
+    subscription_not_active: 'The assigned subscription is not active.',
+    subscription_not_started: 'The assigned subscription has not started.',
+    subscription_expired: 'The assigned subscription has expired.',
   };
 
   const details = reasons
@@ -106,4 +113,3 @@ export async function assertDriverIsLicensedLineOwner(driverId: string): Promise
   const driverDoc = await db.collection('drivers').doc(driverId).get();
   return ensureDriverIsLicensedLineOwnerData(driverId, driverDoc.data());
 }
-

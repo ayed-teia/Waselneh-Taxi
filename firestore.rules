@@ -190,7 +190,12 @@ service cloud.firestore {
       return (
         data.driverType == 'licensed_line_owner' &&
         data.verificationStatus == 'approved' &&
-        hasValidLineOrLicenseLink(data)
+        hasValidLineOrLicenseLink(data) &&
+        (!('subscriptionStatus' in data) || (
+          data.subscriptionStatus in ['active', 'trialing'] &&
+          (!('subscriptionStartsAt' in data) || data.subscriptionStartsAt == null || data.subscriptionStartsAt <= request.time) &&
+          (!('subscriptionEndsAt' in data) || data.subscriptionEndsAt == null || data.subscriptionEndsAt > request.time)
+        ))
       );
     }
 
