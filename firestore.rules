@@ -498,6 +498,13 @@ service cloud.firestore {
       );
       allow write: if false;
     }
+
+    match /commissionRecords/{commissionId} {
+      allow read: if isManager() || (
+        isAuthenticated() && resource.data.driverId == request.auth.uid
+      );
+      allow write: if false;
+    }
     
     // =========================================================================
     // Trip Requests Collection

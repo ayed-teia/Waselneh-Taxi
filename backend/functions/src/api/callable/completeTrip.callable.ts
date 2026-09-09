@@ -17,6 +17,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { publishTripStatusNotifications } from '../../modules/notifications';
 import { assertDriverIsLicensedLineOwner } from '../../modules/auth';
 import { docData, getNumber, getString } from '../../core/firestore/doc-data';
+import { calculateTripCommission } from '../../modules/billing/commission';
 
 const CompleteTripSchema = z.object({
   tripId: z.string().min(1),
@@ -31,7 +32,6 @@ interface CompleteTripResponse {
 }
 
 const LOYALTY_POINTS_PER_ILS = 1;
-
 export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
   {
     region: REGION,
@@ -71,6 +71,11 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
         const driverDocRef = db.collection('drivers').doc(driverId);
         const driverDoc = await transaction.get(driverDocRef);
         const driverData = (driverDoc.data() ?? {}) as Record<string, unknown>;
+        const officeId = typeof driverData.officeId === 'string' && driverData.officeId.trim()
+          ? driverData.officeId.trim()
+          : null;
+        const officeRef = officeId ? db.collection('offices').doc(officeId) : null;
+        const officeDoc = officeRef ? await transaction.get(officeRef) : null;
 
         if (tripData.driverId !== driverId) {
           throw new ForbiddenError('You are not assigned to this trip');
@@ -86,6 +91,12 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
         const tripPassengerId = getString(tripData, 'passengerId', '');
         passengerIdForNotify = tripPassengerId;
         const finalPriceIls = getNumber(tripData, 'estimatedPriceIls', 0);
+        const tripCommission = calculateTripCommission(
+          finalPriceIls,
+          driverData.commissionBps ?? officeDoc?.data()?.commissionBps
+        );
+        const commissionRef = db.collection('commissionRecords').doc(tripId);
+        const existingCommission = await transaction.get(commissionRef);
         const loyaltyPointsAwarded = Math.max(1, Math.floor(Math.max(0, finalPriceIls) * LOYALTY_POINTS_PER_ILS));
         const passengerRef = tripPassengerId ? db.collection('users').doc(tripPassengerId) : null;
         const loyaltyLedgerRef = passengerRef?.collection('loyaltyLedger').doc(tripId) ?? null;
@@ -162,6 +173,18 @@ export const completeTrip = onCall<unknown, Promise<CompleteTripResponse>>(
             status: PaymentStatus.PENDING,
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+
+        if (!existingCommission.exists) {
+          transaction.set(commissionRef, {
+            commissionId: tripId,
+            tripId,
+            driverId,
+            officeId,
+            ...tripCommission,
+            status: 'pending',
+            createdAt: FieldValue.serverTimestamp(),
           });
         }
 

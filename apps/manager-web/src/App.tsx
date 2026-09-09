@@ -51,6 +51,7 @@ const NAV_ITEMS = [
   { to: '/monitoring', labelAr: 'المراقبة', labelEn: 'Monitoring' },
   { to: '/live-map', labelAr: 'الخريطة المباشرة', labelEn: 'Live Map' },
   { to: '/payments', labelAr: 'المدفوعات', labelEn: 'Payments' },
+  { to: '/commissions', labelAr: 'العمولات', labelEn: 'Commissions' },
   { to: '/reconciliation', labelAr: 'تسوية المدفوعات', labelEn: 'Reconciliation' },
   { to: '/roadblocks', labelAr: 'الإغلاقات', labelEn: 'Roadblocks' },
   { to: '/settings', labelAr: 'الإعدادات', labelEn: 'Settings' },
