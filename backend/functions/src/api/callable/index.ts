@@ -37,3 +37,4 @@ export * from './checkpointReports.callable';
 export * from './driverDocuments.callable';
 export * from './otpRateLimit.callable';
 export * from './startOnlinePayment.callable';
+export * from './startSubscriptionInvoicePayment.callable';
