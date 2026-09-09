@@ -161,3 +161,26 @@
   background: #ffe4e6;
   color: #9f1239;
 }
+
+.payments-page .statement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.payments-page button {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.55rem;
+  padding: 0.42rem 0.65rem;
+  background: #0f172a;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.payments-page button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
