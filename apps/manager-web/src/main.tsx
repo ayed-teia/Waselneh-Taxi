@@ -12,6 +12,7 @@ import { OperationsPage } from './pages/OperationsPage';
 import { PaymentReconciliationPage } from './pages/PaymentReconciliationPage';
 import { PaymentsListPage } from './pages/PaymentsListPage';
 import { RoadblocksPage } from './pages/RoadblocksPage';
+import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { SystemSettingsPage } from './pages/SystemSettingsPage';
 import { installWebErrorTracking } from './services/error-tracking.service';
 import '@waselneh/ui/tokens.css';
@@ -34,6 +35,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="reconciliation" element={<PaymentReconciliationPage />} />
             <Route path="roadblocks" element={<RoadblocksPage />} />
             <Route path="settings" element={<SystemSettingsPage />} />
+            <Route path="subscriptions" element={<SubscriptionsPage />} />
             <Route path="operations" element={<OperationsPage />} />
             <Route path="monitoring" element={<MonitoringPage />} />
           </Route>

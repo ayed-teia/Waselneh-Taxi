@@ -108,6 +108,8 @@ export {
   findNearbyRouteRuns,
   managerUpsertRoadblock,
   managerDeleteRoadblock,
+  managerUpsertSubscriptionPlan,
+  managerAssignSubscription,
   reportCheckpoint,
   managerReviewCheckpointReport,
   registerDriverDocument,
