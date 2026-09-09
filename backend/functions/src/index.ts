@@ -110,6 +110,7 @@ export {
   managerDeleteRoadblock,
   managerUpsertSubscriptionPlan,
   managerAssignSubscription,
+  managerMarkSubscriptionInvoicePaid,
   managerCreateCommissionSettlement,
   managerMarkCommissionSettlementPaid,
   reportCheckpoint,

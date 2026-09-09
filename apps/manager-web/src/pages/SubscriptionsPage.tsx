@@ -3,10 +3,13 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useI18n } from '../localization';
 import {
   SubscriptionAssignment,
+  SubscriptionInvoice,
   SubscriptionPlan,
   assignSubscription,
+  markSubscriptionInvoicePaid,
   saveSubscriptionPlan,
   subscribeToAssignments,
+  subscribeToSubscriptionInvoices,
   subscribeToPlans,
 } from '../services/subscriptions.service';
 import './OperationsPage.css';
@@ -15,23 +18,27 @@ export function SubscriptionsPage() {
   const { txt } = useI18n();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [assignments, setAssignments] = useState<SubscriptionAssignment[]>([]);
+  const [invoices, setInvoices] = useState<SubscriptionInvoice[]>([]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [plan, setPlan] = useState({ nameAr: '', nameEn: '', billingModel: 'hybrid' as const, commissionBps: '1000', recurringFeeIls: '0', billingInterval: 'monthly' as const });
   const [assignment, setAssignment] = useState({ targetType: 'driver' as const, targetId: '', planId: '', status: 'active' as const, startsAt: new Date().toISOString().slice(0, 16), endsAt: '' });
 
   useEffect(() => {
     const unsubscribePlans = subscribeToPlans(setPlans);
     const unsubscribeAssignments = subscribeToAssignments(setAssignments);
-    return () => { unsubscribePlans(); unsubscribeAssignments(); };
+    const unsubscribeInvoices = subscribeToSubscriptionInvoices(setInvoices);
+    return () => { unsubscribePlans(); unsubscribeAssignments(); unsubscribeInvoices(); };
   }, []);
 
   async function submitPlan(event: FormEvent) {
     event.preventDefault(); setSaving(true); setMessage('');
     try {
       await saveSubscriptionPlan({ ...plan, commissionBps: Number(plan.commissionBps), recurringFeeIls: Number(plan.recurringFeeIls), isActive: true });
+      setMessageType('success');
       setMessage(txt('تم حفظ الخطة', 'Plan saved'));
-    } catch (error) { setMessage(error instanceof Error ? error.message : txt('تعذّر الحفظ', 'Save failed')); }
+    } catch (error) { setMessageType('error'); setMessage(error instanceof Error ? error.message : txt('تعذّر الحفظ', 'Save failed')); }
     finally { setSaving(false); }
   }
 
@@ -39,15 +46,36 @@ export function SubscriptionsPage() {
     event.preventDefault(); setSaving(true); setMessage('');
     try {
       await assignSubscription({ ...assignment, startsAt: new Date(assignment.startsAt).toISOString(), endsAt: assignment.endsAt ? new Date(assignment.endsAt).toISOString() : null });
+      setMessageType('success');
       setMessage(txt('تم إسناد الاشتراك', 'Subscription assigned'));
-    } catch (error) { setMessage(error instanceof Error ? error.message : txt('تعذّر الإسناد', 'Assignment failed')); }
+    } catch (error) { setMessageType('error'); setMessage(error instanceof Error ? error.message : txt('تعذّر الإسناد', 'Assignment failed')); }
     finally { setSaving(false); }
+  }
+
+  async function payInvoice(invoice: SubscriptionInvoice) {
+    const paymentReference = window.prompt(txt('أدخل رقم مرجع الدفعة', 'Enter payment reference'))?.trim();
+    if (!paymentReference) return;
+    const paymentMethod = window.prompt(txt('طريقة الدفع: cash أو bank_transfer أو card أو other', 'Payment method: cash, bank_transfer, card, or other'), 'cash')?.trim();
+    if (!paymentMethod || !['cash', 'bank_transfer', 'card', 'other'].includes(paymentMethod)) {
+      setMessageType('error'); setMessage(txt('طريقة الدفع غير صالحة', 'Invalid payment method')); return;
+    }
+    setSaving(true); setMessage('');
+    try {
+      await markSubscriptionInvoicePaid({ invoiceId: invoice.id, paymentReference, paymentMethod: paymentMethod as 'cash' | 'bank_transfer' | 'card' | 'other' });
+      setMessageType('success'); setMessage(txt('تم تسجيل الدفعة وتحديث الاشتراك', 'Payment recorded and subscription updated'));
+    } catch (error) {
+      setMessageType('error'); setMessage(error instanceof Error ? error.message : txt('تعذّر تسجيل الدفعة', 'Payment failed'));
+    } finally { setSaving(false); }
+  }
+
+  function formatDate(invoice: SubscriptionInvoice) {
+    return invoice.dueAt?.toDate().toLocaleDateString() ?? '—';
   }
 
   return <div className="operations-page">
     <h2>{txt('الاشتراكات والفوترة', 'Subscriptions & billing')}</h2>
     <p className="subtitle">{txt('إدارة خطط السائقين والمكاتب وربط العمولات.', 'Manage driver and office plans with commission rules.')}</p>
-    {message ? <div className="ops-banner success">{message}</div> : null}
+    {message ? <div className={`ops-banner ${messageType}`}>{message}</div> : null}
     <div className="ops-grid">
       <form className="ops-card" onSubmit={submitPlan}>
         <h3>{txt('خطة جديدة', 'New plan')}</h3>
@@ -68,6 +96,13 @@ export function SubscriptionsPage() {
         <button disabled={saving}>{txt('إسناد', 'Assign')}</button>
       </form>
     </div>
-    <div className="ops-snapshot"><h3>{txt('الوضع الحالي', 'Current status')}</h3><div className="snapshot-grid"><div>{txt('الخطط', 'Plans')} <span>{plans.length}</span></div><div>{txt('الاشتراكات', 'Subscriptions')} <span>{assignments.length}</span></div><div>{txt('النشطة', 'Active')} <span>{assignments.filter((item) => item.status === 'active').length}</span></div></div></div>
+    <div className="ops-snapshot"><h3>{txt('الوضع الحالي', 'Current status')}</h3><div className="snapshot-grid"><div>{txt('الخطط', 'Plans')} <span>{plans.length}</span></div><div>{txt('الاشتراكات', 'Subscriptions')} <span>{assignments.length}</span></div><div>{txt('النشطة', 'Active')} <span>{assignments.filter((item) => item.status === 'active').length}</span></div><div>{txt('فواتير غير مدفوعة', 'Unpaid invoices')} <span>{invoices.filter((item) => item.status !== 'paid' && item.status !== 'void').length}</span></div></div></div>
+    <section className="ops-snapshot">
+      <h3>{txt('فواتير الاشتراكات', 'Subscription invoices')}</h3>
+      <div className="ops-table-wrap"><table className="ops-table"><thead><tr><th>{txt('الفترة', 'Period')}</th><th>{txt('الجهة', 'Target')}</th><th>{txt('القيمة', 'Amount')}</th><th>{txt('الاستحقاق', 'Due')}</th><th>{txt('الحالة', 'Status')}</th><th>{txt('الإجراء', 'Action')}</th></tr></thead><tbody>
+        {invoices.map((invoice) => <tr key={invoice.id}><td>{invoice.periodKey}</td><td>{invoice.targetType} · {invoice.targetId}</td><td>{invoice.amountIls.toFixed(2)} {invoice.currency}</td><td>{formatDate(invoice)}</td><td><span className={`invoice-status ${invoice.status}`}>{invoice.status}</span></td><td>{invoice.status === 'paid' ? <span>{invoice.paymentReference ?? '—'}</span> : invoice.status === 'void' ? '—' : <button className="inline-action" disabled={saving} onClick={() => void payInvoice(invoice)}>{txt('تسجيل دفعة', 'Record payment')}</button>}</td></tr>)}
+        {!invoices.length ? <tr><td colSpan={6}>{txt('لا توجد فواتير بعد', 'No invoices yet')}</td></tr> : null}
+      </tbody></table></div>
+    </section>
   </div>;
 }
