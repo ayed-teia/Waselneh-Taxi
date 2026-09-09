@@ -33,6 +33,7 @@ export * from './managerRoadblocks.callable';
 export * from './managerSubscriptions.callable';
 export * from './managerSubscriptionInvoices.callable';
 export * from './managerSettlements.callable';
+export * from './managerOfficeStatements.callable';
 export * from './checkpointReports.callable';
 export * from './driverDocuments.callable';
 export * from './otpRateLimit.callable';

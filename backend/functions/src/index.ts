@@ -113,6 +113,8 @@ export {
   managerMarkSubscriptionInvoicePaid,
   managerCreateCommissionSettlement,
   managerMarkCommissionSettlementPaid,
+  managerCreateOfficeStatement,
+  managerMarkOfficeStatementPaid,
   reportCheckpoint,
   managerReviewCheckpointReport,
   registerDriverDocument,
