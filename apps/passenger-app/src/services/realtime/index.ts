@@ -4,3 +4,4 @@ export * from './roadblocks.realtime';
 export * from './chat.realtime';
 export * from './history.realtime';
 export * from './route-runs.realtime';
+export * from './payment.realtime';

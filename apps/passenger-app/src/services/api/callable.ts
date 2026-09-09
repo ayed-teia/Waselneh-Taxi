@@ -322,3 +322,16 @@ export async function passengerCancelTrip(tripId: string): Promise<PassengerCanc
     { tripId }
   );
 }
+
+export interface StartOnlinePaymentResponse {
+  success: boolean;
+  status: 'awaiting_payment';
+  clientActionUrl: string;
+  providerChargeId: string;
+}
+
+export async function startOnlinePayment(tripId: string): Promise<StartOnlinePaymentResponse> {
+  return callFunction<{ tripId: string }, StartOnlinePaymentResponse>('startOnlinePayment', {
+    tripId,
+  });
+}
