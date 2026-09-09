@@ -518,6 +518,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /officeBillingStatements/{statementId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
     match /subscriptionPlans/{planId} {
       allow read: if isAuthenticated();
       allow write: if false;
