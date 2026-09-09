@@ -1,6 +1,7 @@
 import { collection, onSnapshot, Timestamp, query, orderBy, limit } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 
-import { getFirestoreDb } from './firebase';
+import { getFirestoreDb, getFunctionsInstance } from './firebase';
 
 /**
  * ============================================================================
@@ -25,7 +26,9 @@ export interface PaymentDocument {
   amount: number;
   currency: string;
   method: 'cash' | 'card' | 'wallet';
-  status: 'pending' | 'paid' | 'failed';
+  status: 'pending' | 'awaiting_payment' | 'paid' | 'failed' | 'cancelled' | 'refunded';
+  provider: string | null;
+  refundRequestStatus: 'processing' | 'submitted' | 'failed' | null;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
@@ -69,6 +72,10 @@ export function subscribeToPayments(
           currency: data.currency || 'ILS',
           method: data.method || 'cash',
           status: data.status || 'pending',
+          provider: typeof data.provider === 'string' ? data.provider : null,
+          refundRequestStatus: ['processing', 'submitted', 'failed'].includes(data.refundRequestStatus)
+            ? data.refundRequestStatus
+            : null,
           createdAt: data.createdAt || null,
           updatedAt: data.updatedAt || null,
         });
@@ -83,4 +90,12 @@ export function subscribeToPayments(
   );
 
   return unsubscribe;
+}
+
+export async function refundPayment(paymentId: string, reason: string): Promise<void> {
+  const callable = httpsCallable<{ paymentId: string; reason: string }, { success: true }>(
+    getFunctionsInstance(),
+    'managerRefundPayment'
+  );
+  await callable({ paymentId, reason });
 }

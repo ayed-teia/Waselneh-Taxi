@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { useI18n } from '../localization';
-import { PaymentDocument, subscribeToPayments } from '../services/payments.service';
+import { PaymentDocument, refundPayment, subscribeToPayments } from '../services/payments.service';
 import './PaymentsListPage.css';
 
 function getStatusBadge(
@@ -15,6 +15,12 @@ function getStatusBadge(
       return { className: 'badge-pending', text: txt('معلّق', 'Pending') };
     case 'failed':
       return { className: 'badge-failed', text: txt('فشل', 'Failed') };
+    case 'refunded':
+      return { className: 'badge-refunded', text: txt('مسترد', 'Refunded') };
+    case 'awaiting_payment':
+      return { className: 'badge-pending', text: txt('بانتظار الدفع', 'Awaiting payment') };
+    case 'cancelled':
+      return { className: 'badge-failed', text: txt('ملغي', 'Cancelled') };
     default:
       return { className: 'badge-pending', text: status };
   }
@@ -57,6 +63,24 @@ export function PaymentsListPage() {
   const { txt, locale } = useI18n();
   const [payments, setPayments] = useState<PaymentDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refundingId, setRefundingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const handleRefund = async (payment: PaymentDocument) => {
+    const reason = window.prompt(txt('اكتب سبب الاسترداد للتدقيق:', 'Enter the refund reason for the audit log:'))?.trim();
+    if (!reason) return;
+    if (!window.confirm(txt(`تأكيد استرداد ${payment.amount.toFixed(2)} شيكل؟`, `Refund ILS ${payment.amount.toFixed(2)}?`))) return;
+    setRefundingId(payment.paymentId);
+    setMessage(null);
+    try {
+      await refundPayment(payment.paymentId, reason);
+      setMessage(txt('تم إرسال طلب الاسترداد للمزوّد. سيتم تأكيده عبر webhook.', 'Refund submitted to the provider. The webhook will confirm settlement.'));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : txt('فشل طلب الاسترداد.', 'Refund request failed.'));
+    } finally {
+      setRefundingId(null);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = subscribeToPayments((newPayments) => {
@@ -85,6 +109,7 @@ export function PaymentsListPage() {
           'Realtime payment ledger with status and method visibility.'
         )}
       </p>
+      {message ? <div className="payment-message" role="status">{message}</div> : null}
 
       {loading ? <div className="loading">{txt('جاري تحميل المدفوعات...', 'Loading payments...')}</div> : null}
 
@@ -119,6 +144,7 @@ export function PaymentsListPage() {
                     <th>{txt('الطريقة', 'Method')}</th>
                     <th>{txt('الحالة', 'Status')}</th>
                     <th>{txt('تاريخ الإنشاء', 'Created')}</th>
+                    <th>{txt('إجراء', 'Action')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -142,6 +168,17 @@ export function PaymentsListPage() {
                           </span>
                         </td>
                         <td className="date">{formatDate(payment.createdAt, locale)}</td>
+                        <td>
+                          {payment.status === 'paid' ? (
+                            <button type="button" className="refund-button" disabled={refundingId === payment.paymentId || payment.refundRequestStatus === 'processing' || payment.refundRequestStatus === 'submitted'} onClick={() => void handleRefund(payment)}>
+                              {payment.refundRequestStatus === 'submitted'
+                                ? txt('الاسترداد قيد المعالجة', 'Refund submitted')
+                                : refundingId === payment.paymentId
+                                  ? txt('جارٍ الإرسال...', 'Submitting...')
+                                  : txt('استرداد', 'Refund')}
+                            </button>
+                          ) : '—'}
+                        </td>
                       </tr>
                     );
                   })}

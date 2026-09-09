@@ -161,6 +161,9 @@
   background: #ffe4e6;
   color: #9f1239;
 }
+.payments-page .badge-refunded { background: #e0e7ff; color: #3730a3; }
+.payments-page .payment-message { background: #eff6ff; border: 1px solid #93c5fd; border-radius: .7rem; color: #1e40af; padding: .75rem; }
+.payments-page .refund-button { background: #991b1b; border-color: #991b1b; }
 
 .payments-page .statement-actions {
   display: flex;
