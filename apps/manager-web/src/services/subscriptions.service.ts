@@ -32,35 +32,86 @@ export interface SubscriptionInvoice {
   currency: 'ILS';
   status: 'pending' | 'past_due' | 'suspended' | 'paid' | 'void';
   dueAt?: Timestamp;
+  createdAt?: Timestamp;
   paidAt?: Timestamp;
   paymentReference?: string;
   paymentMethod?: 'cash' | 'bank_transfer' | 'card' | 'other';
 }
 
+function safeCsvCell(value: string | number): string {
+  let text = String(value);
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+export function buildSubscriptionInvoicesCsv(invoices: SubscriptionInvoice[]): string {
+  const header = [
+    'invoice_id',
+    'period',
+    'target_type',
+    'target_id',
+    'amount_ils',
+    'status',
+    'due_at',
+    'paid_at',
+    'payment_method',
+    'payment_reference',
+  ];
+  const rows = invoices.map((invoice) =>
+    [
+      invoice.id,
+      invoice.periodKey,
+      invoice.targetType,
+      invoice.targetId,
+      invoice.amountIls.toFixed(2),
+      invoice.status,
+      invoice.dueAt?.toDate().toISOString() ?? '',
+      invoice.paidAt?.toDate().toISOString() ?? '',
+      invoice.paymentMethod ?? '',
+      invoice.paymentReference ?? '',
+    ]
+      .map(safeCsvCell)
+      .join(',')
+  );
+  return `\uFEFF${header.map(safeCsvCell).join(',')}\n${rows.join('\n')}`;
+}
+
 export function subscribeToPlans(callback: (items: SubscriptionPlan[]) => void): () => void {
-  return onSnapshot(query(collection(getFirestoreDb(), 'subscriptionPlans'), orderBy('nameEn')), (snapshot) =>
-    callback(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as SubscriptionPlan)))
+  return onSnapshot(
+    query(collection(getFirestoreDb(), 'subscriptionPlans'), orderBy('nameEn')),
+    (snapshot) =>
+      callback(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as SubscriptionPlan))
   );
 }
 
-export function subscribeToAssignments(callback: (items: SubscriptionAssignment[]) => void): () => void {
+export function subscribeToAssignments(
+  callback: (items: SubscriptionAssignment[]) => void
+): () => void {
   return onSnapshot(collection(getFirestoreDb(), 'subscriptions'), (snapshot) =>
-    callback(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as SubscriptionAssignment)))
+    callback(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as SubscriptionAssignment))
   );
 }
 
-export function subscribeToSubscriptionInvoices(callback: (items: SubscriptionInvoice[]) => void): () => void {
-  return onSnapshot(query(collection(getFirestoreDb(), 'subscriptionInvoices'), orderBy('createdAt', 'desc')), (snapshot) =>
-    callback(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as SubscriptionInvoice)))
+export function subscribeToSubscriptionInvoices(
+  callback: (items: SubscriptionInvoice[]) => void
+): () => void {
+  return onSnapshot(
+    query(collection(getFirestoreDb(), 'subscriptionInvoices'), orderBy('createdAt', 'desc')),
+    (snapshot) =>
+      callback(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as SubscriptionInvoice))
   );
 }
 
-export async function saveSubscriptionPlan(input: Omit<SubscriptionPlan, 'id'> & { planId?: string }) {
+export async function saveSubscriptionPlan(
+  input: Omit<SubscriptionPlan, 'id'> & { planId?: string }
+) {
   const callable = httpsCallable(getFunctionsInstance(), 'managerUpsertSubscriptionPlan');
   await callable(input);
 }
 
-export async function assignSubscription(input: Omit<SubscriptionAssignment, 'id'> & { startsAt: string; endsAt?: string | null }) {
+export async function assignSubscription(
+  input: Omit<SubscriptionAssignment, 'id'> & { startsAt: string; endsAt?: string | null }
+) {
   const callable = httpsCallable(getFunctionsInstance(), 'managerAssignSubscription');
   await callable(input);
 }
