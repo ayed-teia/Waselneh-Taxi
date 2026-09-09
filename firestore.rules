@@ -505,6 +505,24 @@ service cloud.firestore {
       );
       allow write: if false;
     }
+
+    match /subscriptionPlans/{planId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    match /subscriptions/{subscriptionId} {
+      allow read: if isManager() || (
+        isAuthenticated() && resource.data.targetType == 'driver' &&
+        resource.data.targetId == request.auth.uid
+      );
+      allow write: if false;
+
+      match /events/{eventId} {
+        allow read: if isManager();
+        allow write: if false;
+      }
+    }
     
     // =========================================================================
     // Trip Requests Collection
