@@ -157,3 +157,4 @@ export { expireDriverRequests, expireStaleTrips } from './modules/trips';
 // Monitoring Module Functions
 // ============================================================================
 export { aggregateOpsMetrics } from './modules/monitoring';
+export { processSubscriptionBilling } from './modules/billing/processSubscriptionBilling.scheduled';

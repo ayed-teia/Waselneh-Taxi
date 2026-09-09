@@ -98,6 +98,7 @@ export const managerAssignSubscription = onCall({ region: REGION }, async (reque
         commissionBps: plan.commissionBps,
         recurringFeeIls: plan.recurringFeeIls,
         billingModel: plan.billingModel,
+        billingInterval: plan.billingInterval,
         updatedAt: FieldValue.serverTimestamp(),
         updatedBy: managerId,
       }, { merge: true });
