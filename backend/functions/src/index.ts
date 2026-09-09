@@ -114,6 +114,7 @@ export {
   managerMarkSubscriptionInvoicePaid,
   managerCreateCommissionSettlement,
   managerMarkCommissionSettlementPaid,
+  managerRefundPayment,
   managerCreateOfficeStatement,
   managerMarkOfficeStatementPaid,
   reportCheckpoint,

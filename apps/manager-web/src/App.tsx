@@ -39,6 +39,7 @@ const PERMISSION_LABELS: Record<string, { ar: string; en: string }> = {
   manage_licenses: { ar: 'إدارة التراخيص', en: 'Manage licenses' },
   manage_vehicles: { ar: 'إدارة المركبات', en: 'Manage vehicles' },
   manage_pricing: { ar: 'إدارة التسعير', en: 'Manage pricing' },
+  manage_payments: { ar: 'إدارة المدفوعات والاسترداد', en: 'Manage payments and refunds' },
   view_monitoring: { ar: 'عرض المراقبة', en: 'View monitoring' },
   manage_alerts: { ar: 'إدارة التنبيهات', en: 'Manage alerts' },
   force_cancel_trip: { ar: 'إلغاء رحلة إجباريًا', en: 'Force cancel trip' },
