@@ -12,6 +12,12 @@ export function billingPeriodKey(date: Date): string {
 
 export function shouldCreateInvoice(start: Date, now: Date, interval: BillingInterval): boolean {
   if (now < start || now.getUTCDate() < start.getUTCDate()) return false;
-  const elapsedMonths = (now.getUTCFullYear() - start.getUTCFullYear()) * 12 + now.getUTCMonth() - start.getUTCMonth();
+  const elapsedMonths =
+    (now.getUTCFullYear() - start.getUTCFullYear()) * 12 + now.getUTCMonth() - start.getUTCMonth();
   return elapsedMonths >= 0 && elapsedMonths % MONTHS_BY_INTERVAL[interval] === 0;
+}
+
+export function reminderDaysBeforeDue(dueAt: Date, now: Date): 3 | 1 | null {
+  const days = Math.ceil((dueAt.getTime() - now.getTime()) / 86_400_000);
+  return days === 3 || days === 1 ? days : null;
 }
