@@ -110,6 +110,8 @@ export {
   managerDeleteRoadblock,
   managerUpsertSubscriptionPlan,
   managerAssignSubscription,
+  managerCreateCommissionSettlement,
+  managerMarkCommissionSettlementPaid,
   reportCheckpoint,
   managerReviewCheckpointReport,
   registerDriverDocument,

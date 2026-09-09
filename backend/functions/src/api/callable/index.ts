@@ -31,6 +31,7 @@ export * from './routeRuns.callable';
 export * from './findNearbyRouteRuns.callable';
 export * from './managerRoadblocks.callable';
 export * from './managerSubscriptions.callable';
+export * from './managerSettlements.callable';
 export * from './checkpointReports.callable';
 export * from './driverDocuments.callable';
 export * from './otpRateLimit.callable';
