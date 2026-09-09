@@ -91,6 +91,9 @@ export function HomeScreen({ onToggleStatus }: HomeScreenProps) {
             <TouchableOpacity style={styles.quickChip} onPress={() => router.push('/earnings')} activeOpacity={0.9}>
               <Text style={styles.quickChipText}>{isRTL ? 'الأرباح' : 'Earnings'}</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.quickChip} onPress={() => router.push('/subscription')} activeOpacity={0.9}>
+              <Text style={styles.quickChipText}>{isRTL ? 'الاشتراك' : 'Subscription'}</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.quickChip} onPress={() => router.push('/support')} activeOpacity={0.9}>
               <Text style={styles.quickChipText}>{isRTL ? 'الدعم' : 'Support'}</Text>
             </TouchableOpacity>
