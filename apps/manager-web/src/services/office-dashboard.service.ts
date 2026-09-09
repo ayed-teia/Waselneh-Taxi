@@ -12,6 +12,7 @@ export interface OfficeDashboard {
   trips: DashboardDoc[];
   commissions: DashboardDoc[];
   invoices: DashboardDoc[];
+  statements: DashboardDoc[];
   subscription: DashboardDoc | null;
   generatedAt: string;
 }

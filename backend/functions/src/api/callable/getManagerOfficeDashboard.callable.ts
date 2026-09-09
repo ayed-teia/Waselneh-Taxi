@@ -31,7 +31,7 @@ export const getManagerOfficeDashboard = onCall({ region: REGION }, async (reque
     const { officeId } = parsed.data;
     await assertManagerPermission(managerId, 'view_dashboard', { officeId });
     const db = getFirestore();
-    const [office, drivers, vehicles, lines, trips, commissions, invoices, subscription] =
+    const [office, drivers, vehicles, lines, trips, commissions, invoices, statements, subscription] =
       await Promise.all([
         db.collection('offices').doc(officeId).get(),
         db.collection('drivers').where('officeId', '==', officeId).limit(250).get(),
@@ -40,6 +40,7 @@ export const getManagerOfficeDashboard = onCall({ region: REGION }, async (reque
         db.collection('trips').where('officeId', '==', officeId).limit(500).get(),
         db.collection('commissionRecords').where('officeId', '==', officeId).limit(500).get(),
         db.collection('subscriptionInvoices').where('targetId', '==', officeId).limit(100).get(),
+        db.collection('officeBillingStatements').where('officeId', '==', officeId).limit(100).get(),
         db.collection('subscriptions').doc(`office_${officeId}`).get(),
       ]);
     if (!office.exists) throw new NotFoundError('Office', officeId);
@@ -54,6 +55,7 @@ export const getManagerOfficeDashboard = onCall({ region: REGION }, async (reque
       invoices: invoices.docs
         .filter((doc) => doc.data().targetType === 'office')
         .map((doc) => serialize(doc.id, doc.data())),
+      statements: statements.docs.map((doc) => serialize(doc.id, doc.data())),
       subscription: subscription.exists
         ? serialize(subscription.id, subscription.data() ?? {})
         : null,
