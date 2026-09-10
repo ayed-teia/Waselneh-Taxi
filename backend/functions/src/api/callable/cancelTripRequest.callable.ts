@@ -12,6 +12,7 @@ import {
   ValidationError,
   handleError,
 } from '../../core/errors';
+import { restoreTripRequestBenefits } from '../../modules/promotions';
 
 const CancelTripRequestSchema = z.object({
   requestId: z.string().trim().min(1),
@@ -82,6 +83,8 @@ export const cancelTripRequest = onCall<unknown, Promise<CancelTripRequestRespon
           cancelled = false;
           return;
         }
+
+        await restoreTripRequestBenefits(transaction, db, requestId, tripRequestData, 'passenger_cancelled');
 
         transaction.update(tripRequestRef, {
           status: TripRequestStatus.CANCELLED,

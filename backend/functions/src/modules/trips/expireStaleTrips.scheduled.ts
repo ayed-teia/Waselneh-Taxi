@@ -6,6 +6,7 @@ import { logger } from '../../core/logger';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { docData, getString } from '../../core/firestore/doc-data';
 import { buildDriverReleasePatch } from '../drivers/driver-seat-release';
+import { restoreTripRequestBenefits } from '../promotions';
 
 /**
  * ============================================================================
@@ -73,8 +74,11 @@ export const expireStaleTrips = onSchedule(
         for (const requestDoc of staleRequestsSnapshot.docs) {
           try {
             await db.runTransaction(
-      // eslint-disable-next-line @typescript-eslint/require-await -- Firestore requires a promise-returning transaction callback
       async (transaction) => {
+              const current = await transaction.get(requestDoc.ref);
+              const currentData = current.data() ?? {};
+              if (currentData.status !== TripRequestStatus.OPEN) return;
+              await restoreTripRequestBenefits(transaction, db, requestDoc.id, currentData, 'search_expired');
               // Update trip request to expired
               transaction.update(requestDoc.ref, {
                 status: TripRequestStatus.EXPIRED,
