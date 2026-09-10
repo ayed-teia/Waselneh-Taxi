@@ -1,8 +1,9 @@
 import { Button, Header, ScreenContainer, Text } from '@waselneh/ui';
 import { Redirect, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, Share, StyleSheet, TextInput, View } from 'react-native';
 
+import { clearActivePromoCode, getActivePromoCode, saveActivePromoCode } from '../src/features/promotions/promo-storage';
 import { useI18n } from '../src/localization';
 import { useAuthStore } from '../src/store';
 
@@ -11,20 +12,38 @@ export default function Promo() {
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
   const [promoCode, setPromoCode] = useState('');
+  const [activePromoCode, setActivePromoCode] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const referralCode = useMemo(() => `WSL-${(user?.uid ?? 'GUEST').slice(0, 6).toUpperCase()}`, [user?.uid]);
 
-  const applyPromo = () => {
+  useEffect(() => {
+    void getActivePromoCode().then(setActivePromoCode);
+  }, []);
+
+  const applyPromo = async () => {
     if (!promoCode.trim()) {
       Alert.alert(isRTL ? 'رمز الخصم' : 'Promo code', isRTL ? 'أدخل رمز الخصم أولاً.' : 'Enter a promo code first.');
       return;
     }
-    Alert.alert(
-      isRTL ? 'تمت إضافة الرمز' : 'Promo added',
-      isRTL
-        ? `سيتم تطبيق الرمز ${promoCode.trim().toUpperCase()} على أجرتك القادمة.`
-        : `Code ${promoCode.trim().toUpperCase()} will apply on your next fare.`
-    );
-    setPromoCode('');
+    setSaving(true);
+    try {
+      const code = await saveActivePromoCode(promoCode);
+      setActivePromoCode(code);
+      setPromoCode('');
+      Alert.alert(
+        isRTL ? 'تم حفظ الرمز' : 'Promo saved',
+        isRTL
+          ? `سيتحقق السيرفر من ${code} ويحسب الخصم عند طلب الرحلة القادمة.`
+          : `The server will validate ${code} and calculate the discount on your next request.`
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removePromo = async () => {
+    await clearActivePromoCode();
+    setActivePromoCode(null);
   };
 
   const shareReferral = async () => {
@@ -54,6 +73,14 @@ export default function Promo() {
       <View style={styles.content}>
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{isRTL ? 'تفعيل خصم' : 'Apply promo'}</Text>
+          {activePromoCode ? (
+            <View style={styles.activePromo}>
+              <Text style={styles.activePromoText}>{isRTL ? `الرمز المحفوظ: ${activePromoCode}` : `Saved code: ${activePromoCode}`}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void removePromo()}>
+                <Text style={styles.removePromo}>{isRTL ? 'إزالة' : 'Remove'}</Text>
+              </Pressable>
+            </View>
+          ) : null}
           <TextInput
             style={styles.input}
             placeholder={isRTL ? 'أدخل رمز الخصم' : 'Enter promo code'}
@@ -61,7 +88,7 @@ export default function Promo() {
             onChangeText={setPromoCode}
             autoCapitalize="characters"
           />
-          <Button title={isRTL ? 'تفعيل الرمز' : 'Apply code'} onPress={applyPromo} />
+          <Button title={saving ? (isRTL ? 'جارٍ الحفظ...' : 'Saving...') : (isRTL ? 'حفظ للرحلة القادمة' : 'Save for next trip')} onPress={() => void applyPromo()} disabled={saving} />
         </View>
 
         <View style={styles.card}>
@@ -126,4 +153,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     fontSize: 14,
   },
+  activePromo: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 10,
+  },
+  activePromoText: { color: '#065F46', fontWeight: '700' },
+  removePromo: { color: '#B91C1C', fontWeight: '700' },
 });

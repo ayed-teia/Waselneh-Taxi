@@ -504,6 +504,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Promo definitions, per-passenger counters and redemption audits are all
+    // server-owned. A client must never mint a discount or reset its own usage.
+    match /promoCodes/{promoCode} {
+      allow read, write: if false;
+    }
+
+    match /promoRedemptions/{redemptionId} {
+      allow read, write: if false;
+    }
+
+    match /promoRedemptionAudit/{auditId} {
+      allow read, write: if false;
+    }
+
     match /commissionRecords/{commissionId} {
       allow read: if isManager() || (
         isAuthenticated() && resource.data.driverId == request.auth.uid
