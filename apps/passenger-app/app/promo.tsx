@@ -1,10 +1,11 @@
 import { Button, Header, ScreenContainer, Text } from '@waselneh/ui';
 import { Redirect, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, Share, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Share, StyleSheet, TextInput, View } from 'react-native';
 
 import { clearActivePromoCode, getActivePromoCode, saveActivePromoCode } from '../src/features/promotions/promo-storage';
 import { useI18n } from '../src/localization';
+import { LoyaltyEntry, subscribeToLoyaltyWallet } from '../src/services/realtime/loyalty.realtime';
 import { useAuthStore } from '../src/store';
 
 export default function Promo() {
@@ -14,11 +15,22 @@ export default function Promo() {
   const [promoCode, setPromoCode] = useState('');
   const [activePromoCode, setActivePromoCode] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const [loyaltyTrips, setLoyaltyTrips] = useState(0);
+  const [loyaltyEntries, setLoyaltyEntries] = useState<LoyaltyEntry[]>([]);
+  const [loyaltyError, setLoyaltyError] = useState(false);
   const referralCode = useMemo(() => `WSL-${(user?.uid ?? 'GUEST').slice(0, 6).toUpperCase()}`, [user?.uid]);
 
   useEffect(() => {
     void getActivePromoCode().then(setActivePromoCode);
   }, []);
+
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+    return subscribeToLoyaltyWallet(user.uid, (points, trips) => {
+      setLoyaltyPoints(points); setLoyaltyTrips(trips); setLoyaltyError(false);
+    }, setLoyaltyEntries, () => setLoyaltyError(true));
+  }, [user?.uid]);
 
   const applyPromo = async () => {
     if (!promoCode.trim()) {
@@ -70,7 +82,12 @@ export default function Promo() {
         }
       />
 
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.walletCard}>
+          <Text style={styles.walletLabel}>{isRTL ? 'رصيد نقاطك' : 'Your points balance'}</Text>
+          <Text style={styles.walletPoints}>{loyaltyPoints.toLocaleString()}</Text>
+          <Text style={styles.walletValue}>{isRTL ? `قيمتها حتى ₪${Math.floor(loyaltyPoints / 10)} · ${loyaltyTrips} رحلات مكتملة` : `Worth up to ₪${Math.floor(loyaltyPoints / 10)} · ${loyaltyTrips} completed trips`}</Text>
+        </View>
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{isRTL ? 'تفعيل خصم' : 'Apply promo'}</Text>
           {activePromoCode ? (
@@ -99,7 +116,16 @@ export default function Promo() {
           <Text style={styles.refCode}>{referralCode}</Text>
           <Button title={isRTL ? 'مشاركة الإحالة' : 'Share referral'} variant="secondary" onPress={shareReferral} />
         </View>
-      </View>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>{isRTL ? 'آخر حركات النقاط' : 'Recent points activity'}</Text>
+          {loyaltyError ? <Text style={styles.errorText}>{isRTL ? 'تعذّر تحميل سجل النقاط.' : 'Could not load points history.'}</Text> : null}
+          {!loyaltyError && loyaltyEntries.length === 0 ? <Text muted>{isRTL ? 'لا توجد حركات بعد.' : 'No activity yet.'}</Text> : null}
+          {loyaltyEntries.map((entry) => {
+            const label = entry.type === 'trip_completed' ? (isRTL ? 'مكافأة رحلة' : 'Trip reward') : entry.type === 'trip_discount_restored' ? (isRTL ? 'نقاط مسترجعة' : 'Points restored') : (isRTL ? 'خصم رحلة' : 'Trip discount');
+            return <View key={entry.id} style={styles.ledgerRow}><View><Text style={styles.ledgerLabel}>{label}</Text><Text muted style={styles.ledgerDate}>{entry.createdAt?.toLocaleDateString(isRTL ? 'ar-PS' : 'en-US') ?? '—'}</Text></View><Text style={[styles.ledgerPoints, entry.points < 0 && styles.ledgerDebit]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text></View>;
+          })}
+        </View>
+      </ScrollView>
     </ScreenContainer>
   );
 }
@@ -164,4 +190,14 @@ const styles = StyleSheet.create({
   },
   activePromoText: { color: '#065F46', fontWeight: '700' },
   removePromo: { color: '#B91C1C', fontWeight: '700' },
+  walletCard: { backgroundColor: '#0F766E', borderRadius: 16, padding: 18 },
+  walletLabel: { color: '#CCFBF1', fontSize: 14, fontWeight: '700' },
+  walletPoints: { color: '#FFFFFF', fontSize: 38, fontWeight: '900', marginTop: 4 },
+  walletValue: { color: '#CCFBF1', fontSize: 13, marginTop: 3 },
+  ledgerRow: { alignItems: 'center', borderTopColor: '#E5E7EB', borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
+  ledgerLabel: { fontSize: 14, fontWeight: '700' },
+  ledgerDate: { fontSize: 12, marginTop: 2 },
+  ledgerPoints: { color: '#047857', fontSize: 17, fontWeight: '800' },
+  ledgerDebit: { color: '#B45309' },
+  errorText: { color: '#B91C1C' },
 });

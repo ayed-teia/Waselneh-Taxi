@@ -252,6 +252,11 @@ service cloud.firestore {
       allow update: if isManager() ||
         (isOwner(uid) && !changesPrivilegeFields());
       allow delete: if isManager();
+
+      match /loyaltyLedger/{entryId} {
+        allow read: if isOwner(uid) || isManager();
+        allow write: if false;
+      }
     }
 
     // =========================================================================
