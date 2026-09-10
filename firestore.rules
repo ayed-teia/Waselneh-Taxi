@@ -529,6 +529,38 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Referral attribution and credits are server-owned in exactly the same way as
+    // promos. A client must never mint a credit, reassign an inviter, or discover
+    // which uid owns a code.
+    match /referralCodes/{code} {
+      // The code -> owner map is a lookup INDEX, never client-readable: a readable
+      // mapping would let anyone enumerate codes back to real user ids.
+      allow read, write: if false;
+    }
+
+    match /referrals/{inviteeId} {
+      // Attribution names a SECOND person, so it is deliberately not on
+      // users/{uid} (which its owner may write). Managers read it for support.
+      allow read: if isManager();
+      allow write: if false;
+    }
+
+    match /referralCredits/{userId} {
+      // A spendable balance must never sit on an owner-writable document.
+      allow read: if isOwner(userId) || isManager();
+      allow write: if false;
+
+      match /ledger/{entryId} {
+        allow read: if isOwner(userId) || isManager();
+        allow write: if false;
+      }
+    }
+
+    match /referralRewardAudit/{auditId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
     match /commissionRecords/{commissionId} {
       allow read: if isManager() || (
         isAuthenticated() && resource.data.driverId == request.auth.uid

@@ -62,6 +62,43 @@ export async function validatePromotion(code: string): Promise<PromotionPreview>
 }
 
 /**
+ * Referral status for the signed-in passenger.
+ *
+ * Counts only - the backend deliberately never returns the uids of people who
+ * joined under you, so this cannot be used to enumerate other users.
+ */
+export interface ReferralStatus {
+  code: string | null;
+  claimStatus: 'none' | 'pending' | 'qualified';
+  claimedAt: string | null;
+  invitedCount: number;
+  qualifiedCount: number;
+  creditBalance: number;
+  rewardsEnabled: boolean;
+  inviterCredits: number;
+  inviteeCredits: number;
+}
+
+/** Issue (or fetch) this passenger's server-owned referral code. */
+export async function getMyReferralCode(): Promise<{ code: string }> {
+  return callFunction<Record<string, never>, { code: string }>('getMyReferralCode', {});
+}
+
+/** Record that this passenger was invited by the owner of `code`. */
+export async function claimReferralCode(
+  code: string
+): Promise<{ claimed: true; status: 'pending' }> {
+  return callFunction<{ code: string }, { claimed: true; status: 'pending' }>(
+    'claimReferralCode',
+    { code }
+  );
+}
+
+export async function getMyReferralStatus(): Promise<ReferralStatus> {
+  return callFunction<Record<string, never>, ReferralStatus>('getMyReferralStatus', {});
+}
+
+/**
  * Trip estimation request
  */
 export interface EstimateTripRequest {
