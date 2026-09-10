@@ -1,0 +1,8 @@
+.promotions-page { display: grid; gap: 1rem; }
+.promotions-page form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .7rem; padding: 1rem; border: 1px solid #d7e2ef; border-radius: .9rem; background: #fff; }
+.promotions-page input, .promotions-page select, .promotions-page button { min-height: 42px; border: 1px solid #cbd5e1; border-radius: .6rem; padding: .55rem .7rem; }
+.promotions-page button { background: #0f172a; color: white; cursor: pointer; font-weight: 700; }
+.promo-table { overflow-x: auto; }
+.promo-table table { width: 100%; border-collapse: collapse; background: white; }
+.promo-table th, .promo-table td { border-bottom: 1px solid #e2e8f0; padding: .7rem; text-align: start; }
+.promo-error { padding: .75rem; border-radius: .6rem; background: #fee2e2; color: #991b1b; }

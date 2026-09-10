@@ -12,6 +12,7 @@ import { OfficeDetailsPage } from './pages/OfficeDetailsPage';
 import { OperationsPage } from './pages/OperationsPage';
 import { PaymentReconciliationPage } from './pages/PaymentReconciliationPage';
 import { PaymentsListPage } from './pages/PaymentsListPage';
+import { PromotionsPage } from './pages/PromotionsPage';
 import { RoadblocksPage } from './pages/RoadblocksPage';
 import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { SystemSettingsPage } from './pages/SystemSettingsPage';
@@ -32,6 +33,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="live-map" element={<LiveMapPage />} />
             <Route path="drivers" element={<DriversListPage />} />
             <Route path="payments" element={<PaymentsListPage />} />
+            <Route path="promotions" element={<PromotionsPage />} />
             <Route path="commissions" element={<CommissionsPage />} />
             <Route path="reconciliation" element={<PaymentReconciliationPage />} />
             <Route path="roadblocks" element={<RoadblocksPage />} />
