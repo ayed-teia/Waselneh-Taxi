@@ -5,6 +5,7 @@ import { Alert, Pressable, ScrollView, Share, StyleSheet, TextInput, View } from
 
 import { clearActivePromoCode, getActivePromoCode, saveActivePromoCode } from '../src/features/promotions/promo-storage';
 import { useI18n } from '../src/localization';
+import { PromotionPreview, validatePromotion } from '../src/services/api';
 import { LoyaltyEntry, subscribeToLoyaltyWallet } from '../src/services/realtime/loyalty.realtime';
 import { useAuthStore } from '../src/store';
 
@@ -15,6 +16,7 @@ export default function Promo() {
   const [promoCode, setPromoCode] = useState('');
   const [activePromoCode, setActivePromoCode] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [promotionPreview, setPromotionPreview] = useState<PromotionPreview | null>(null);
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
   const [loyaltyTrips, setLoyaltyTrips] = useState(0);
   const [loyaltyEntries, setLoyaltyEntries] = useState<LoyaltyEntry[]>([]);
@@ -22,7 +24,12 @@ export default function Promo() {
   const referralCode = useMemo(() => `WSL-${(user?.uid ?? 'GUEST').slice(0, 6).toUpperCase()}`, [user?.uid]);
 
   useEffect(() => {
-    void getActivePromoCode().then(setActivePromoCode);
+    void getActivePromoCode().then(async (code) => {
+      setActivePromoCode(code);
+      if (!code) return;
+      try { setPromotionPreview(await validatePromotion(code)); }
+      catch { setPromotionPreview(null); }
+    });
   }, []);
 
   useEffect(() => {
@@ -39,15 +46,19 @@ export default function Promo() {
     }
     setSaving(true);
     try {
+      const preview = await validatePromotion(promoCode);
       const code = await saveActivePromoCode(promoCode);
       setActivePromoCode(code);
+      setPromotionPreview(preview);
       setPromoCode('');
       Alert.alert(
         isRTL ? 'تم حفظ الرمز' : 'Promo saved',
         isRTL
-          ? `سيتحقق السيرفر من ${code} ويحسب الخصم عند طلب الرحلة القادمة.`
-          : `The server will validate ${code} and calculate the discount on your next request.`
+          ? `تم التحقق من ${preview.nameAr}. سيُحسب الخصم عند طلب الرحلة.`
+          : `${preview.nameEn} is valid. The discount will be calculated when you request the trip.`
       );
+    } catch (error) {
+      Alert.alert(isRTL ? 'الرمز غير صالح' : 'Invalid promo', error instanceof Error ? error.message : (isRTL ? 'تعذّر التحقق من الرمز.' : 'Could not validate this code.'));
     } finally {
       setSaving(false);
     }
@@ -56,6 +67,7 @@ export default function Promo() {
   const removePromo = async () => {
     await clearActivePromoCode();
     setActivePromoCode(null);
+    setPromotionPreview(null);
   };
 
   const shareReferral = async () => {
@@ -98,6 +110,7 @@ export default function Promo() {
               </Pressable>
             </View>
           ) : null}
+          {promotionPreview ? <Text style={styles.promoDetails}>{promotionPreview.discountType === 'percentage' ? `${promotionPreview.discountValue}%` : `₪${promotionPreview.discountValue}`}{promotionPreview.maxDiscountIls ? ` · ${isRTL ? 'حتى' : 'up to'} ₪${promotionPreview.maxDiscountIls}` : ''}{promotionPreview.minFareIls ? ` · ${isRTL ? 'أدنى أجرة' : 'min fare'} ₪${promotionPreview.minFareIls}` : ''}</Text> : null}
           <TextInput
             style={styles.input}
             placeholder={isRTL ? 'أدخل رمز الخصم' : 'Enter promo code'}
@@ -190,6 +203,7 @@ const styles = StyleSheet.create({
   },
   activePromoText: { color: '#065F46', fontWeight: '700' },
   removePromo: { color: '#B91C1C', fontWeight: '700' },
+  promoDetails: { color: '#047857', fontSize: 13, fontWeight: '700' },
   walletCard: { backgroundColor: '#0F766E', borderRadius: 16, padding: 18 },
   walletLabel: { color: '#CCFBF1', fontSize: 14, fontWeight: '700' },
   walletPoints: { color: '#FFFFFF', fontSize: 38, fontWeight: '900', marginTop: 4 },

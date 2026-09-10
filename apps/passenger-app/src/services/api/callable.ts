@@ -45,6 +45,22 @@ export async function ping(message?: string) {
   );
 }
 
+export interface PromotionPreview {
+  valid: true;
+  code: string;
+  nameAr: string;
+  nameEn: string;
+  discountType: 'fixed' | 'percentage';
+  discountValue: number;
+  maxDiscountIls: number | null;
+  minFareIls: number;
+  expiresAt: string | null;
+}
+
+export async function validatePromotion(code: string): Promise<PromotionPreview> {
+  return callFunction<{ code: string }, PromotionPreview>('validatePromotion', { code });
+}
+
 /**
  * Trip estimation request
  */

@@ -116,6 +116,7 @@ export {
   managerMarkCommissionSettlementPaid,
   managerRefundPayment,
   managerUpsertPromotion,
+  validatePromotion,
   managerCreateOfficeStatement,
   managerMarkOfficeStatementPaid,
   reportCheckpoint,
