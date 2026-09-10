@@ -30,6 +30,7 @@ import { evaluateDriverEligibility } from '../../modules/auth';
 import { orderCandidatesByQueue } from '../../modules/queue/line-queue';
 import { getActiveRoadblockCandidates } from '../../modules/routes/roadblock-impact';
 import { selectSmartRoute } from '../../modules/routes/smart-route-selection';
+import { evaluatePromo, normalizePromoCode } from '../../modules/promotions';
 
 /**
  * ============================================================================
@@ -94,6 +95,7 @@ const CreateTripRequestSchema = z.object({
   estimate: TripEstimateSchema,
   rideOptions: RideOptionsSchema.optional(),
   loyaltyPointsToRedeem: z.number().int().min(0).max(100_000).optional(),
+  promoCode: z.string().trim().min(1).max(32).optional(),
 });
 
 const LOYALTY_POINTS_PER_ILS = 10;
@@ -153,6 +155,8 @@ interface TripRequestDocument {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  promoCode: string | null;
+  promoDiscountIls: number;
   loyaltyDiscountIls: number;
   loyaltyPointsRedeemed: number;
   smartRoute: {
@@ -190,6 +194,10 @@ interface TripDocument {
   estimatedDistanceKm: number;
   estimatedDurationMin: number;
   estimatedPriceIls: number;
+  promoCode: string | null;
+  promoDiscountIls: number;
+  loyaltyDiscountIls: number;
+  loyaltyPointsRedeemed: number;
   smartRoute: {
     selectedIndex: number;
     reason: string;
@@ -407,6 +415,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       }
 
       const { pickup, dropoff, estimate, rideOptions, loyaltyPointsToRedeem = 0 } = parsed.data;
+      const promoCode = parsed.data.promoCode ? normalizePromoCode(parsed.data.promoCode) : null;
       const bookingType = normalizeBookingType(rideOptions?.bookingType);
       const requestedSeats = getRequestedSeatsForBookingType(
         bookingType,
@@ -518,6 +527,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       const requestId = tripRequestRef.id;
       let loyaltyPointsRedeemed = 0;
       let loyaltyDiscountIls = 0;
+      let promoDiscountIls = 0;
 
       const tripRequestDoc: TripRequestDocument = {
         requestId,
@@ -529,6 +539,8 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         estimatedPriceIls: serverCalculatedPriceIls,
         loyaltyDiscountIls,
         loyaltyPointsRedeemed,
+        promoCode,
+        promoDiscountIls,
         smartRoute: serverSmartRoute,
         rideOptions: {
           ...normalizedRideOptions,
@@ -540,10 +552,56 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
       };
 
       await db.runTransaction(async (transaction) => {
+        const passengerRef = db.collection('users').doc(passengerId);
+        const passengerDoc = loyaltyPointsToRedeem > 0
+          ? await transaction.get(passengerRef)
+          : null;
+        if (promoCode) {
+          const promoRef = db.collection('promoCodes').doc(promoCode);
+          const redemptionRef = db.collection('promoRedemptions').doc(`${promoCode}_${passengerId}`);
+          const [promoSnapshot, redemptionSnapshot] = await Promise.all([
+            transaction.get(promoRef),
+            transaction.get(redemptionRef),
+          ]);
+          if (!promoSnapshot.exists) throw new ValidationError('Promo code is invalid');
+          const promo = promoSnapshot.data() ?? {};
+          const toMillis = (value: unknown): number | null => value instanceof Timestamp ? value.toMillis() : null;
+          const decision = evaluatePromo({
+            active: promo.active === true,
+            discountType: promo.discountType === 'percentage' ? 'percentage' : 'fixed',
+            discountValue: Number(promo.discountValue),
+            maxDiscountIls: Number(promo.maxDiscountIls) || null,
+            minFareIls: Number(promo.minFareIls) || null,
+            startsAtMs: toMillis(promo.startsAt),
+            expiresAtMs: toMillis(promo.expiresAt),
+            usageLimit: Number(promo.usageLimit) || null,
+            usageCount: Number(promo.usageCount) || 0,
+            perPassengerLimit: Number(promo.perPassengerLimit) || 1,
+            passengerUsageCount: Number(redemptionSnapshot.data()?.usageCount) || 0,
+          }, serverCalculatedPriceIls);
+          if (!decision.valid) throw new ValidationError(`Promo code cannot be used: ${decision.reason}`);
+          promoDiscountIls = decision.discountIls;
+          serverCalculatedPriceIls -= promoDiscountIls;
+          transaction.update(promoRef, { usageCount: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
+          transaction.set(redemptionRef, {
+            promoCode,
+            passengerId,
+            usageCount: FieldValue.increment(1),
+            lastTripRequestId: requestId,
+            lastDiscountIls: promoDiscountIls,
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          transaction.set(db.collection('promoRedemptionAudit').doc(requestId), {
+            promoCode,
+            passengerId,
+            tripRequestId: requestId,
+            discountIls: promoDiscountIls,
+            fareBeforeDiscountIls: serverCalculatedPriceIls + promoDiscountIls,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        }
         if (loyaltyPointsToRedeem > 0) {
-          const passengerRef = db.collection('users').doc(passengerId);
-          const passengerDoc = await transaction.get(passengerRef);
-          const storedLoyaltyPoints: unknown = passengerDoc.data()?.loyaltyPoints;
+          const storedLoyaltyPoints: unknown = passengerDoc?.data()?.loyaltyPoints;
           const availablePoints = typeof storedLoyaltyPoints === 'number' && Number.isFinite(storedLoyaltyPoints)
             ? Math.max(0, Math.floor(storedLoyaltyPoints))
             : 0;
@@ -566,6 +624,8 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         transaction.set(tripRequestRef, {
           ...tripRequestDoc,
           estimatedPriceIls: serverCalculatedPriceIls,
+          promoCode,
+          promoDiscountIls,
           loyaltyDiscountIls,
           loyaltyPointsRedeemed,
         });
@@ -1015,6 +1075,10 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
           estimatedDistanceKm: smartRoute.distanceKm,
           estimatedDurationMin: serverEstimatedDurationMin,
           estimatedPriceIls: serverCalculatedPriceIls,
+          promoCode,
+          promoDiscountIls,
+          loyaltyDiscountIls,
+          loyaltyPointsRedeemed,
           smartRoute: serverSmartRoute,
           bookingType: normalizedRideOptions.bookingType,
           requestedSeats: normalizedRideOptions.requestedSeats,

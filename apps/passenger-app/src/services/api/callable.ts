@@ -1,5 +1,6 @@
 import { BookingType, LatLng, VehicleType } from '@taxi-line/shared';
 
+import { clearActivePromoCode, getActivePromoCode } from '../../features/promotions/promo-storage';
 import { firebaseFunctions } from '../firebase';
 
 // Dev mode configuration - matches app/index.tsx
@@ -126,6 +127,7 @@ export interface CreateTripRequestInput {
   };
   rideOptions?: RideOptions;
   loyaltyPointsToRedeem?: number;
+  promoCode?: string;
 }
 
 /**
@@ -157,11 +159,15 @@ export async function createTripRequest(
   if (typeof loyaltyPointsToRedeem === 'number' && loyaltyPointsToRedeem > 0) {
     payload.loyaltyPointsToRedeem = Math.floor(loyaltyPointsToRedeem);
   }
+  const promoCode = await getActivePromoCode();
+  if (promoCode) payload.promoCode = promoCode;
 
-  return callFunction<CreateTripRequestInput, CreateTripRequestResponse>(
+  const response = await callFunction<CreateTripRequestInput, CreateTripRequestResponse>(
     'createTripRequest',
     payload
   );
+  if (promoCode) await clearActivePromoCode();
+  return response;
 }
 
 export interface BookRouteRunResponse {
