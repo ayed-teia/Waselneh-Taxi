@@ -35,7 +35,13 @@ import {
 // where a native init failure hung the entire app on the startup spinner.
 import { ensureMapboxInitialized } from '../../config/mapbox.init';
 import { useI18n } from '../../localization';
-import { RoadblockData, getRoadblockStatusDisplay, subscribeToAllRoadblocks } from '../../services/realtime';
+import {
+  DriverLocation,
+  RoadblockData,
+  getRoadblockStatusDisplay,
+  subscribeToAllRoadblocks,
+  subscribeToDriverLocation,
+} from '../../services/realtime';
 
 const MAPBOX_TOKEN = getMapboxToken();
 const STREET_STYLE_URL = Mapbox.StyleURL?.Street ?? MAP_STYLE_URL;
@@ -43,17 +49,13 @@ type MapStyleStage = 'primary' | 'alternate' | 'local-fallback';
 const INITIAL_STYLE_STAGE: MapStyleStage = MAPBOX_TOKEN ? 'primary' : 'local-fallback';
 
 if (__DEV__ && !Mapbox.StyleURL?.Street) {
-  console.warn('[Mapbox] Mapbox.StyleURL.Street unavailable in driver app; using MAP_STYLE_URL fallback.');
+  console.warn('[Mapbox] Mapbox.StyleURL.Street unavailable in passenger app; using MAP_STYLE_URL fallback.');
 }
 
-interface DriverMapViewProps {
-  driverLocation?: {
-    latitude: number;
-    longitude: number;
-  } | null;
-  followUser?: boolean;
-  pickup?: { lat: number; lng: number } | null;
-  dropoff?: { lat: number; lng: number } | null;
+export interface PassengerMapViewProps {
+  driverId?: string | null | undefined;
+  pickup?: { lat: number; lng: number } | null | undefined;
+  dropoff?: { lat: number; lng: number } | null | undefined;
   routeMode?: 'auto' | 'toPickup' | 'toDropoff';
   mapHeightRatio?: number;
   overlayBottomOffset?: number;
@@ -65,19 +67,19 @@ const MAPBOX_DIRECTIONS_URL = 'https://api.mapbox.com/directions/v5/mapbox/drivi
 const ROUTE_REFRESH_MS = 10000;
 
 /**
- * Driver map focused on live road conditions and route awareness.
+ * Passenger map focused on ride-hailing clarity:
+ * route emphasis, clean overlays, and responsive floating controls.
  */
-export function DriverMapView({
-  driverLocation,
-  followUser = true,
+export function PassengerMapView({
+  driverId,
   pickup,
   dropoff,
   routeMode = 'auto',
   mapHeightRatio,
-  overlayBottomOffset = 244,
+  overlayBottomOffset = 252,
   showLegend = true,
   showControls = true,
-}: DriverMapViewProps) {
+}: PassengerMapViewProps) {
   // Apply the Mapbox token before the first map renders. Safe to call repeatedly,
   // and it never throws - a failure here just means the alternate style is used.
   ensureMapboxInitialized();
@@ -87,11 +89,13 @@ export function DriverMapView({
   const insets = useSafeAreaInsets();
   const isNarrow = width < 390;
   const cameraRef = useRef<Camera>(null);
-  const lastUpdateRef = useRef(0);
+  const lastRoadblockUpdateRef = useRef(0);
+  const lastDriverUpdateRef = useRef(0);
   const lastRouteFetchAtRef = useRef(0);
   const lastRouteFromRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const [roadblocks, setRoadblocks] = useState<RoadblockData[]>([]);
+  const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<[number, number][] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,13 +115,13 @@ export function DriverMapView({
     const unsubscribe = subscribeToAllRoadblocks(
       (data) => {
         const now = Date.now();
-        if (now - lastUpdateRef.current < MAP_UPDATE_THROTTLE_MS) return;
-        lastUpdateRef.current = now;
+        if (now - lastRoadblockUpdateRef.current < MAP_UPDATE_THROTTLE_MS) return;
+        lastRoadblockUpdateRef.current = now;
         setRoadblocks(data);
         setLoading(false);
       },
       (err) => {
-        console.error(`${MAP_LOG_PREFIX} Error:`, err);
+        console.error(`${MAP_LOG_PREFIX} Roadblocks error:`, err);
         setError(
           isRTL ? 'تعذر تحميل حالة الطرق المباشرة.' : 'Could not load live road conditions.'
         );
@@ -131,23 +135,49 @@ export function DriverMapView({
     };
   }, [isRTL]);
 
-  const animateToLocation = useCallback(
-    (latitude: number, longitude: number) => {
-      if (!cameraRef.current || !followUser) return;
-      cameraRef.current.setCamera({
-        centerCoordinate: [longitude, latitude],
-        zoomLevel: CAMERA_DEFAULTS.zoomLevel,
-        pitch: CAMERA_DEFAULTS.pitch,
-        animationDuration: 450,
-      });
-    },
-    [followUser]
-  );
+  useEffect(() => {
+    if (!driverId) {
+      setDriverLocation(null);
+      return;
+    }
+
+    const unsubscribe = subscribeToDriverLocation(
+      driverId,
+      (location) => {
+        const now = Date.now();
+        if (now - lastDriverUpdateRef.current < MAP_UPDATE_THROTTLE_MS) return;
+        lastDriverUpdateRef.current = now;
+        setDriverLocation(location);
+      },
+      (err) => {
+        console.error(`${MAP_LOG_PREFIX} Driver location error:`, err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [driverId]);
 
   useEffect(() => {
-    if (!driverLocation) return;
-    animateToLocation(driverLocation.latitude, driverLocation.longitude);
-  }, [driverLocation, animateToLocation]);
+    if (!cameraRef.current) return;
+
+    const coordinates: [number, number][] = [];
+    if (pickup) coordinates.push([pickup.lng, pickup.lat]);
+    if (dropoff) coordinates.push([dropoff.lng, dropoff.lat]);
+    if (driverLocation) coordinates.push([driverLocation.lng, driverLocation.lat]);
+
+    if (coordinates.length < 2) return;
+
+    const lngs = coordinates.map((item) => item[0]);
+    const lats = coordinates.map((item) => item[1]);
+    const ne: [number, number] = [Math.max(...lngs) + 0.02, Math.max(...lats) + 0.015];
+    const sw: [number, number] = [Math.min(...lngs) - 0.02, Math.min(...lats) - 0.015];
+
+    cameraRef.current.fitBounds(ne, sw, [72, 56, 280, 56], 700);
+  }, [pickup, dropoff, driverLocation]);
+
+  const initialCenter: [number, number] = pickup
+    ? [pickup.lng, pickup.lat]
+    : [DEFAULT_REGION.longitude, DEFAULT_REGION.latitude];
 
   const roadblockCirclesGeoJSON = {
     type: 'FeatureCollection' as const,
@@ -164,19 +194,15 @@ export function DriverMapView({
     })),
   };
 
-  const initialCenter: [number, number] = driverLocation
-    ? [driverLocation.longitude, driverLocation.latitude]
-    : [DEFAULT_REGION.longitude, DEFAULT_REGION.latitude];
-
   const straightLineFallback = useMemo(() => {
     if (driverLocation && pickup && (routeMode === 'toPickup' || routeMode === 'auto')) {
       const nearPickup =
-        Math.abs(driverLocation.latitude - pickup.lat) < 0.0013 &&
-        Math.abs(driverLocation.longitude - pickup.lng) < 0.0013;
+        Math.abs(driverLocation.lat - pickup.lat) < 0.0013 &&
+        Math.abs(driverLocation.lng - pickup.lng) < 0.0013;
 
       if (routeMode === 'toPickup' || (routeMode === 'auto' && !nearPickup)) {
         return [
-          [driverLocation.longitude, driverLocation.latitude] as [number, number],
+          [driverLocation.lng, driverLocation.lat] as [number, number],
           [pickup.lng, pickup.lat] as [number, number],
         ];
       }
@@ -184,7 +210,7 @@ export function DriverMapView({
 
     if (driverLocation && dropoff && (routeMode === 'toDropoff' || routeMode === 'auto')) {
       return [
-        [driverLocation.longitude, driverLocation.latitude] as [number, number],
+        [driverLocation.lng, driverLocation.lat] as [number, number],
         [dropoff.lng, dropoff.lat] as [number, number],
       ];
     }
@@ -211,8 +237,9 @@ export function DriverMapView({
 
       if (driverLocation && pickup) {
         const nearPickup =
-          Math.abs(driverLocation.latitude - pickup.lat) < 0.0013 &&
-          Math.abs(driverLocation.longitude - pickup.lng) < 0.0013;
+          Math.abs(driverLocation.lat - pickup.lat) < 0.0013 &&
+          Math.abs(driverLocation.lng - pickup.lng) < 0.0013;
+
         if (!nearPickup) return { lat: pickup.lat, lng: pickup.lng };
       }
 
@@ -222,7 +249,7 @@ export function DriverMapView({
     })();
 
     const fromCoordinate = driverLocation
-      ? { lat: driverLocation.latitude, lng: driverLocation.longitude }
+      ? { lat: driverLocation.lat, lng: driverLocation.lng }
       : pickup
         ? { lat: pickup.lat, lng: pickup.lng }
         : null;
@@ -233,14 +260,14 @@ export function DriverMapView({
     }
 
     const now = Date.now();
+    const timeSinceLastFetch = now - lastRouteFetchAtRef.current;
     const lastFrom = lastRouteFromRef.current;
     const movedEnough =
       !lastFrom ||
       Math.abs(lastFrom.lat - fromCoordinate.lat) > 0.0013 ||
       Math.abs(lastFrom.lng - fromCoordinate.lng) > 0.0013;
-    const canFetch = now - lastRouteFetchAtRef.current >= ROUTE_REFRESH_MS || movedEnough;
 
-    if (!canFetch) {
+    if (timeSinceLastFetch < ROUTE_REFRESH_MS && !movedEnough) {
       return;
     }
 
@@ -275,7 +302,9 @@ export function DriverMapView({
         setRouteCoordinates(straightLineFallback);
       });
 
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+    };
   }, [driverLocation, pickup, dropoff, routeMode, straightLineFallback]);
 
   const promoteStyleStage = useCallback(
@@ -347,6 +376,23 @@ export function DriverMapView({
         }
       : null;
 
+  const handleRecenter = () => {
+    if (!cameraRef.current) return;
+
+    const centerCoordinate: [number, number] = driverLocation
+      ? [driverLocation.lng, driverLocation.lat]
+      : pickup
+        ? [pickup.lng, pickup.lat]
+        : [DEFAULT_REGION.longitude, DEFAULT_REGION.latitude];
+
+    cameraRef.current.setCamera({
+      centerCoordinate,
+      zoomLevel: CAMERA_DEFAULTS.zoomLevel,
+      pitch: CAMERA_DEFAULTS.pitch,
+      animationDuration: 500,
+    });
+  };
+
   const handleMapLoadError = (event?: unknown) => {
     console.warn(`${MAP_LOG_PREFIX} Map style load error on stage ${styleStage}.`, event);
     if (!styleLoaded) {
@@ -378,22 +424,8 @@ export function DriverMapView({
     console.log(`${MAP_LOG_PREFIX} Style loaded:`, activeStyleURL);
   };
 
-  const recenter = () => {
-    if (!cameraRef.current) return;
-    const centerCoordinate: [number, number] = driverLocation
-      ? [driverLocation.longitude, driverLocation.latitude]
-      : [DEFAULT_REGION.longitude, DEFAULT_REGION.latitude];
-
-    cameraRef.current.setCamera({
-      centerCoordinate,
-      zoomLevel: CAMERA_DEFAULTS.zoomLevel,
-      pitch: CAMERA_DEFAULTS.pitch,
-      animationDuration: 500,
-    });
-  };
-
   const topOverlayOffset = Math.max(insets.top + 8, 16);
-  const minBottomWithInset = (isNarrow ? 232 : 218) + insets.bottom;
+  const minBottomWithInset = (isNarrow ? 236 : 220) + insets.bottom;
   const resolvedWindowHeight = height > 0 ? height : Dimensions.get('window').height;
   const mapHeight = mapHeightRatio ? Math.round(resolvedWindowHeight * mapHeightRatio) : null;
 
@@ -431,20 +463,20 @@ export function DriverMapView({
           }}
         />
 
-        <LocationPuck puckBearing="heading" puckBearingEnabled visible />
+        <LocationPuck visible puckBearing="heading" puckBearingEnabled />
 
         {routeLineGeoJSON && (
-          <ShapeSource id="driver-route-line" shape={routeLineGeoJSON}>
+          <ShapeSource id="route-line" shape={routeLineGeoJSON}>
             <LineLayer
-              id="driver-route-line-backdrop"
+              id="route-line-backdrop"
               style={{
                 lineColor: '#0F172A',
-                lineOpacity: 0.18,
+                lineOpacity: 0.2,
                 lineWidth: 8,
               }}
             />
             <LineLayer
-              id="driver-route-line-main"
+              id="route-line-main"
               style={{
                 lineColor: '#2563EB',
                 lineWidth: 4,
@@ -461,24 +493,44 @@ export function DriverMapView({
             style={{
               circleRadius: 22,
               circleColor: ['get', 'color'],
-              circleOpacity: 0.18,
+              circleOpacity: 0.2,
               circleStrokeWidth: 1.8,
               circleStrokeColor: ['get', 'color'],
             }}
           />
         </ShapeSource>
 
-        {pickup ? (
-          <PointAnnotation id="driver-pickup-marker" coordinate={[pickup.lng, pickup.lat]}>
-            <View style={styles.pickupMarker} />
+        {pickup && (
+          <PointAnnotation id="pickup-marker" coordinate={[pickup.lng, pickup.lat]}>
+            <View style={styles.pickupMarkerOuter}>
+              <View style={styles.pickupMarkerInner} />
+            </View>
           </PointAnnotation>
-        ) : null}
+        )}
 
-        {dropoff ? (
-          <PointAnnotation id="driver-dropoff-marker" coordinate={[dropoff.lng, dropoff.lat]}>
-            <View style={styles.dropoffMarker} />
+        {dropoff && (
+          <PointAnnotation id="dropoff-marker" coordinate={[dropoff.lng, dropoff.lat]}>
+            <View style={styles.dropoffMarker}>
+              <View style={styles.dropoffMarkerCenter} />
+            </View>
           </PointAnnotation>
-        ) : null}
+        )}
+
+        {driverLocation && (
+          <PointAnnotation id="driver-marker" coordinate={[driverLocation.lng, driverLocation.lat]}>
+            <View
+              style={[
+                styles.driverMarker,
+                {
+                  transform: [{ rotate: `${Math.round(driverLocation.heading ?? 0)}deg` }],
+                },
+              ]}
+            >
+              <View style={styles.driverMarkerArrow} />
+              <View style={styles.driverMarkerCabin} />
+            </View>
+          </PointAnnotation>
+        )}
 
         {roadblocks.map((roadblock) => {
           const statusDisplay = getRoadblockStatusDisplay(roadblock.status);
@@ -507,7 +559,7 @@ export function DriverMapView({
       <View style={[styles.topOverlay, { top: topOverlayOffset }]} pointerEvents="none">
         <View style={styles.liveBadge}>
           <View style={styles.liveDot} />
-          <Text style={styles.liveText}>{isRTL ? 'خريطة تنقل السائق' : 'Driver navigation map'}</Text>
+          <Text style={styles.liveText}>{isRTL ? 'حالة الطرق المباشرة' : 'Live road conditions'}</Text>
         </View>
       </View>
 
@@ -520,23 +572,23 @@ export function DriverMapView({
           ]}
         >
           <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.open }]} />
-            <Text style={styles.legendText}>{isRTL ? 'مفتوح' : 'Open'}</Text>
+            <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
+            <Text style={styles.legendText}>{isRTL ? 'الالتقاط' : 'Pickup'}</Text>
           </View>
           <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.congested }]} />
-            <Text style={styles.legendText}>{isRTL ? 'مزدحم' : 'Congested'}</Text>
+            <View style={[styles.legendDot, { backgroundColor: '#22C55E' }]} />
+            <Text style={styles.legendText}>{isRTL ? 'الوجهة' : 'Dropoff'}</Text>
           </View>
           <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: MARKER_COLORS.roadblock.closed }]} />
-            <Text style={styles.legendText}>{isRTL ? 'مغلق' : 'Closed'}</Text>
+            <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+            <Text style={styles.legendText}>{isRTL ? 'طريق مغلق' : 'Closed road'}</Text>
           </View>
         </View>
       ) : null}
 
       {showControls ? (
-        <View style={[styles.controls, { bottom: Math.max(overlayBottomOffset + 4, 220 + insets.bottom) }]}>
-          <Pressable style={styles.controlButton} onPress={recenter}>
+        <View style={[styles.controls, { bottom: Math.max(overlayBottomOffset + 4, 222 + insets.bottom) }]}>
+          <Pressable style={styles.controlButton} onPress={handleRecenter}>
             <Text style={styles.controlButtonText}>{isRTL ? 'توسيط' : 'Center'}</Text>
           </Pressable>
         </View>
@@ -584,26 +636,70 @@ const styles = StyleSheet.create({
     color: '#475569',
     fontWeight: '500',
   },
+  pickupMarkerOuter: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2.5,
+    borderColor: '#2563EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickupMarkerInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+  },
+  dropoffMarker: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    backgroundColor: '#22C55E',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dropoffMarkerCenter: {
+    width: 6,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+  },
+  driverMarker: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#0F172A',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  driverMarkerArrow: {
+    position: 'absolute',
+    top: -8,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderBottomWidth: 10,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#0F172A',
+  },
+  driverMarkerCabin: {
+    width: 11,
+    height: 11,
+    borderRadius: 999,
+    backgroundColor: '#38BDF8',
+  },
   roadblockMarker: {
     width: 14,
     height: 14,
     borderRadius: 999,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  pickupMarker: {
-    width: 18,
-    height: 18,
-    borderRadius: 999,
-    backgroundColor: '#2563EB',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  dropoffMarker: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
-    backgroundColor: '#22C55E',
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },

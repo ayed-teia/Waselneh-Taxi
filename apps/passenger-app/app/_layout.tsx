@@ -13,7 +13,8 @@ import {
 } from '../src/services';
 import { onAuthStateChanged, type User } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
-import '../src/config/mapbox.init';
+// Mapbox is initialised lazily by the map components (see src/config/mapbox.init.ts).
+// It must NOT run here: a native failure at router-load time hangs the whole app.
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
