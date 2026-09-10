@@ -33,7 +33,8 @@
     "qa:driver-onboarding:e2e": "node scripts/qa-driver-onboarding-e2e.mjs",
     "qa:manager-login:e2e": "node scripts/qa-manager-login-e2e.mjs",
     "qa:otp-auth:e2e": "node scripts/qa-otp-auth-e2e.mjs",
-    "qa:online-payments:e2e": "node scripts/qa-online-payments-e2e.mjs"
+    "qa:online-payments:e2e": "node scripts/qa-online-payments-e2e.mjs",
+    "qa:referrals:e2e": "node scripts/qa-referrals-e2e.mjs"
   },
   "engines": {
     "node": "20"

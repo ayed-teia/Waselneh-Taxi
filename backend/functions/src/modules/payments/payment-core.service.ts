@@ -4,6 +4,7 @@ import { PaymentStatus, isOnlinePaymentsEnabled } from '@taxi-line/shared';
 import { getFirestore } from '../../core/config';
 import { asRecord, getString } from '../../core/firestore/doc-data';
 import { logger } from '../../core/logger';
+import { grantReferralRewardIfDue } from '../referrals';
 
 import { LahzaProvider } from './lahza-provider';
 import type { PaymentProvider, VerifiedPaymentEvent } from './payment-provider';
@@ -181,6 +182,20 @@ export async function advancePaymentFromEvent(
       };
     }
 
+    // Referral credits are granted on the PAYMENT transition, and only when the
+    // provider says this payment actually became PAID. Runs in the read phase:
+    // grantReferralRewardIfDue performs its own transaction.get calls, and a
+    // Firestore transaction forbids a read after any write.
+    let referralGranted = false;
+    if (event.status === PaymentStatus.PAID) {
+      const passengerId = typeof data.passengerId === 'string' ? data.passengerId : '';
+      const amountIls = typeof data.amount === 'number' && Number.isFinite(data.amount) ? data.amount : 0;
+      if (passengerId) {
+        const referral = await grantReferralRewardIfDue(tx, db, passengerId, event.tripId, amountIls);
+        referralGranted = referral.granted;
+      }
+    }
+
     // ---- apply ------------------------------------------------------------------
     tx.update(paymentRef, {
       status: event.status,
@@ -200,6 +215,7 @@ export async function advancePaymentFromEvent(
       from,
       to: event.status,
       eventId: event.eventId,
+      referralGranted,
     });
 
     return { ok: true, duplicate: false, status: event.status };

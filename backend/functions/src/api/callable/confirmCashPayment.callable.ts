@@ -8,6 +8,7 @@ import { logger } from '../../core/logger';
 import { getAuthenticatedUserId } from '../../core/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 import { docData, getNumber, getString } from '../../core/firestore/doc-data';
+import { grantReferralRewardIfDue } from '../../modules/referrals';
 
 /**
  * ============================================================================
@@ -100,68 +101,87 @@ export const confirmCashPayment = onCall<unknown, Promise<ConfirmCashPaymentResp
       // ========================================
       const db = getFirestore();
       const tripRef = db.collection('trips').doc(tripId);
-      const tripDoc = await tripRef.get();
 
-      if (!tripDoc.exists) {
-        throw new NotFoundError('Trip not found');
-      }
+      // The payment transition and the referral grant must be ATOMIC. This used to
+      // be a bare get()-then-update(), so the 'already collected' guard was a
+      // read-then-write race: two taps could both observe PENDING and both proceed.
+      // Wrapping it also gives the referral reward a read phase to run in.
+      const result = await db.runTransaction(async (transaction) => {
+        // ---- reads first; a transaction may not read after it writes ----------
+        const tripDoc = await transaction.get(tripRef);
+        if (!tripDoc.exists) {
+          throw new NotFoundError('Trip not found');
+        }
 
-      const tripData = docData(tripDoc);
+        const tripData = docData(tripDoc);
 
-      // ========================================
-      // 4. Validate driver owns the trip
-      // ========================================
-      if (tripData.driverId !== driverId) {
-        logger.warn(`⚠️ [ConfirmCashPayment] Driver does not own trip`, { 
-          driverId, 
-          tripDriverId: tripData.driverId 
-        });
-        throw new ForbiddenError('You are not the driver of this trip');
-      }
+        if (tripData.driverId !== driverId) {
+          logger.warn(`⚠️ [ConfirmCashPayment] Driver does not own trip`, {
+            driverId,
+            tripDriverId: tripData.driverId,
+          });
+          throw new ForbiddenError('You are not the driver of this trip');
+        }
 
-      // ========================================
-      // 5. Validate trip is completed
-      // ========================================
-      const tripStatus = getString(tripData, 'status', '');
-      if (tripStatus !== TripStatus.COMPLETED) {
-        logger.warn(`⚠️ [ConfirmCashPayment] Trip not completed`, {
+        const tripStatus = getString(tripData, 'status', '');
+        if (tripStatus !== TripStatus.COMPLETED) {
+          logger.warn(`⚠️ [ConfirmCashPayment] Trip not completed`, { tripId, status: tripStatus });
+          throw new ValidationError(
+            `Trip must be completed before collecting payment. Current status: ${tripStatus}`
+          );
+        }
+
+        if (tripData.paymentStatus === PaymentStatus.PAID) {
+          logger.warn(`⚠️ [ConfirmCashPayment] Payment already collected`, { tripId });
+          throw new ValidationError('Payment has already been collected for this trip');
+        }
+
+        const fareAmount =
+          getNumber(tripData, 'fareAmount') ?? getNumber(tripData, 'estimatedPriceIls', 0);
+        const passengerId = getString(tripData, 'passengerId', '');
+
+        // Referral credits are granted HERE, on the payment transition - not on trip
+        // completion, which writes the payment as PENDING and would therefore reward
+        // cash trips the driver never actually collected. Still inside the read phase.
+        const referral = await grantReferralRewardIfDue(
+          transaction,
+          db,
+          passengerId,
           tripId,
-          status: tripStatus,
-        });
-        throw new ValidationError(
-          `Trip must be completed before collecting payment. Current status: ${tripStatus}`
+          fareAmount
         );
-      }
 
-      // ========================================
-      // 6. Check if payment already collected
-      // ========================================
-      if (tripData.paymentStatus === PaymentStatus.PAID) {
-        logger.warn(`⚠️ [ConfirmCashPayment] Payment already collected`, { tripId });
-        throw new ValidationError('Payment has already been collected for this trip');
-      }
+        // ---- writes -----------------------------------------------------------
+        transaction.update(tripRef, {
+          paymentStatus: PaymentStatus.PAID,
+          paidAt: FieldValue.serverTimestamp(),
+        });
 
-      // ========================================
-      // 7. Update payment status
-      // ========================================
-      const now = FieldValue.serverTimestamp();
-      
-      await tripRef.update({
-        paymentStatus: PaymentStatus.PAID,
-        paidAt: now,
+        const paymentRef = db.collection('payments').doc(`payment_${tripId}`);
+        transaction.set(
+          paymentRef,
+          {
+            status: PaymentStatus.PAID,
+            paidAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        return { fareAmount, passengerId, referralGranted: referral.granted, tripData };
       });
 
-      const fareAmount =
-        getNumber(tripData, 'fareAmount') ?? getNumber(tripData, 'estimatedPriceIls', 0);
+      const { fareAmount, passengerId, referralGranted, tripData } = result;
 
-      // Log structured payment confirmation
       // logger.paymentConfirmed takes a narrow 'cash' | 'card' union, so widen only
       // to what it accepts rather than casting an arbitrary stored string.
       const paymentMethod = getString(tripData, 'paymentMethod', 'cash') === 'card' ? 'card' : 'cash';
-      logger.paymentConfirmed(tripId, fareAmount, paymentMethod, {
-        driverId,
-        passengerId: getString(tripData, 'passengerId', ''),
-      });
+      logger.paymentConfirmed(tripId, fareAmount, paymentMethod, { driverId, passengerId });
+
+      if (referralGranted) {
+        // uids deliberately omitted - referral rewards must not put a passenger id in logs.
+        logger.info(`🎁 [ConfirmCashPayment] Referral reward granted`, { tripId });
+      }
 
       logger.info(`🎉 [ConfirmCashPayment] COMPLETE`, { tripId, driverId });
 

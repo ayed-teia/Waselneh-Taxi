@@ -40,6 +40,7 @@ const SUITES = [
   'qa-manager-login-e2e.mjs',
   'qa-otp-auth-e2e.mjs',
   'qa-online-payments-e2e.mjs',
+  'qa-referrals-e2e.mjs',
 ];
 
 const results = [];
