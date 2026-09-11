@@ -42,7 +42,13 @@ export interface PaymentDocument {
  */
 export function subscribeToPayments(
   callback: (payments: PaymentDocument[]) => void,
-  limitCount: number = 100
+  limitCount: number = 100,
+  /**
+   * Called when the listener itself fails. Without this a permissions or index
+   * error surfaced as an EMPTY ledger, so every trip rendered as 'Unrecorded' -
+   * visibly wrong data rather than an honest error.
+   */
+  onError?: (error: Error) => void
 ): () => void {
   const db = getFirestoreDb();
   const paymentsRef = collection(db, 'payments');
@@ -85,7 +91,10 @@ export function subscribeToPayments(
       callback(payments);
     },
     (error) => {
+      // Surface it. Swallowing this rendered an empty ledger, which the
+      // reconciliation page then reported as every trip being 'Unrecorded'.
       console.error('❌ [Payments] Subscription error:', error);
+      onError?.(error instanceof Error ? error : new Error(String(error)));
     }
   );
 

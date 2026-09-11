@@ -45,3 +45,4 @@ export * from './startOnlinePayment.callable';
 export * from './startSubscriptionInvoicePayment.callable';
 export * from './referrals.callable';
 export * from './managerReferrals.callable';
+export * from './managerReconciliation.callable';

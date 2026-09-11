@@ -16,10 +16,58 @@ build:functions → qa:unit) and `emulator-qa` (17 suites, Node 20 / Java 21).
 
 ---
 
-## Batch 2 — Phase 2: cancellation benefit restoration
+## Batch 3 — Phase 3: payment reconciliation + Lahza hardening
 
 - **PR:** _pending_
 - **Merge SHA:** _pending_
+- **Tests added:** 48 unit (reconciliation-classification, settlement-mismatch,
+  reconciliation-window) + 7 emulator cases (qa-settlement-reconciliation-e2e)
+- **Test count after:** 231 unit, 19 emulator suites
+
+Reconciliation existed only as CLIENT-SIDE logic in
+`apps/manager-web/src/services/reconciliation.ts`, comparing our trips to our own
+payments. It could never detect that the processor thinks something different.
+The emulator suite loaded that TypeScript by stripping types with a regex into a
+`data:` URL, because the QA harness has no TS runtime.
+
+Moved the classification to `backend/functions/src/modules/reconciliation/` as a
+compiled module (the suite now requires `dist` and the shim is gone), and added the
+provider dimension that did not exist: a mismatch taxonomy covering all seven
+categories, plus `managerReconcileSettlement`.
+
+**"Could not check" never looks like "checked and found nothing."** With online
+payments disabled - the default - the callable returns `providerAvailable: false`
+with a reason and null totals, rather than a reassuring empty report.
+
+`PaymentProvider` gains an OPTIONAL `fetchSettlement`, so the stub and any adapter
+that cannot report settlements simply omit it. **No real or sandbox Lahza call was
+made; none is faked.** The taxonomy is proven against fixtures only.
+
+Incidental fixes: `subscribeToPayments` had no `onError`, so a payments failure
+rendered an empty ledger and every trip read "Unrecorded" - wrong data rather than
+an honest error. Wired through to a banner the page already had but never fed. Also
+extracted the duplicated `csvCell` into `apps/manager-web/src/utils/csv.ts`,
+preserving its formula-injection guard.
+
+Also added `reconcileSettlementDaily` (03:00 Asia/Hebron), which raises the
+`settlement_mismatch` ops alert and writes an auditable run record. It is gated on
+the existing ONLINE_PAYMENTS_ENABLED rather than a new flag - a state where
+reconciliation is "on" while payments are off cannot mean anything - so by default
+it logs that it was skipped and writes nothing. A run that compared nothing never
+resolves a standing alert. Its window arithmetic is half-open [from, to) and unit
+tested across month, year and leap boundaries: a closed window would double-count a
+payment landing exactly on midnight.
+
+`LahzaProvider` deliberately does NOT implement `fetchSettlement`. Writing a parser
+against a guessed report format, then scheduling it to raise financial alerts, would
+be a control that looks real and proves nothing.
+
+---
+
+## Batch 2 — Phase 2: cancellation benefit restoration
+
+- **PR:** #48 — https://github.com/ayed-teia/Waselneh-Taxi/pull/48
+- **Merge SHA:** `347e8b0`
 - **Tests added:** 12 unit (benefit-restoration-policy) + 6 emulator cases
   (qa-cancellation-benefits-e2e)
 - **Test count after:** 183 unit, 18 emulator suites

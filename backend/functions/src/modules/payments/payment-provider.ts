@@ -85,6 +85,20 @@ export interface RefundResult {
  * What a concrete PSP adapter must implement.
  * See docs/REMAINING_PLAN.md for the full checklist.
  */
+/**
+ * One settled transaction as reported by a provider.
+ *
+ * Amounts are in MINOR units (agorot for ILS) so reconciliation never compares
+ * floats. Adapters convert at their own boundary.
+ */
+export interface SettlementRow {
+  reference: string;
+  status: 'paid' | 'refunded' | 'failed';
+  amountMinorUnits: number;
+  currency: string;
+  settledAtIso?: string | null;
+}
+
 export interface PaymentProvider {
   /** Stable identifier, recorded on the payment document for auditing. */
   readonly name: string;
@@ -104,6 +118,18 @@ export interface PaymentProvider {
   ): VerifiedPaymentEvent | null;
 
   refund(input: RefundInput): Promise<RefundResult>;
+
+  /**
+   * Fetch settled transactions for a date range, for reconciliation.
+   *
+   * OPTIONAL. An adapter that cannot supply settlement data simply omits it, and
+   * reconciliation reports that the provider side is unavailable rather than
+   * inventing an empty report - "0 rows" and "cannot ask" must never look alike.
+   *
+   * @param fromIso inclusive ISO-8601 start
+   * @param toIso   exclusive ISO-8601 end
+   */
+  fetchSettlement?(fromIso: string, toIso: string): Promise<SettlementRow[]>;
 }
 
 /**

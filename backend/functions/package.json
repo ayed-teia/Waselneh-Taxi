@@ -35,7 +35,8 @@
     "qa:otp-auth:e2e": "node scripts/qa-otp-auth-e2e.mjs",
     "qa:online-payments:e2e": "node scripts/qa-online-payments-e2e.mjs",
     "qa:referrals:e2e": "node scripts/qa-referrals-e2e.mjs",
-    "qa:cancellation-benefits:e2e": "node scripts/qa-cancellation-benefits-e2e.mjs"
+    "qa:cancellation-benefits:e2e": "node scripts/qa-cancellation-benefits-e2e.mjs",
+    "qa:settlement-reconciliation:e2e": "node scripts/qa-settlement-reconciliation-e2e.mjs"
   },
   "engines": {
     "node": "20"
