@@ -221,8 +221,16 @@ service cloud.firestore {
     }
     
     // =========================================================================
-    // Default: Deny all access (PRODUCTION)
-    // For development/emulator, allow all access
+    // Default: deny everything not explicitly allowed below.
+    //
+    // This catch-all is what protects every server-only collection that has no
+    // rule of its own - otpRateLimits among them, whose counters would otherwise
+    // be client-writable and the OTP lockout trivially erasable.
+    //
+    // The emulator does NOT need this loosened: the QA suites use the Admin SDK,
+    // which bypasses rules entirely. A previous comment here invited exactly that
+    // loosening "for development"; it never applied, and acting on it would have
+    // opened every collection in the database.
     // =========================================================================
     
     match /{document=**} {

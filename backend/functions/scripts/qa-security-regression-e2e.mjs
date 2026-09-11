@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 /**
- * QA E2E: security regressions R1 and R2.
+ * QA E2E: security regressions R1, R2 and R3.
  *
  * R1 - PRIVILEGE ESCALATION
  *   firestore.rules used to trust users/{uid}.role inside isManager(), while
@@ -8,6 +8,13 @@
  *   user could therefore set role: "admin" on themselves, become a manager, and then
  *   write managerRoles/* to make it permanent. The backend mirrored the same flaw:
  *   getManagerProfile() fell back to users/{uid} for role/permissions/scope.
+ *
+ * R3 - OTP RATE-LIMIT COUNTERS
+ *   otpRateLimits/{hash} has no rule of its own and is protected only by the
+ *   deny-all catch-all. A client able to write those counters could zero
+ *   failedAttempts and delete lockedUntil - erasing an OTP lockout at will, which
+ *   is the entire brute-force defence. Invisible protection is easy to remove by
+ *   accident, so it is pinned here.
  *
  * R2 - DEV AUTH BYPASS
  *   core/auth/devAuth.isEmulatorMode() also returned true when ENVIRONMENT === 'dev'.
@@ -35,6 +42,7 @@ import {
   getFirestore as getClientFirestore,
   connectFirestoreEmulator,
   doc as clientDoc,
+  getDoc,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
@@ -72,7 +80,20 @@ function fail(name, details) {
   console.error(`❌ ${name} - ${details}`);
 }
 
+/**
+ * True when Firestore refused the operation on rules grounds.
+ *
+ * The `code` check is primary and the message check is only a fallback, because the
+ * two are not interchangeable. A denied WRITE carries
+ * `"7 PERMISSION_DENIED: false for 'create' @ L237"`, but a denied READ carries only
+ * `"\nfalse for 'get' @ L237"` - no "permission" anywhere in it. A message-only test
+ * therefore passes for writes and silently fails for reads, reporting a working
+ * control as a broken one.
+ */
 function isPermissionDenied(error) {
+  if (error && typeof error === 'object' && error.code === 'permission-denied') {
+    return true;
+  }
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
   return message.includes('permission') || message.includes('insufficient');
 }
@@ -302,6 +323,75 @@ async function main() {
   }
 
   // ===========================================================================
+  // ===========================================================================
+  // R3 - the OTP rate-limit counters are not client-writable.
+  //
+  //   otpRateLimits/{hash} has NO rule of its own: it is protected solely by the
+  //   deny-all catch-all. That protection is real but invisible, so nothing stopped
+  //   a future rules edit from adding a permissive match and silently making every
+  //   lockout erasable from a browser console. This pins it.
+  //
+  //   The counters are what make the OTP throttle mean anything: a client that can
+  //   write them can zero failedAttempts and delete lockedUntil, which is the whole
+  //   brute-force defence.
+  // ===========================================================================
+  {
+    // A plausible-looking counter id. The document need not exist - create and
+    // update must both be denied either way.
+    const counterId = `qa-rate-limit-${suffix}`;
+
+    try {
+      await setDoc(clientDoc(clientDb, 'otpRateLimits', counterId), {
+        failedAttempts: 0,
+        sendsInWindow: 0,
+      });
+      fail('R3: a client cannot create an otpRateLimits counter', 'The write SUCCEEDED');
+      pushCleanup(db.collection('otpRateLimits').doc(counterId));
+    } catch (error) {
+      if (isPermissionDenied(error)) {
+        pass('R3: a client cannot create an otpRateLimits counter');
+      } else {
+        fail('R3: a client cannot create an otpRateLimits counter', String(error));
+      }
+    }
+
+    // And a real counter, written server-side, cannot be cleared by a client -
+    // the exact move that would erase a lockout mid-brute-force.
+    const realRef = db.collection('otpRateLimits').doc(`qa-real-${suffix}`);
+    pushCleanup(realRef);
+    await realRef.set({
+      kind: 'phone',
+      failedAttempts: 5,
+      lockedUntil: admin.firestore.Timestamp.fromMillis(Date.now() + 900000),
+    });
+
+    try {
+      await updateDoc(clientDoc(clientDb, 'otpRateLimits', `qa-real-${suffix}`), {
+        failedAttempts: 0,
+      });
+      fail('R3: a client cannot clear an existing lockout', 'The write SUCCEEDED');
+    } catch (error) {
+      if (isPermissionDenied(error)) {
+        pass('R3: a client cannot clear an existing lockout');
+      } else {
+        fail('R3: a client cannot clear an existing lockout', String(error));
+      }
+    }
+
+    // Reading them is not a privilege escalation, but the hashes are still PII-
+    // adjacent and there is no reason for a client to enumerate them.
+    try {
+      await getDoc(clientDoc(clientDb, 'otpRateLimits', `qa-real-${suffix}`));
+      fail('R3: a client cannot read the rate-limit counters', 'The read SUCCEEDED');
+    } catch (error) {
+      if (isPermissionDenied(error)) {
+        pass('R3: a client cannot read the rate-limit counters');
+      } else {
+        fail('R3: a client cannot read the rate-limit counters', String(error));
+      }
+    }
+  }
+
   // R2 - the dev auth bypass depends ONLY on the auto-set emulator variables.
   //
   // Loaded from the COMPILED output so this tests what actually ships.

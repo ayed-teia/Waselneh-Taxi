@@ -16,10 +16,70 @@ build:functions → qa:unit) and `emulator-qa` (17 suites, Node 20 / Java 21).
 
 ---
 
-## Batch 3 — Phase 3: payment reconciliation + Lahza hardening
+## Batch 4 — Phase 4: auth hardening
 
 - **PR:** _pending_
 - **Merge SHA:** _pending_
+- **Tests added:** 7 emulator assertions (4 in qa-otp-auth-e2e case 5, rewritten;
+  3 new R3 cases in qa-security-regression-e2e)
+- **Test count after:** 231 unit, 19 emulator suites
+
+Phase 4 turned out to be an AUDIT, not a build. Most of what the mandate lists was
+already shipped and correct: E.164 normalisation that refuses ambiguous national
+numbers rather than guessing a country, SHA-256 hashed counters (never the raw
+number), dual phone+device keying, cooldown, hourly caps, lockout, and both
+transactions reading before they write. `isEmulatorMode` was already hardened to the
+two emulator-only environment variables, closing the old `ENVIRONMENT==='dev'`
+bypass. Rewriting any of that would have been regression dressed as progress.
+
+**The real finding: `reportOtpResult` was forgeable.** It is unauthenticated by
+necessity - a user signing in has no credential yet - but it accepted
+`outcome: 'success'` on the caller's word, and a success CLEARS the lockout. So
+anyone could erase any number's lockout on demand: an attacker brute-forcing a
+victim could clear it every five guesses and the 15-minute lockout would never bite.
+The throttle was decorative against exactly the attack it exists to stop.
+
+A success report now requires a Firebase Auth token whose RESERVED `phone_number`
+claim matches the number being cleared - a claim set by Firebase Auth itself on a
+real sign-in, not forgeable like a request field. A failure report stays
+unauthenticated on purpose: it only ever tightens, and requiring a credential there
+would hand an attacker the easiest evasion - never report a failure, never be locked
+out.
+
+**The existing test blessed the bug.** Case 5 cleared a lockout with a bare
+unauthenticated call and called it a passing positive control. It was rewritten, not
+deleted: the positive control is still worth having, but it now proves the
+legitimate path with a real token, and adds three assertions - anonymous clear
+refused, clear-as-a-different-number refused, and the failure count surviving a
+refused attempt.
+
+No client change was needed, and this was verified rather than assumed:
+`callFunction` uses `httpsCallable`, which attaches the ID token automatically, and
+`confirm(code)` resolves before the success report fires, so `currentUser` exists at
+that moment. `reportOtpOutcome` also swallows its errors, so a failed clear leaves
+the lockout standing - it fails safe.
+
+Also corrected two pieces of misleading documentation: `firestore.rules` carried the
+comment "For development/emulator, allow all access" directly above a deny-all rule
+(the catch-all is what protects `otpRateLimits`, which has no rule of its own), and
+`docs/AUTH_ROLLOUT.md` still said "None of this exists yet" about work that had
+shipped.
+
+Added R3 to the security regression suite: `otpRateLimits/{hash}` has no rule of its
+own and is protected only by the deny-all catch-all. That protection is real but
+invisible, so nothing stopped a later rules edit from adding a permissive match and
+silently making every lockout erasable from a browser console. R3 pins it - create,
+clear, and read are all asserted denied to a signed-in client.
+
+**App Check remains absent repo-wide.** It is a Firebase console action plus an
+enforcement-date decision, not something that can be landed from here.
+
+---
+
+## Batch 3 — Phase 3: payment reconciliation + Lahza hardening
+
+- **PR:** [#49](https://github.com/ayed-teia/Waselneh-Taxi/pull/49)
+- **Merge SHA:** `2699ad0`
 - **Tests added:** 48 unit (reconciliation-classification, settlement-mismatch,
   reconciliation-window) + 7 emulator cases (qa-settlement-reconciliation-e2e)
 - **Test count after:** 231 unit, 19 emulator suites
