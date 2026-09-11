@@ -50,6 +50,14 @@ export function Button({
       activeOpacity={0.9}
       disabled={isDisabled}
       onPress={onPress}
+      // Defaults, not overrides: {...touchableProps} is spread AFTER these, so a
+      // call site that passes its own label or role still wins. Without a default
+      // role the control is announced as plain text rather than as a button.
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      // busy is distinct from disabled on purpose: a screen reader should say the
+      // action is in progress, not merely unavailable.
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
       style={[
         styles.base,
         {

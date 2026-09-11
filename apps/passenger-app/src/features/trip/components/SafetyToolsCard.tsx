@@ -7,6 +7,7 @@ interface SafetyToolsCardProps {
   onShareTrip: () => void;
   onEmergencyCall: () => void;
   onCallTrustedContact: () => void;
+  /** Overrides the localized default; omit to use the translation table. */
   trustedContactLabel?: string;
 }
 
@@ -14,23 +15,46 @@ export function SafetyToolsCard({
   onShareTrip,
   onEmergencyCall,
   onCallTrustedContact,
-  trustedContactLabel = 'Trusted contact',
+  trustedContactLabel,
 }: SafetyToolsCardProps) {
-  const { isRTL } = useI18n();
+  const { isRTL, t } = useI18n();
+
+  // The prop previously defaulted to the English literal 'Trusted contact', so an
+  // Arabic user saw English on a safety control. The table has this key in both
+  // locales.
+  const contactLabel = trustedContactLabel ?? t('trip.trusted_contact_label');
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{isRTL ? 'أدوات الأمان' : 'Safety tools'}</Text>
+      <Text style={styles.title}>{t('trip.safety_tools')}</Text>
       <View style={[styles.row, isRTL && styles.rowReverse]}>
-        <Pressable style={[styles.button, styles.shareButton]} onPress={onShareTrip}>
-          <Text style={styles.buttonText}>{isRTL ? 'مشاركة الرحلة' : 'Share trip'}</Text>
+        <Pressable
+          style={[styles.button, styles.shareButton]}
+          onPress={onShareTrip}
+          accessibilityRole="button"
+          accessibilityLabel={t('trip.share_trip')}
+          accessibilityHint={t('trip.share_trip_hint')}
+        >
+          <Text style={styles.buttonText}>{t('trip.share_trip')}</Text>
         </Pressable>
-        <Pressable style={[styles.button, styles.contactButton]} onPress={onCallTrustedContact}>
-          <Text style={styles.buttonText}>{trustedContactLabel}</Text>
+        <Pressable
+          style={[styles.button, styles.contactButton]}
+          onPress={onCallTrustedContact}
+          accessibilityRole="button"
+          accessibilityLabel={contactLabel}
+          accessibilityHint={t('trip.trusted_contact_hint')}
+        >
+          <Text style={styles.buttonText}>{contactLabel}</Text>
         </Pressable>
       </View>
-      <Pressable style={[styles.button, styles.emergencyButton]} onPress={onEmergencyCall}>
-        <Text style={styles.emergencyText}>{isRTL ? 'اتصال طوارئ' : 'Emergency call'}</Text>
+      <Pressable
+        style={[styles.button, styles.emergencyButton]}
+        onPress={onEmergencyCall}
+        accessibilityRole="button"
+        accessibilityLabel={t('trip.emergency_call')}
+        accessibilityHint={t('trip.emergency_call_hint')}
+      >
+        <Text style={styles.emergencyText}>{t('trip.emergency_call')}</Text>
       </Pressable>
     </View>
   );

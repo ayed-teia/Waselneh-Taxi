@@ -16,6 +16,14 @@ interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
+  /**
+   * What a screen reader announces. Defaults to the visible title, which is
+   * right for most buttons; override where the title alone is ambiguous out of
+   * context (an icon, or a bare "Retry").
+   */
+  accessibilityLabel?: string;
+  /** Extra context, e.g. what pressing this will actually do. */
+  accessibilityHint?: string;
 }
 
 export function Button({
@@ -25,6 +33,8 @@ export function Button({
   disabled = false,
   loading = false,
   style,
+  accessibilityLabel,
+  accessibilityHint,
 }: ButtonProps) {
   const isDisabled = disabled || loading;
 
@@ -34,6 +44,14 @@ export function Button({
       onPress={onPress}
       disabled={isDisabled}
       activeOpacity={0.9}
+      // Without an explicit role this is announced as plain text, not as
+      // something that can be pressed.
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
+      {...(accessibilityHint ? { accessibilityHint } : {})}
+      // `busy` is why loading is separate from disabled here: a screen reader
+      // should say the action is in progress, not merely unavailable.
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
     >
       {loading ? (
         <ActivityIndicator color={variant === 'outline' ? '#0F172A' : '#FFFFFF'} />
