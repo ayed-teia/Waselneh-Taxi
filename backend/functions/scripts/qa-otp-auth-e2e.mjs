@@ -52,11 +52,16 @@ const fail = (name, details) => {
 const check = (name, actual, expected) =>
   actual === expected ? pass(name) : fail(name, `expected "${expected}", got "${actual}"`);
 
-async function callCallable(fnName, data) {
+async function callCallable(fnName, data, idToken) {
   const url = `http://${emulatorHost}:${functionsPort}/${projectId}/europe-west1/${fnName}`;
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      // Only when a test is exercising the AUTHENTICATED path. Most OTP calls
+      // happen before the caller has any credential at all.
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+    },
     body: JSON.stringify({ data }),
   });
   const body = await response.json();
@@ -133,10 +138,19 @@ async function main() {
   const db = adminApp.firestore();
   const cleanup = [];
 
-  // A fictional number the emulator will accept with a fixed code.
+  // Fictional numbers the emulator accepts with fixed codes.
+  //
+  // OTHER_TEST_PHONE exists so the suite can sign in as a DIFFERENT real user and
+  // prove it still cannot clear this number's lockout. Both are registered in ONE
+  // call because the helper PATCHes the whole testPhoneNumbers map - a second call
+  // would silently replace the first.
   const TEST_PHONE = '+970599000111';
+  const OTHER_TEST_PHONE = '+970599000222';
   const TEST_CODE = '123456';
-  await setEmulatorTestPhoneNumbers({ [TEST_PHONE]: TEST_CODE });
+  await setEmulatorTestPhoneNumbers({
+    [TEST_PHONE]: TEST_CODE,
+    [OTHER_TEST_PHONE]: TEST_CODE,
+  });
 
   // ===========================================================================
   // 1. E.164 normalisation and the country allow-list (pure logic, via callable).
@@ -268,28 +282,104 @@ async function main() {
   }
 
   // ===========================================================================
-  // 5. A success clears the counters (positive control - the limiter must not
-  //    permanently penalise a legitimate user).
+  // 5. Clearing the counters requires PROOF of sign-in, not the caller's word.
+  //
+  //    A success report clears a lockout, so it is a privilege. Unauthenticated,
+  //    it let anyone erase any number's lockout on demand - an attacker
+  //    brute-forcing a victim could clear it every five guesses and the lockout
+  //    would never bite. It now requires a token whose phone_number claim matches.
   // ===========================================================================
   try {
-    const phone = `+97059933${String(Date.now()).slice(-4)}`;
-    cleanup.push(phone);
+    const phone = TEST_PHONE;
 
+    // Drive the number toward lockout.
     for (let i = 0; i < 3; i++) {
       await callCallable('reportOtpResult', { phoneNumber: phone, outcome: 'failure' });
     }
-    await callCallable('reportOtpResult', { phoneNumber: phone, outcome: 'success' });
 
-    const { hashPhone } = await import('../dist/modules/auth/otp-rate-limit.js');
-    const snap = await db.collection('otpRateLimits').doc(hashPhone(phone)).get();
-    const data = snap.data() ?? {};
-    if ((data.failedAttempts ?? 0) === 0 && data.lockedUntil === undefined) {
-      pass('A successful sign-in clears the failure counters');
+    // (a) No credential at all must be refused.
+    let refusedAnonymous = false;
+    try {
+      await callCallable('reportOtpResult', { phoneNumber: phone, outcome: 'success' });
+    } catch {
+      refusedAnonymous = true;
+    }
+    if (refusedAnonymous) {
+      pass('An unauthenticated success report cannot clear the counters');
     } else {
-      fail('A successful sign-in clears the failure counters', JSON.stringify(data));
+      fail(
+        'An unauthenticated success report cannot clear the counters',
+        'the call succeeded - a lockout can be erased by anyone'
+      );
+    }
+
+    // The failures must still stand after the refused attempt.
+    const { hashPhone } = await import('../dist/modules/auth/otp-rate-limit.js');
+    const afterRefusal = (await db.collection('otpRateLimits').doc(hashPhone(phone)).get()).data() ?? {};
+    if ((afterRefusal.failedAttempts ?? 0) === 3) {
+      pass('A refused success report leaves the failure count intact');
+    } else {
+      fail(
+        'A refused success report leaves the failure count intact',
+        `failedAttempts=${afterRefusal.failedAttempts}`
+      );
+    }
+
+    // (b) Signed in as a DIFFERENT number must be refused - otherwise one real
+    //     account could clear every other number's lockout.
+    const otherPhone = OTHER_TEST_PHONE;
+    const otherSession = await sendVerificationCode(otherPhone);
+    const otherCode = await readEmulatorCode(otherSession);
+    const otherSignIn = await signInWithPhoneCode(otherSession, otherCode);
+
+    let refusedMismatch = false;
+    try {
+      await callCallable(
+        'reportOtpResult',
+        { phoneNumber: phone, outcome: 'success' },
+        otherSignIn.idToken
+      );
+    } catch {
+      refusedMismatch = true;
+    }
+    if (refusedMismatch) {
+      pass('Signed in as another number cannot clear a third party lockout');
+    } else {
+      fail(
+        'Signed in as another number cannot clear a third party lockout',
+        'a third party cleared the lockout'
+      );
+    }
+
+    // (c) The legitimate path still works - the limiter must not permanently
+    //     penalise a real user who eventually signs in.
+    const session = await sendVerificationCode(phone);
+    const code = await readEmulatorCode(session);
+    const signIn = await signInWithPhoneCode(session, code);
+
+    await callCallable(
+      'reportOtpResult',
+      { phoneNumber: phone, outcome: 'success' },
+      signIn.idToken
+    );
+
+    // Both sign-ins above created real Auth users. Delete them so the suite leaves
+    // no state behind for the later cases that reuse TEST_PHONE.
+    for (const uid of [otherSignIn.localId, signIn.localId]) {
+      if (uid) await adminApp.auth().deleteUser(uid).catch(() => undefined);
+    }
+
+    const cleared = (await db.collection('otpRateLimits').doc(hashPhone(phone)).get()).data() ?? {};
+    if ((cleared.failedAttempts ?? 0) === 0 && cleared.lockedUntil === undefined) {
+      pass('A verified sign-in for the SAME number clears the failure counters');
+    } else {
+      fail(
+        'A verified sign-in for the SAME number clears the failure counters',
+        JSON.stringify(cleared)
+      );
     }
   } catch (error) {
-    fail('A successful sign-in clears the failure counters', String(error));
+    fail('Clearing the counters requires proof of sign-in', String(error));
   }
 
   // ===========================================================================

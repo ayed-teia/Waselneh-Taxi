@@ -63,7 +63,19 @@ Project: `waselneh-prod-414e2`.
 
 ## 2. Server-side work that must land FIRST
 
-**None of this exists yet.** Client-side limits are not limits.
+**This has now SHIPPED** (`modules/auth/otp-rate-limit.ts`, `requestOtpPermission`,
+`reportOtpResult`). Client-side limits are not limits, so the counters live in
+Firestore and are enforced server-side. What follows is the contract it implements,
+kept here because the rollout still depends on the console steps above.
+
+One correction worth recording: `reportOtpResult` originally accepted
+`outcome: 'success'` from an UNAUTHENTICATED caller, and a success clears the
+lockout. Anyone could therefore erase any number's lockout on demand, which made the
+throttle decorative against a targeted brute force. A success report now requires a
+Firebase Auth token whose reserved `phone_number` claim matches the number being
+cleared. A failure report stays unauthenticated on purpose - it only ever tightens,
+and requiring a credential there would let an attacker avoid lockout by simply never
+reporting.
 
 Add a callable (say `requestOtp`) that owns the send, so the app never calls
 `signInWithPhoneNumber` against an unmetered endpoint:
@@ -149,7 +161,18 @@ Run all of this on real hardware before the flag goes on for users:
 - `packages/shared/src/config/auth-flags.config.ts` — the flag (default **false**,
   verified to stay false for unset/empty/`false`/`0`/`no`) and the `OTP_LIMITS`
   constants the server work must enforce.
-- Nothing else. **No client OTP UI has been built**, because building a sign-in screen
+- `backend/functions/src/modules/auth/otp-rate-limit.ts` — E.164 normalisation that
+  REFUSES ambiguous national numbers rather than guessing a country, SHA-256 hashed
+  counters (never the raw number), dual phone+device keying, cooldown, hourly caps
+  and lockout. Both transactions read before they write.
+- `backend/functions/src/api/callable/otpRateLimit.callable.ts` —
+  `requestOtpPermission` and `reportOtpResult`.
+- `backend/functions/scripts/qa-otp-auth-e2e.mjs` — the full sign-in round trip
+  against the Auth emulator, the wrong-code path, every limit, and a check that no
+  raw phone number is ever stored.
+- **App Check is still absent repo-wide.** It is a console action plus an
+  enforcement-date decision (§1, §5), not something that can be landed here.
+- **No client OTP UI has been built**, because building a sign-in screen
   that cannot be tested against a real SMS on a real device would be guesswork shaped
   like progress. The flag and the limits exist so the server work and the UI can be
   written against a fixed contract once the decisions above are made.
