@@ -16,10 +16,61 @@ build:functions → qa:unit) and `emulator-qa` (17 suites, Node 20 / Java 21).
 
 ---
 
-## Batch 7 — Phase 7: localisation and accessibility
+## Batch 8 — Phase 8: Firestore typing
 
 - **PR:** _pending_
 - **Merge SHA:** _pending_
+- **Tests added:** 34 unit (doc-data accessors, a module that had none)
+- **Test count after:** 332 unit, 19 emulator suites
+
+**The phase asked for typed converters collection by collection. I did not add
+any, deliberately.**
+
+`backend/functions/src/core/firestore/doc-data.ts` already exists and its own header
+records the decision: "no schema registry, no converters to wire up per collection,
+nothing that has to be adopted everywhere at once. Convert a callable at a time."
+That is not an absence - it is a design, and it is the safer one. These accessors
+CHECK where a converter ASSERTS: `withConverter` casts a malformed document into a
+typed shape and TypeScript then believes it, whereas `getNumber(data, 'amount', 0)`
+cannot lie about what it found. For untrusted stored data the checking layer wins.
+
+The header is also explicit that these are not validation - a genuinely malformed
+document belongs in front of a zod schema. They cope with the ordinary case of
+"read this field, and fall back if it is not the shape I expect".
+
+**The real gap was that twelve functions every callable depends on had no tests at
+all.** They are the boundary between untrusted Firestore data and the whole backend,
+and their failure mode is silent: a renamed field starts reading as its fallback and
+nothing errors anywhere.
+
+34 tests now pin the behaviour that is easy to break by "tidying":
+
+- `getString` returns an empty string as-is while `getNonEmptyString` treats it as
+  absent - two near-identically named functions that genuinely differ;
+- `getNumber` accepts 0 and negatives as real values but rejects NaN/Infinity, and
+  does NOT parse a numeric string (which would hide a wrong-typed field);
+- `getBoolean` refuses to coerce '0', '1', 'true' or 'false' - exactly the values
+  that would flip a permission check;
+- `getRecord` rejects arrays, because `typeof [] === 'object'` and without that
+  guard chained reads would index array elements;
+- `getLatLng` accepts 0,0 as a real point but rejects a half-populated pair, which
+  would otherwise send a driver to a nonsense location;
+- a `toDate()` that throws yields null rather than propagating, so one corrupt
+  document cannot fail a whole batch.
+
+**Left alone on purpose:** the two `doc.data() as DriverDoc` casts in
+`createTripRequest.callable.ts`. They are a typing smell, not a live defect -
+`lastLocation` is guarded before its only dereference, `updatedAt` is never
+dereferenced, and the transaction path reads only scalars behind throwing guards.
+Rewriting working transaction code for cosmetics is the kind of churn that
+introduces the bug it was meant to prevent.
+
+---
+
+## Batch 7 — Phase 7: localisation and accessibility
+
+- **PR:** [#53](https://github.com/ayed-teia/Waselneh-Taxi/pull/53)
+- **Merge SHA:** `bc0ad27`
 - **Tests added:** 14 unit (translation parity, including a live check of BOTH
   shipped tables)
 - **Test count after:** 298 unit, 19 emulator suites
