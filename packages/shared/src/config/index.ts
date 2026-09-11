@@ -5,3 +5,4 @@ export * from './vehicle.config';
 export * from './rbac.config';
 export * from './auth-flags.config';
 export * from './i18n-parity.config';
+export * from './release-preflight.config';
