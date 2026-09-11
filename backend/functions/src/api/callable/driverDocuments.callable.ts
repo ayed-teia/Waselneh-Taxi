@@ -18,6 +18,7 @@ import {
   allRequiredDocumentsApproved,
   canTransition,
   documentStoragePath,
+  sanitizeDocumentFileName,
   DRIVER_DOCUMENT_TYPES,
   type DriverDocumentStatus,
   type DriverDocumentType,
@@ -92,7 +93,17 @@ export const registerDriverDocument = onCall<unknown, Promise<RegisterUploadResp
         );
       }
 
-      const storagePath = documentStoragePath(driverId, documentType, fileName);
+      // Sanitise here as well as inside documentStoragePath, so a hostile or
+      // malformed name is reported as the client error it is. Left to the module's
+      // own throw it would reach handleError as a bare Error, surface to the driver
+      // as "An unexpected error occurred", and be logged as an unhandled crash -
+      // three wrong signals for one bad input field.
+      const safeFileName = sanitizeDocumentFileName(fileName);
+      if (!safeFileName) {
+        throw new ValidationError('File name contains no usable characters');
+      }
+
+      const storagePath = documentStoragePath(driverId, documentType, safeFileName);
 
       await ref.set(
         {

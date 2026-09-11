@@ -102,13 +102,61 @@ export function canTransition(
   }
 }
 
-/** The Storage path a document must live at. */
+/**
+ * Reduce a client-supplied file name to a single safe path segment.
+ *
+ * WHY THIS EXISTS
+ *
+ * `documentStoragePath` interpolates this into a path. A name like
+ * `../../other-driver/national_id/x.jpg` would otherwise produce a storagePath
+ * pointing OUTSIDE the uploader's own prefix. Storage itself still refuses the
+ * upload - storage.rules binds the real object path to {driverId} - so this was
+ * never a file-read breach. But the Firestore metadata record would carry an
+ * attacker-chosen path, and anything that later trusts `storagePath` (a signed-URL
+ * callable, a manager review queue) would be aimed at an arbitrary object.
+ *
+ * Sanitising at the boundary is the fix, rather than relying on every future
+ * consumer to re-derive safety from a field it has no reason to distrust.
+ *
+ * Returns null when nothing usable survives, so the caller can reject rather than
+ * invent a name.
+ */
+export function sanitizeDocumentFileName(rawFileName: string): string | null {
+  // Take the last segment: any directory structure the client supplied is discarded
+  // outright rather than escaped, which also handles backslashes on Windows clients.
+  const lastSegment = rawFileName.split(/[/\\]/).pop() ?? '';
+
+  // '.' and '..' are path operators, never file names.
+  if (lastSegment === '.' || lastSegment === '..') return null;
+
+  // Keep letters, digits, dot, dash and underscore. Everything else - including the
+  // NUL byte, control characters and whitespace - becomes an underscore.
+  const cleaned = lastSegment.replace(/[^A-Za-z0-9._-]/g, '_');
+
+  // A name that is only dots would still read as a path operator to some consumers.
+  if (!cleaned || /^\.+$/.test(cleaned)) return null;
+
+  // Bound the length so the final path cannot be used to blow a key-size limit.
+  return cleaned.slice(0, 120);
+}
+
+/**
+ * The Storage path a document must live at.
+ *
+ * `fileName` is sanitised here rather than trusted: see sanitizeDocumentFileName.
+ * Throws when nothing usable survives, because silently substituting a generated
+ * name would hide a malformed or hostile client from whoever is reading the logs.
+ */
 export function documentStoragePath(
   driverId: string,
   documentType: DriverDocumentType,
   fileName: string
 ): string {
-  return `driver-documents/${driverId}/${documentType}/${fileName}`;
+  const safeFileName = sanitizeDocumentFileName(fileName);
+  if (!safeFileName) {
+    throw new Error('File name contains no usable characters');
+  }
+  return `driver-documents/${driverId}/${documentType}/${safeFileName}`;
 }
 
 /**

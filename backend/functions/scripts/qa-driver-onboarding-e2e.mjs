@@ -319,6 +319,42 @@ async function main() {
       : fail('State: cannot re-upload over an APPROVED document', msg);
   }
 
+  // ===========================================================================
+  // PATH TRAVERSAL: a client-supplied file name must never escape the driver
+  // prefix. storage.rules binds the real OBJECT path to {driverId}, so this was
+  // never a file-read breach - but the Firestore metadata would have carried an
+  // attacker-chosen storagePath for any later consumer (a signed-URL callable, a
+  // review queue) to trust.
+  // ===========================================================================
+  try {
+    cleanupDocs.push(itemsRef.doc('insurance'));
+    const r = await callAs(a.idToken, 'registerDriverDocument', {
+      documentType: 'insurance',
+      fileName: `../../${b.uid}/national_id/stolen-${suffix}.jpg`,
+    });
+    const escaped = r.storagePath.includes('..') || !r.storagePath.startsWith(`driver-documents/${a.uid}/`);
+    escaped
+      ? fail('Traversal: a file name cannot escape the driver prefix', r.storagePath)
+      : pass('Traversal: a file name cannot escape the driver prefix', r.storagePath);
+  } catch (error) {
+    fail('Traversal: a file name cannot escape the driver prefix', String(error));
+  }
+
+  // A name made only of path operators has nothing usable left, and must be
+  // refused as a CLIENT error rather than surfacing as an internal one.
+  try {
+    await callAs(a.idToken, 'registerDriverDocument', {
+      documentType: 'profile_photo',
+      fileName: '..',
+    });
+    fail('Traversal: an all-operator file name is refused', 'register SUCCEEDED');
+  } catch (error) {
+    const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
+    msg.includes('unexpected')
+      ? fail('Traversal: an all-operator file name is refused', `leaked as internal: ${msg}`)
+      : pass('Traversal: an all-operator file name is refused', msg.slice(0, 50));
+  }
+
   // A driver must not be able to write the status field directly either.
   try {
     const { initializeApp: initClient } = await import('firebase/app');
