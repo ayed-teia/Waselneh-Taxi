@@ -6,7 +6,7 @@ import { logger } from '../../core/logger';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { docData, getString } from '../../core/firestore/doc-data';
 import { buildDriverReleasePatch } from '../drivers/driver-seat-release';
-import { restoreTripRequestBenefits } from '../promotions';
+import { restoreBenefits, restoreTripRequestBenefits } from '../promotions';
 
 /**
  * ============================================================================
@@ -134,6 +134,11 @@ export const expireStaleTrips = onSchedule(
               // could not be restored. Read it here, before any write.
               const driverRef = driverId ? db.collection('drivers').doc(driverId) : null;
               const driverSnap = driverRef ? await transaction.get(driverRef) : null;
+
+              // A no-show is not the passenger's fault, so their promo and loyalty
+              // points are returned. Still in the READ phase - restoreBenefits does
+              // its own gets, and a transaction may not read after it writes.
+              await restoreBenefits(transaction, db, tripDoc.ref, tripData, 'driver_no_show');
 
               // ---- WRITES ----
               transaction.update(tripDoc.ref, {

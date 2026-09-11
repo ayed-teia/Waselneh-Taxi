@@ -16,10 +16,45 @@ build:functions → qa:unit) and `emulator-qa` (17 suites, Node 20 / Java 21).
 
 ---
 
-## Batch 1 — Phase 1: server-authoritative referrals
+## Batch 2 — Phase 2: cancellation benefit restoration
 
 - **PR:** _pending_
 - **Merge SHA:** _pending_
+- **Tests added:** 12 unit (benefit-restoration-policy) + 6 emulator cases
+  (qa-cancellation-benefits-e2e)
+- **Test count after:** 183 unit, 18 emulator suites
+
+Benefits (promo usage counters + redeemed loyalty points) are consumed at REQUEST
+time. They were returned only when an UNMATCHED request was abandoned, via
+`cancelTripRequest` and the search-expiry sweeper.
+
+**Four actors that cancel a MATCHED trip restored nothing:** `passengerCancelTrip`,
+`driverCancelTrip`, `managerForceCancelTrip`, and the driver-no-show branch of
+`expireStaleTrips`. A passenger who redeemed a promo and points, got matched, then
+cancelled before the trip started silently lost both.
+
+`restoreTripRequestBenefits` was hard-wired to `tripRequests/{id}` - it wrote the
+`benefitsRestoredAt` sentinel there and keyed the ledger `${requestId}_restored` -
+so the matched-trip actors could not call it at all. Generalised to `restoreBenefits`,
+which takes the benefit-bearing document and its own ref, and works from either a
+`tripRequests` or a `trips` body. The old wrapper is kept so the two existing call
+sites read unchanged.
+
+Also fixed a **pre-existing latent bug** in `driverCancelTrip`: it read
+`driverRequests/.../{tripId}` AFTER two writes, which Firestore rejects outright
+("transactions require all reads to be executed before all writes"). Hoisted into
+the read phase, matching what `passengerCancelTrip` already did. Audited the other
+four cancellation transactions - all order reads before writes correctly.
+
+`TripDocument` now carries `requestId`, linking a matched trip back to the request
+that consumed its benefits.
+
+---
+
+## Batch 1 — Phase 1: server-authoritative referrals
+
+- **PR:** #47 — https://github.com/ayed-teia/Waselneh-Taxi/pull/47
+- **Merge SHA:** `10f11e6`
 - **Tests added:** 24 unit (referral-policy) + 12 emulator cases (qa-referrals-e2e)
 - **Test count after:** 171 unit, 17 emulator suites
 

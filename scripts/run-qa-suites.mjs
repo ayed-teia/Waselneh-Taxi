@@ -41,6 +41,7 @@ const SUITES = [
   'qa-otp-auth-e2e.mjs',
   'qa-online-payments-e2e.mjs',
   'qa-referrals-e2e.mjs',
+  'qa-cancellation-benefits-e2e.mjs',
 ];
 
 const results = [];

@@ -8,6 +8,7 @@ import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError, hand
 import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
 import { assertManagerPermission, publishTripStatusNotifications } from '../../modules';
+import { restoreBenefits } from '../../modules/promotions';
 import { docData, getString } from '../../core/firestore/doc-data';
 import { buildDriverReleasePatch } from '../../modules/drivers/driver-seat-release';
 
@@ -88,6 +89,18 @@ export const managerForceCancelTrip = onCall<unknown, Promise<ForceCancelTripRes
           const driverSnap = await transaction.get(db.collection('drivers').doc(driverId));
           driverData = driverSnap.data();
         }
+
+        // A manager force-cancel is not the passenger's doing, so their promo and
+        // loyalty points are returned. This is the last read in the transaction:
+        // restoreBenefits issues its own gets, and Firestore forbids a read after
+        // any write.
+        await restoreBenefits(
+          transaction,
+          db,
+          tripRef,
+          tripData,
+          'manager_cancelled'
+        );
 
         transaction.update(tripRef, {
           status: TripStatus.CANCELLED_BY_SYSTEM,
