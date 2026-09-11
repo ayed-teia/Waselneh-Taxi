@@ -49,6 +49,24 @@ const fail = (n, d) => {
   console.error(`❌ ${n} - ${d}`);
 };
 
+const functionsPort = Number(process.env.FUNCTIONS_EMULATOR_PORT || 5001);
+
+async function callCallable(functionName, data) {
+  const url = `http://${emulatorHost}:${functionsPort}/${projectId}/europe-west1/${functionName}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.error) {
+    const err = new Error(body?.error?.message || `Callable ${functionName} failed`);
+    err.httpStatus = response.status;
+    throw err;
+  }
+  return body.result;
+}
+
 function loadQueueModule() {
   const p = path.join(__dirname, '..', 'dist', 'modules', 'queue', 'line-queue.js');
   if (!fs.existsSync(p)) throw new Error(`build output missing: ${p}`);
@@ -248,6 +266,61 @@ async function main() {
     }
   } catch (error) {
     fail('Flag: the queue is OFF unless TAXI_LINE_QUEUE_ENABLED is literally "true"', String(error));
+  }
+
+  // ===========================================================================
+  // 9. THE CALLABLES THEMSELVES.
+  //
+  //    Every case above drives the queue MODULE through the Admin SDK. That
+  //    proves the ordering logic, but nothing proved joinLineQueue,
+  //    leaveLineQueue and getLineQueue are even deployed - callable export wiring
+  //    is two hops (api/callable/index.ts AND the named block in src/index.ts),
+  //    and a callable missing from the second compiles, passes every test, and
+  //    never deploys.
+  //
+  //    WHAT THIS CANNOT COVER, AND WHY:
+  //    TAXI_LINE_QUEUE_ENABLED is set nowhere - not in firebase.json, not in CI -
+  //    so under emulators:exec the flag is genuinely OFF and assertQueueEnabled()
+  //    refuses all three. The eligibility and own-line guards sit BEHIND that
+  //    refusal and are therefore unreachable here. Enabling a fairness flag across
+  //    the whole emulator run to reach them would be manufacturing a green test
+  //    for a policy drivers have not agreed to. So this covers reachability and
+  //    the refusal, and says so.
+  // ===========================================================================
+  for (const fnName of ['joinLineQueue', 'leaveLineQueue', 'getLineQueue']) {
+    try {
+      const response = await fetch(
+        `http://${emulatorHost}:${functionsPort}/${projectId}/europe-west1/${fnName}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: {} }),
+        }
+      );
+      response.status === 404
+        ? fail(`Deployed: ${fnName} is reachable`, 'HTTP 404 - not exported')
+        : pass(`Deployed: ${fnName} is reachable`, `HTTP ${response.status}`);
+    } catch (error) {
+      fail(`Deployed: ${fnName} is reachable`, String(error));
+    }
+  }
+
+  // With the flag off - the default everywhere - each callable must refuse rather
+  // than quietly queue anyone.
+  for (const [fnName, payload] of [
+    ['joinLineQueue', { devUserId: d1, lineId }],
+    ['leaveLineQueue', { devUserId: d1, lineId }],
+    ['getLineQueue', { devUserId: d1, lineId }],
+  ]) {
+    try {
+      await callCallable(fnName, payload);
+      fail(`Flag off: ${fnName} refuses`, 'the call SUCCEEDED with the queue disabled');
+    } catch (error) {
+      const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
+      msg.includes('not enabled') || msg.includes('queue')
+        ? pass(`Flag off: ${fnName} refuses`, msg.slice(0, 45))
+        : fail(`Flag off: ${fnName} refuses`, msg.slice(0, 80));
+    }
   }
 
   // --- cleanup ---------------------------------------------------------------

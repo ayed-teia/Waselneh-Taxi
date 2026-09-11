@@ -16,10 +16,70 @@ build:functions → qa:unit) and `emulator-qa` (17 suites, Node 20 / Java 21).
 
 ---
 
-## Batch 5 — Phase 5: driver document security
+## Batch 6 — Phase 6: FIFO pilot controls
 
 - **PR:** _pending_
 - **Merge SHA:** _pending_
+- **Tests added:** 28 unit (10 queue ordering, 18 fairness simulation)
+  + 6 emulator assertions (callable reachability and flag-off refusal)
+- **Test count after:** 284 unit, 19 emulator suites
+
+**Most of Phase 6 was deliberately NOT built, and that is the finding.**
+
+The queue already exists and is correct where it matters: position assigned
+server-side, `lines/{lineId}/queue/{driverId}` is `write: if false` so a driver
+cannot write their own position, only an ELIGIBLE driver may join, the driver own
+`lineId` is used rather than a client-supplied one, and `orderCandidatesByQueue`
+REORDERS rather than filters - so enabling the flag can never make a trip
+unmatchable. Nine emulator assertions already cover this.
+
+The phase also asks for a grace period and further forfeit rules. Three separate
+files and `docs/REMAINING_PLAN.md` section 3 state that these are a FAIRNESS POLICY
+awaiting driver sign-off, and that the open questions are "deliberately not decided
+in code". Building them now would mean deciding, on drivers behalf, who earns money
+on a given day. I did not.
+
+What was genuinely missing and unblocked:
+
+**Unit tests for `orderCandidatesByQueue`** - it had none, despite holding the
+invariant that makes the flag safe: queued drivers first in position order,
+everyone else KEPT behind them. If it ever dropped the non-queued drivers, flipping
+the flag would silently make trips unmatchable on any line with an empty queue. The
+emulator covers the happy paths through real Firestore; these cover the edges that
+are slow to stage there - empty input, duplicate ids, a queued driver who is not a
+candidate, a row with no position, ordering stability.
+
+**A fairness simulator** (`modules/queue/queue-fairness.ts`), which the phase calls
+for. It is pure, deterministic, enforces nothing, and is wired into no dispatch
+path - verified, not assumed. Its purpose is to put a distribution in front of
+drivers before anyone agrees to a policy, because "FIFO is fairer" is an assertion
+and a Gini coefficient is evidence.
+
+Critically, **the policy is an INPUT, not a decision**. Run it twice with different
+rules and compare. A simulator that quietly picked answers to the open questions
+would be making the decision while appearing to inform it - and would look like
+evidence in a driver meeting. One test exists solely to prove the policy genuinely
+varies the output.
+
+**The emulator suite never called the callables.** Every one of its ten assertions
+drove the queue MODULE through the Admin SDK, so nothing proved `joinLineQueue`,
+`leaveLineQueue` or `getLineQueue` were even deployed - and callable export wiring
+is two hops, where a callable missing from the second compiles, passes every test,
+and never deploys. Six assertions now cover reachability (403 rather than 404) and
+refusal while the flag is off.
+
+That is deliberately all they cover. `TAXI_LINE_QUEUE_ENABLED` is set nowhere, so
+the flag is genuinely off under the emulator and the eligibility and own-line guards
+sit BEHIND that refusal, unreachable. Enabling a fairness flag across the whole
+emulator run to reach them would be manufacturing a green test for a policy drivers
+have not agreed to. The suite says so in place of pretending otherwise.
+
+---
+
+## Batch 5 — Phase 5: driver document security
+
+- **PR:** [#51](https://github.com/ayed-teia/Waselneh-Taxi/pull/51)
+- **Merge SHA:** `439c5cf`
 - **Tests added:** 25 unit (driver-documents, a module that had none) + 2 emulator
   traversal cases
 - **Test count after:** 256 unit, 19 emulator suites
