@@ -18,8 +18,8 @@ build:functions → qa:unit) and `emulator-qa` (17 suites, Node 20 / Java 21).
 
 ## Batch 11 — Phase 11: release engineering
 
-- **PR:** _pending_
-- **Merge SHA:** _pending_
+- **PR:** [#57](https://github.com/ayed-teia/Waselneh-Taxi/pull/57)
+- **Merge SHA:** `d971818`
 - **Tests added:** 19 unit (release preflight)
 - **Test count after:** 382 unit, 19 emulator suites
 
