@@ -16,10 +16,67 @@ build:functions → qa:unit) and `emulator-qa` (17 suites, Node 20 / Java 21).
 
 ---
 
-## Batch 8 — Phase 8: Firestore typing
+## Batch 9 — Phase 9: observability and ops
 
 - **PR:** _pending_
 - **Merge SHA:** _pending_
+- **Tests added:** 20 unit (log redaction and correlation ids)
+- **Test count after:** 352 unit, 19 emulator suites
+
+Observability turned out to be largely built: 201 logger calls across 43 files, a
+structured logger with level gating and env tagging, a `TripLifecycleEvent` union
+with dedicated `tripEvent`/`dispatchFailed`/`paymentConfirmed`/`paymentFailed`
+methods that route failures to `warn`, a CLOSED `opsAlerts` loop (raised by two
+scheduled functions, read by a manager-web service, acknowledged through a callable
+gated on `manage_alerts`), and two runbooks.
+
+**The PII scan came back clean, and that is a measurement rather than an
+assumption.** Every sensitive-looking value reaching a log today is a hash -
+`phoneHash`, `tokenPhoneHash`, `reportedPhoneHash` - or a "token is missing" message
+that logs no token. The mandate prohibition holds.
+
+So the gaps were both of the ENFORCEMENT kind, not the build kind:
+
+**1. Nothing stopped PII entering a log.** A future `logger.info(..., { phoneNumber
+})` would pass typecheck, lint and CI in silence, and the leak would sit in Cloud
+Logging retention long before anyone noticed. `redactLogContext` strips the
+known-sensitive field names - contact details, credentials, payment material,
+identity-document URLs, the OTP itself - and replaces the value with a marker so the
+field's PRESENCE stays visible for debugging.
+
+A deny-list, not an allow-list, and deliberately: log contexts are free-form across
+201 call sites, so an allow-list would swallow the diagnostic fields that make a log
+worth reading, and the pressure to add exceptions would erode it within a release.
+A field ending in `hash` is explicitly ALLOWED - redacting `phoneHash` would punish
+the correct behaviour and push call sites back to logging the raw value. It is a
+safety net, not a licence to pass PII and rely on it.
+
+**2. No correlation id existed.** Every `requestId` in the codebase is a
+`tripRequests` document id, not a trace, so a passenger action spanning create ->
+dispatch -> accept could not be tied together across log lines.
+
+A client-supplied trace id is attacker-controlled input, so it is not trusted
+blindly: unsanitised, a newline in it forges log entries, a constant value collapses
+every trace into one, and a huge string bloats every entry.
+`sanitizeCorrelationId` drops everything outside a conservative alphabet rather than
+escaping it, rejects anything under 8 characters, and caps at 64;
+`resolveCorrelationId` falls back to a server-generated id, with the generator
+injected so the fallback is testable without depending on randomness.
+
+`redactLogContext` walks arrays and nested objects - a payment payload two levels
+down leaks exactly as badly as a top-level one - and handles cycles with a marker
+rather than a throw, because a logger must never be the thing that breaks a request.
+
+**Not yet wired into the logger itself.** Threading redaction through all 201 call
+sites is a behaviour change to every log line in the system; it belongs in its own
+reviewable batch, not bundled with the module that makes it possible.
+
+---
+
+## Batch 8 — Phase 8: Firestore typing
+
+- **PR:** [#54](https://github.com/ayed-teia/Waselneh-Taxi/pull/54)
+- **Merge SHA:** `57de900`
 - **Tests added:** 34 unit (doc-data accessors, a module that had none)
 - **Test count after:** 332 unit, 19 emulator suites
 
