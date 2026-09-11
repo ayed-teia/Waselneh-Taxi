@@ -134,6 +134,50 @@ side and `getManagerProfile` must agree on `managerRoles` being the source of tr
 
 ---
 
+## Environment separation — read before any deploy
+
+**There is exactly ONE Firebase project, and every script targets it by name.**
+
+`.firebaserc` defines a single alias:
+
+```json
+{ "projects": { "default": "waselneh-prod-414e2" } }
+```
+
+and `deploy:prod`, `deploy:indexes`, both `backfill:driver-eligibility` scripts and
+every emulator command hardcode that same project id. There is no staging or pilot
+project. `.env.pilot` exists for all three apps and implies otherwise, but it is a
+template - its `FIREBASE_PROJECT_ID` is literally `your-real-project-id`.
+
+Consequences an operator must hold in mind:
+
+1. **The backfill writes to production by default.** `backfill-driver-eligibility.js`
+   defaults `projectId` to `waselneh-prod-414e2`. It is dry-run unless `--apply` is
+   passed, and it prints a preview first - but there is **no confirmation prompt**, so
+   `--apply` mutates live driver records the moment it is typed. Always run the
+   dry-run, read the sample updates, and only then re-run with `--apply`.
+
+2. **A pilot build and a production build are the same app.** Both mobile apps use one
+   bundle identifier per app (`com.taxiline.passenger`, `com.taxiline.driver`) across
+   every EAS profile, so installing a `preview` build over a `production` build
+   replaces it on the device. There is no way to run both side by side for comparison.
+
+3. **manager-web falls back to production config.** `src/services/firebase.ts`
+   hardcodes the real project id, auth domain, app id and API key as `||` fallbacks,
+   so a build with no environment variables points at production rather than failing.
+   Convenient locally; a trap for any future staging deployment.
+
+**Before a release build**, run the preflight check against the values the build
+actually carries (`checkReleasePreflight` in `@taxi-line/shared`). It refuses a
+template placeholder, a `demo-` project, a missing API key, and emulators requested
+in a release - the failure modes that survive a copy-paste of `.env.pilot`.
+
+Creating a separate staging project is a console action for an owner and is **not**
+something this repository can do for you. Until it exists, treat every deploy and
+every backfill as touching live user data, because it does.
+
+---
+
 ## Rollback
 
 **Rules** are the risky part, and they roll back fastest:

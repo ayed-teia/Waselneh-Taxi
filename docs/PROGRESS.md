@@ -16,10 +16,65 @@ build:functions → qa:unit) and `emulator-qa` (17 suites, Node 20 / Java 21).
 
 ---
 
-## Batch 10 — Phase 10: performance and load testing
+## Batch 11 — Phase 11: release engineering
 
 - **PR:** _pending_
 - **Merge SHA:** _pending_
+- **Tests added:** 19 unit (release preflight)
+- **Test count after:** 382 unit, 19 emulator suites
+
+**No store submission was made and no staging project was created.** Both need
+credentials and console access I do not have, and neither is faked here.
+
+What already existed: EAS build profiles for both apps (`preview` -> pilot,
+`production` -> prod), `app.config.js` reading `EXPO_PUBLIC_APP_MODE`, an
+`AppMode` module that blocks emulators outside dev, and two runbooks.
+
+**The finding: there is exactly ONE Firebase project, and every script targets it
+by name.** `.firebaserc` has a single alias, and `deploy:prod`, `deploy:indexes`,
+both backfill scripts and every emulator command hardcode `waselneh-prod-414e2`.
+`.env.pilot` exists for all three apps and implies a pilot environment that does not
+exist at the Firebase layer - its project id is literally `your-real-project-id`.
+
+Three consequences, now written into the deploy runbook:
+
+1. The backfill **writes to production by default** and has no confirmation prompt.
+   It is dry-run unless `--apply`, and prints a preview - but `--apply` mutates live
+   driver records the moment it is typed.
+2. Both mobile apps use **one bundle identifier across every EAS profile**, so a
+   pilot build replaces a production install on the same device.
+3. `manager-web` **hardcodes real production Firebase config as `||` fallbacks**,
+   so a build with no environment variables silently points at production rather
+   than failing.
+
+**`validateAppModeConfig` exists but is called by exactly one consumer** -
+manager-web. Neither mobile app validates its release config at startup. Its checks
+also miss the case that matters most: it catches a `demo-` project and a missing id,
+but NOT the placeholder that the committed `.env.pilot` files actually contain. A
+build made by following their own instructions passes validation while pointing at a
+project that does not exist.
+
+`checkReleasePreflight` closes that gap: it refuses template placeholders, `demo-`
+projects in a release, missing credentials, and emulators requested in a release
+build. That last one is a blocker even though the runtime already prevents the
+connection - it means the build came from a dev env file, so every other value in
+that file is suspect.
+
+Findings are COLLECTED rather than thrown on the first problem: a preflight that
+throws turns a five-minute fix into five separate builds. A pre-release version in
+prod is a warning, not a blocker, because both apps are on `1.0.0-pilot` today and
+blocking would be wrong while the pilot IS the intended release.
+
+**Wired into no build yet, deliberately** - making a release fail is a behaviour
+change for every environment and belongs in its own reviewable change. Same
+discipline as the log redaction in Batch 9.
+
+---
+
+## Batch 10 — Phase 10: performance and load testing
+
+- **PR:** [#56](https://github.com/ayed-teia/Waselneh-Taxi/pull/56)
+- **Merge SHA:** `20943c9`
 - **Tests added:** 11 unit (composite index coverage)
 - **Test count after:** 363 unit, 19 emulator suites
 
