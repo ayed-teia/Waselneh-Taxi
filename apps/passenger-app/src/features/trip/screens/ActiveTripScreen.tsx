@@ -48,7 +48,21 @@ interface ActiveTripScreenProps {
 
 const DEFAULT_PICKUP = { lat: 32.2211, lng: 35.2544 };
 
-function getStatusMeta(status: TripStatus, isRTL: boolean): {
+/**
+ * Status title and description, resolved through the translation table.
+ *
+ * This previously held sixteen inline `isRTL ? arabic : english` ternaries. They
+ * bypassed the i18n system the app already has, so the strings could not be
+ * reviewed, reused, or checked for locale parity - and a missing Arabic string was
+ * invisible because there was no table entry to be missing.
+ *
+ * `t` is passed in rather than calling useI18n() here, because this is a plain
+ * function, not a component.
+ */
+function getStatusMeta(
+  status: TripStatus,
+  t: (key: string, params?: Record<string, string | number>) => string
+): {
   title: string;
   description: string;
   tone: 'neutral' | 'info' | 'success' | 'warning';
@@ -56,32 +70,32 @@ function getStatusMeta(status: TripStatus, isRTL: boolean): {
   switch (status) {
     case 'pending':
       return {
-        title: isRTL ? 'جاري البحث عن سائق' : 'Searching for driver',
-        description: isRTL ? 'الرجاء الانتظار بينما نطابقك مع سائق قريب.' : 'Please wait while we match you with a nearby driver.',
+        title: t('status.title_pending'),
+        description: t('status.pending'),
         tone: 'neutral',
       };
     case 'accepted':
       return {
-        title: isRTL ? 'تم تعيين السائق' : 'Driver assigned',
-        description: isRTL ? 'السائق في طريقه إلى نقطة الالتقاط.' : 'Your driver is heading to the pickup point.',
+        title: t('status.title_accepted'),
+        description: t('status.accepted'),
         tone: 'info',
       };
     case 'driver_arrived':
       return {
-        title: isRTL ? 'وصل السائق' : 'Driver arrived',
-        description: isRTL ? 'السائق بانتظارك عند نقطة الالتقاط.' : 'Your driver is waiting at pickup.',
+        title: t('status.title_driver_arrived'),
+        description: t('status.driver_arrived'),
         tone: 'success',
       };
     case 'in_progress':
       return {
-        title: isRTL ? 'في الطريق' : 'On the way',
-        description: isRTL ? 'الرحلة قيد التنفيذ.' : 'Trip is in progress.',
+        title: t('status.title_in_progress'),
+        description: t('status.in_progress'),
         tone: 'info',
       };
     case 'completed':
       return {
-        title: isRTL ? 'اكتملت الرحلة' : 'Trip completed',
-        description: isRTL ? 'شكراً لاستخدامك وصلني.' : 'Thanks for riding with us.',
+        title: t('status.title_completed'),
+        description: t('status.completed'),
         tone: 'success',
       };
     case 'cancelled_by_passenger':
@@ -89,14 +103,14 @@ function getStatusMeta(status: TripStatus, isRTL: boolean): {
     case 'cancelled_by_system':
     case 'no_driver_available':
       return {
-        title: isRTL ? 'انتهت الرحلة' : 'Trip ended',
-        description: isRTL ? 'هذه الرحلة لم تعد نشطة.' : 'This trip is no longer active.',
+        title: t('status.title_ended'),
+        description: t('status.ended_description'),
         tone: 'warning',
       };
     default:
       return {
-        title: isRTL ? 'تحديث الرحلة' : 'Trip update',
-        description: isRTL ? 'تم تغيير الحالة.' : 'Status changed.',
+        title: t('status.title_default'),
+        description: t('common.trip_update'),
         tone: 'neutral',
       };
   }
@@ -135,14 +149,14 @@ export function ActiveTripScreen({
   onGoHome,
   isCancelling = false,
 }: ActiveTripScreenProps) {
-  const { isRTL } = useI18n();
+  const { isRTL, t } = useI18n();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isNarrow = width < 390;
   const cardWidth = width >= 768 ? 560 : width;
   const [cardHeight, setCardHeight] = useState(300);
 
-  const meta = getStatusMeta(status, isRTL);
+  const meta = getStatusMeta(status, t);
   const canCancel = status === 'pending' || status === 'accepted';
   const isEnded =
     status === 'completed' ||

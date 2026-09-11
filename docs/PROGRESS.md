@@ -16,10 +16,69 @@ build:functions → qa:unit) and `emulator-qa` (17 suites, Node 20 / Java 21).
 
 ---
 
-## Batch 6 — Phase 6: FIFO pilot controls
+## Batch 7 — Phase 7: localisation and accessibility
 
 - **PR:** _pending_
 - **Merge SHA:** _pending_
+- **Tests added:** 14 unit (translation parity, including a live check of BOTH
+  shipped tables)
+- **Test count after:** 298 unit, 19 emulator suites
+
+The measured surface: **374 inline `isRTL ? arabic : english` ternaries across 42
+files**, and **3 accessibility props in the entire mobile codebase**. Both apps
+already have a working i18n system, so the ternaries are not there for want of one -
+they bypass it.
+
+The mandate says incremental, per screen, no bulk replace. A 374-site sweep would be
+unreviewable and is exactly what it forbids, so this batch does one screen properly
+and fixes the accessibility gap at its root.
+
+**The silent failure nothing detected.** Both apps resolve a string as
+`TABLE[locale][key] ?? TABLE.en[key] ?? key`. A key missing from `ar` renders
+ENGLISH to an Arabic user mid-trip with nothing logged; a key missing from both
+renders the raw dotted key - a passenger reads `trip.cancel_error_message` on
+screen. Neither is visible to typecheck or lint, because the tables are plain
+`Record<string, string>` and TypeScript cannot relate two locales to each other.
+
+`packages/shared/src/config/i18n-parity.config.ts` is the pure comparison, and the
+tests drive it against BOTH shipped tables. Measured before writing it: no drift
+today (passenger 58/58, driver 85/85), so it is a regression guard rather than a bug
+fix - and it earned its keep immediately, adjudicating every key added below.
+
+It reads the tables as TEXT. The apps are `noEmit: true` with no build script, so
+their tables cannot be `require`d. The alternatives were adding a build step to two
+Expo apps purely to serve a test, or regex-stripping TypeScript into something
+executable - the shim deleted in Batch 3, which is not coming back. A text scan
+either finds a key or finds nothing; it cannot silently produce a WRONG table.
+
+**Accessibility was the more serious gap.** Neither app Button accepted or forwarded
+any accessibility prop: both took a closed prop list and rendered a bare
+`TouchableOpacity`, so a screen reader announced them as plain text, never as
+buttons, and never said "disabled" or "busy" while a cancel was in flight. Fixing
+it inside the component reaches every screen in both apps at once, which is worth
+far more than annotating one screen. `packages/ui` Button already spread its props
+but defaulted none, so every consumer that forgot got the same gap; it now defaults
+role, label and state, with the spread still last so call sites win.
+
+`SafetyToolsCard` had three unlabelled `Pressable`s - one of them **Emergency
+call** - and defaulted `trustedContactLabel` to the English literal even in Arabic,
+a localisation bug on a safety control.
+
+`ActiveTripScreen` went from 36 ternaries to 29: the 16 inside `getStatusMeta` now
+resolve through `t()`. Checked before reusing keys - the existing `status.*` values
+are DESCRIPTIONS, not titles, so blind reuse would have silently changed on-screen
+text; titles got their own keys, and `status.pending` and
+`status.cancelled_by_passenger` were absent from both locales entirely.
+
+The driver app has its own near-identical `getStatusMeta`. Left for the next
+increment rather than doubling this diff.
+
+---
+
+## Batch 6 — Phase 6: FIFO pilot controls
+
+- **PR:** [#52](https://github.com/ayed-teia/Waselneh-Taxi/pull/52)
+- **Merge SHA:** `cfa5d51`
 - **Tests added:** 28 unit (10 queue ordering, 18 fairness simulation)
   + 6 emulator assertions (callable reachability and flag-off refusal)
 - **Test count after:** 284 unit, 19 emulator suites

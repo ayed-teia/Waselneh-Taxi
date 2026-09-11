@@ -4,3 +4,4 @@ export * from './pilot-limits.config';
 export * from './vehicle.config';
 export * from './rbac.config';
 export * from './auth-flags.config';
+export * from './i18n-parity.config';
