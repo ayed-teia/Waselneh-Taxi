@@ -16,10 +16,63 @@ build:functions → qa:unit) and `emulator-qa` (17 suites, Node 20 / Java 21).
 
 ---
 
-## Batch 9 — Phase 9: observability and ops
+## Batch 10 — Phase 10: performance and load testing
 
 - **PR:** _pending_
 - **Merge SHA:** _pending_
+- **Tests added:** 11 unit (composite index coverage)
+- **Test count after:** 363 unit, 19 emulator suites
+
+**No load test was run, and no performance numbers are claimed.** The phase permits
+emulator/staging load testing only, and I have not run one - so there are no
+latency figures, no throughput figures, and nothing that could be mistaken for
+evidence of capacity.
+
+What I did instead was find the production failures that testing CANNOT catch here.
+
+**Seven composite indexes were missing.** The Firestore emulator creates composite
+indexes ON DEMAND, so a query needing an index that is absent from
+`firestore.indexes.json` runs perfectly in CI and then throws
+`FAILED_PRECONDITION: The query requires an index` the first time a real user hits
+it. All 19 emulator suites are green and tell us nothing whatsoever about this.
+
+The missing ones, each derived by reading a real call site and checking it against
+the existing eight definitions:
+
+- `trips`: driverId + status -> completedAt DESC (driver earnings summary)
+- `trips`: status -> createdAt DESC (manager active and pending lists)
+- `trips`: status -> completedAt DESC (manager completed list)
+- `trips`: passengerId + status -> createdAt DESC (passenger active trip)
+- `trips`: driverId + status -> createdAt DESC (driver incoming trips)
+- `queue`: status -> position ASC (the FIFO queue read)
+- `roadblocks`: status -> updatedAt DESC (manager active roadblocks)
+
+A prefix match is NOT enough: an equality field must precede the sort field, so the
+existing `trips(driverId, status)` index does not serve a query that also orders by
+`completedAt`. That is the rule the new unit tests encode.
+
+Deliberately NOT added: the single-field inequality scans (`payments` by
+`createdAt`, `tripRequests` by `expiresAt`). Those are served by automatic
+single-field indexes, and defining composites for them would be billable storage
+for nothing.
+
+**`deploy:prod` never deployed indexes at all.** It pushes
+`functions,firestore:rules` only, so a correct definition in the repo would still
+be absent in production. `deploy:indexes` is now a separate script rather than being
+folded into `deploy:prod`, because an index build is asynchronous and can take
+minutes on a large collection - it must be STARTED BEFORE the code that depends on
+it ships, or the deploy wins the race and users get the error anyway.
+
+The 11 new tests are static rather than behavioural: they compare a hand-maintained
+list of the real composite queries against the index file, and also assert the file
+is well formed and free of exact duplicates.
+
+---
+
+## Batch 9 — Phase 9: observability and ops
+
+- **PR:** [#55](https://github.com/ayed-teia/Waselneh-Taxi/pull/55)
+- **Merge SHA:** `8fd1998`
 - **Tests added:** 20 unit (log redaction and correlation ids)
 - **Test count after:** 352 unit, 19 emulator suites
 
