@@ -41,7 +41,8 @@
     "qa:unit": "node scripts/run-unit-tests.mjs",
     "qa:verify": "corepack pnpm qa:unit && corepack pnpm qa:all",
     "qa:referrals:e2e": "corepack pnpm --filter @taxi-line/functions qa:referrals:e2e",
-    "qa:cancellation-benefits:e2e": "corepack pnpm --filter @taxi-line/functions qa:cancellation-benefits:e2e"
+    "qa:cancellation-benefits:e2e": "corepack pnpm --filter @taxi-line/functions qa:cancellation-benefits:e2e",
+    "qa:settlement-reconciliation:e2e": "corepack pnpm --filter @taxi-line/functions qa:settlement-reconciliation:e2e"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",

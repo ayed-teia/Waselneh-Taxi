@@ -15,13 +15,9 @@ import {
   subscribeToOfficeStatements,
   subscribeToSettlements,
 } from '../services/commissions.service';
+import { csvCell } from '../utils/csv';
 
 import './PaymentsListPage.css';
-
-function csvCell(value: string): string {
-  const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
-  return `"${safe.replace(/"/g, '""')}"`;
-}
 
 export function CommissionsPage() {
   const { txt } = useI18n();

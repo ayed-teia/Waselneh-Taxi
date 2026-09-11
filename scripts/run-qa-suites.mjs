@@ -42,6 +42,7 @@ const SUITES = [
   'qa-online-payments-e2e.mjs',
   'qa-referrals-e2e.mjs',
   'qa-cancellation-benefits-e2e.mjs',
+  'qa-settlement-reconciliation-e2e.mjs',
 ];
 
 const results = [];

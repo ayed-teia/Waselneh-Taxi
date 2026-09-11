@@ -12,6 +12,7 @@ import {
   getPaymentStatusDisplay,
   type TripData,
 } from '../services/trips.service';
+import { toCsv } from '../utils/csv';
 
 /**
  * ============================================================================
@@ -87,11 +88,7 @@ export function PaymentReconciliationPage() {
   const [trips, setTrips] = useState<TripData[]>([]);
   const [payments, setPayments] = useState<PaymentDocument[]>([]);
   const [tripsError, setTripsError] = useState<string | null>(null);
-  // subscribeToPayments logs its own errors and exposes no error callback, so a
-  // payments failure surfaces as an empty ledger rather than a banner here. Every
-  // trip would then read "Unrecorded", which is visibly wrong rather than silently
-  // wrong - acceptable for now, but worth an onError parameter on that service.
-  const paymentsError: string | null = null;
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | ReconcileState>('all');
 
@@ -110,7 +107,16 @@ export function PaymentReconciliationPage() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = subscribeToPayments((data) => setPayments(data), 500);
+    const unsubscribe = subscribeToPayments(
+      (data) => {
+        setPayments(data);
+        setPaymentsError(null);
+      },
+      500,
+      // Without this a payments failure rendered an EMPTY ledger, so every trip
+      // showed as 'Unrecorded' - wrong data rather than an honest error.
+      (error) => setPaymentsError(error.message)
+    );
     return () => unsubscribe();
   }, []);
 
@@ -160,12 +166,75 @@ export function PaymentReconciliationPage() {
     [rows, filter]
   );
 
+  /**
+   * Export exactly what is on screen - the active filter included. An export that
+   * silently differs from the visible table is how a reconciliation gets signed off
+   * against the wrong set of trips.
+   *
+   * Cells go through the shared csvCell, which neutralises leading = + - @ so a
+   * value cannot execute as a formula in the operator's spreadsheet. Only uids are
+   * emitted here - never names or phone numbers.
+   */
+  function exportCsv() {
+    const csv = toCsv(
+      [
+        'trip_id',
+        'state',
+        'driver_id',
+        'passenger_id',
+        'fare_ils',
+        'trip_payment_status',
+        'payment_method',
+        'payment_id',
+        'completed_at',
+        'paid_at',
+      ],
+      visibleRows.map((row) => [
+        row.tripId,
+        row.state,
+        row.driverId ?? '',
+        row.passengerId,
+        row.fareAmount.toFixed(2),
+        row.tripPaymentStatus,
+        row.paymentMethod,
+        row.payment?.paymentId ?? '',
+        row.completedAt ? row.completedAt.toISOString() : '',
+        row.paidAt ? row.paidAt.toISOString() : '',
+      ])
+    );
+    // The BOM makes Excel read it as UTF-8; without it Arabic office names arrive
+    // as mojibake.
+    const url = URL.createObjectURL(
+      new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+    );
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reconciliation-${filter}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div style={{ padding: 24 }}>
       <h1 style={{ marginBottom: 4 }}>Payment Reconciliation</h1>
       <p style={{ color: '#6b7280', marginTop: 0 }}>
         Completed trips cross-referenced against the payments ledger. Read-only.
       </p>
+
+      <button
+        type="button"
+        onClick={exportCsv}
+        disabled={visibleRows.length === 0}
+        style={{
+          padding: '8px 14px',
+          borderRadius: 8,
+          border: '1px solid #d1d5db',
+          background: visibleRows.length === 0 ? '#f3f4f6' : '#fff',
+          cursor: visibleRows.length === 0 ? 'not-allowed' : 'pointer',
+        }}
+      >
+        Export CSV ({visibleRows.length})
+      </button>
 
       {tripsError && (
         <div style={{ background: '#fee2e2', color: '#991b1b', padding: 12, borderRadius: 8 }}>

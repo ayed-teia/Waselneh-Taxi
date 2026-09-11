@@ -15,9 +15,11 @@
  * FINAL_HARDENING_REPORT.md); this closes the part that is logic rather than pixels.
  */
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const testResults = [];
@@ -38,47 +40,24 @@ function check(name, actual, expected) {
 }
 
 /**
- * The module is TypeScript in the manager-web app and there is no TS runtime here,
- * so strip the types with a minimal transform. The logic is plain JS; only type
- * annotations, interfaces and `import type` need removing.
+ * The classification now lives in the BACKEND as a compiled module, so this suite
+ * requires it directly from dist. It previously read the manager-web TypeScript
+ * source and stripped the type annotations with a regex transform into a data:
+ * URL, because the QA harness has no TypeScript runtime - fragile, and the wrong
+ * home for logic that decides whether money is considered collected.
  */
-async function loadReconciliation() {
-  const src = path.join(
-    __dirname,
-    '..',
-    '..',
-    '..',
-    'apps',
-    'manager-web',
-    'src',
-    'services',
-    'reconciliation.ts'
-  );
-  if (!fs.existsSync(src)) throw new Error(`not found: ${src}`);
-
-  let code = fs.readFileSync(src, 'utf8');
-  // Drop type-only declarations.
-  code = code
-    .replace(/^export type [\s\S]*?;$/gm, '')
-    .replace(/^export interface [\s\S]*?^}$/gm, '')
-    .replace(/^interface [\s\S]*?^}$/gm, '');
-  // Drop type annotations on params/returns and generics.
-  code = code
-    .replace(/<[^<>()]*>\(/g, '(')
-    .replace(/:\s*readonly\s+[A-Za-z][\w<>[\]|'". ]*(?=[,)])/g, '')
-    .replace(/:\s*Map<[^>]*>/g, '')
-    .replace(/:\s*[A-Za-z][\w<>[\]|'". ]*(?=\s*[,)])/g, '')
-    .replace(/\)\s*:\s*[A-Za-z][\w<>[\]|'". ]*\s*\{/g, ') {');
-
-  const dataUrl =
-    'data:text/javascript;base64,' + Buffer.from(code, 'utf8').toString('base64');
-  return import(dataUrl);
+function loadReconciliation() {
+  const dist = path.join(__dirname, '..', 'dist', 'modules', 'reconciliation');
+  if (!fs.existsSync(path.join(__dirname, '..', 'dist', 'modules', 'reconciliation', 'index.js'))) {
+    throw new Error(`build output missing: ${dist} - run pnpm build:functions`);
+  }
+  return require(dist);
 }
 
 async function main() {
   let mod;
   try {
-    mod = await loadReconciliation();
+    mod = loadReconciliation();
   } catch (error) {
     fail('load reconciliation module', error instanceof Error ? error.message : String(error));
     console.log('\n[QA] Reconciliation summary -> total: 1, passed: 0, failed: 1');

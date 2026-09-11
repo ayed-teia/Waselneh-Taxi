@@ -120,14 +120,42 @@ scope here and **is not verified**. What remains:
 4. Run one small **real** charge and refund it.
 5. Only then set `ONLINE_PAYMENTS_ENABLED=true` in production.
 
-### Reconciliation — still to build
+### Reconciliation — built, but not yet connected
 
-Daily, compare Lahza's settlement report against our `payments` collection and
-surface: paid at Lahza but not in Firestore (a lost webhook), paid in Firestore but
-not at Lahza (should be impossible — investigate immediately), and amount mismatches.
-This cannot be written until the report's format is known. The existing
-reconciliation page already models these mismatch states.
+The comparison logic now exists and is tested:
 
+- `backend/functions/src/modules/reconciliation/settlement-mismatch.ts` — the
+  mismatch taxonomy: paid at the provider but pending internally (a lost webhook),
+  paid internally but absent from the report, amount and currency mismatches,
+  refund disagreements, duplicated provider references, and orphan settlement rows.
+- `managerReconcileSettlement` — an on-demand run for a global manager with
+  `manage_payments`.
+- `reconcileSettlementDaily` — scheduled 03:00 Asia/Hebron; raises the
+  `settlement_mismatch` ops alert and writes an auditable run record.
+
+**What is still missing is the provider call itself.** `fetchSettlement` is an
+OPTIONAL method on `PaymentProvider`, and `LahzaProvider` does not implement it,
+because the real settlement report format cannot be known without live credentials.
+Writing a parser against a guessed format — and then scheduling it to raise
+financial alerts — would be a control that looks real and proves nothing.
+
+While it is unimplemented, both entry points report
+`providerAvailable: false` with a reason and null totals. This is deliberate: an
+empty report reading "0 mismatches" would tell an operator that the books agree,
+when in fact nothing was compared. **"We checked and found nothing" and "we could
+not check" must never look alike.**
+
+**To finish it**, once test credentials exist:
+
+1. Obtain one real settlement report from the Lahza dashboard and record its actual
+   shape — do not infer it from the transactions API.
+2. Implement `fetchSettlement(fromIso, toIso): Promise<SettlementRow[]>` on
+   `LahzaProvider`, normalising status to `paid | refunded | failed` and amounts to
+   agorot (minor units).
+3. Add fixtures from that real report to
+   `backend/functions/scripts/unit/settlement-mismatch.test.mjs`.
+4. Run `managerReconcileSettlement` manually over a known-good day before trusting
+   the schedule.
 ---
 
 ## Open questions

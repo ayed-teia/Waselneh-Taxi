@@ -122,6 +122,7 @@ export {
   getMyReferralStatus,
   managerSetReferralConfig,
   managerGetReferralReport,
+  managerReconcileSettlement,
   managerCreateOfficeStatement,
   managerMarkOfficeStatementPaid,
   reportCheckpoint,
@@ -170,3 +171,8 @@ export { expireDriverRequests, expireStaleTrips } from './modules/trips';
 // ============================================================================
 export { aggregateOpsMetrics } from './modules/monitoring';
 export { processSubscriptionBilling } from './modules/billing/processSubscriptionBilling.scheduled';
+
+// ============================================================================
+// Reconciliation Module Functions
+// ============================================================================
+export { reconcileSettlementDaily } from './modules/reconciliation';
