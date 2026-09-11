@@ -16,10 +16,59 @@ build:functions → qa:unit) and `emulator-qa` (17 suites, Node 20 / Java 21).
 
 ---
 
-## Batch 4 — Phase 4: auth hardening
+## Batch 5 — Phase 5: driver document security
 
 - **PR:** _pending_
 - **Merge SHA:** _pending_
+- **Tests added:** 25 unit (driver-documents, a module that had none) + 2 emulator
+  traversal cases
+- **Test count after:** 256 unit, 19 emulator suites
+
+Like Phase 4, this was mostly an audit. `storage.rules` was already strong:
+owner-only write under `{driverId}`, manager read, a MIME allowlist, a 10MB cap,
+`update: if false` so a rejected original stays auditable, `delete: if false` so
+retention goes through a Cloud Function, and a default-deny catch-all. The status
+state machine correctly refuses `approved -> pending`, so a re-upload cannot
+silently drop a verification, and `firestore.rules` makes the status documents
+server-write-only - a driver who could write them would approve their own licence.
+
+**The finding: path traversal in `documentStoragePath`.** `fileName` was validated
+only as a 1-200 character string and then interpolated raw into
+`driver-documents/{driverId}/{documentType}/{fileName}`. A name like
+`../../other-driver/national_id/x.jpg` produced a storagePath pointing OUTSIDE the
+uploader own prefix.
+
+This was never a file-read breach - `storage.rules` binds the real object path to
+`{driverId}`, so the upload itself still fails. But the Firestore metadata record
+would carry an attacker-chosen path, and anything later trusting `storagePath` (the
+signed-URL callable and manager review queue that Phase 5 still calls for) would be
+aimed at an arbitrary object. Fixing it at the boundary is right precisely BECAUSE
+those consumers do not exist yet to be careful.
+
+`sanitizeDocumentFileName` now discards any directory structure outright rather than
+escaping it, handles backslash paths from desktop clients, neutralises NUL bytes and
+control characters, refuses names that are only path operators, and bounds length.
+The callable rejects an unusable name as a `ValidationError` rather than letting the
+module throw a bare `Error`: `handleError` maps that to "An unexpected error
+occurred" and logs it as an unhandled crash - three wrong signals for one bad input
+field.
+
+The module had **no unit tests at all** despite being pure, security-relevant logic.
+It now has 25, covering the traversal vectors, the state machine including the
+load-bearing `approved -> pending` prohibition, and the required-document gate.
+
+**Retention deletion was deliberately NOT implemented.** `driver-documents.ts` and
+`docs/REMAINING_PLAN.md` both record that deleting identity documents on a timer
+without legal sign-off would be worse than keeping them. `DRIVER_DOCUMENT_RETENTION_DAYS`
+remains an unenforced constant. Document expiry (licences and insurance do expire)
+and signed URLs are still open - neither is blocked, both are genuinely absent.
+
+---
+
+## Batch 4 — Phase 4: auth hardening
+
+- **PR:** [#50](https://github.com/ayed-teia/Waselneh-Taxi/pull/50)
+- **Merge SHA:** `f89b436`
 - **Tests added:** 7 emulator assertions (4 in qa-otp-auth-e2e case 5, rewritten;
   3 new R3 cases in qa-security-regression-e2e)
 - **Test count after:** 231 unit, 19 emulator suites
