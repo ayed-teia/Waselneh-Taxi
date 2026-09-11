@@ -8,6 +8,7 @@ import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError, hand
 import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
 import { publishTripStatusNotifications } from '../../modules/notifications';
+import { restoreBenefits } from '../../modules/promotions';
 import { getString } from '../../core/firestore/doc-data';
 
 const CancelTripSchema = z.object({
@@ -101,6 +102,19 @@ export const passengerCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
           const reservedSeats = Math.max(0, reservedSeatsRaw);
           const nextAvailableSeats = Math.max(0, Math.min(seatCapacity, availableSeats + reservedSeats));
           const isOnline = driverData.isOnline === true;
+
+        // Benefits are returned BEFORE any write: restoreBenefits issues its own
+        // transaction.get calls, and Firestore forbids a read after a write. A
+        // passenger who redeemed a promo and points, got matched, then cancelled
+        // before the trip started previously lost both - nothing gave them back.
+        const benefitsRestored = await restoreBenefits(
+          transaction,
+          db,
+          tripRef,
+          tripData as Record<string, unknown>,
+          'passenger_cancelled'
+        );
+        void benefitsRestored;
 
           transaction.set(
             driverRef,

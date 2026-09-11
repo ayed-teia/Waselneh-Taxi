@@ -8,6 +8,7 @@ import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError, hand
 import { REGION } from '../../core/env';
 import { logger } from '../../core/logger';
 import { publishTripStatusNotifications } from '../../modules/notifications';
+import { restoreBenefits } from '../../modules/promotions';
 import { getString } from '../../core/firestore/doc-data';
 
 const CancelTripSchema = z.object({
@@ -67,6 +68,18 @@ export const driverCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
 
         const driverRef = db.collection('drivers').doc(driverId);
         const driverDoc = await transaction.get(driverRef);
+
+        // Read the driver-request BEFORE any write. This used to sit below the
+        // trip and driver writes, which Firestore rejects outright:
+        // "transactions require all reads to be executed before all writes".
+        // passengerCancelTrip already reads it up front; this now matches.
+        const driverRequestRef = db
+          .collection('driverRequests')
+          .doc(driverId)
+          .collection('requests')
+          .doc(tripId);
+        const driverRequestDoc = await transaction.get(driverRequestRef);
+        const shouldUpdateDriverRequest = driverRequestDoc.exists;
         const driverData = (driverDoc.data() ?? {}) as Record<string, unknown>;
 
         const seatCapacity = normalizeSeatCapacity(
@@ -90,6 +103,16 @@ export const driverCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
         const reservedSeats = Math.max(0, reservedSeatsRaw);
         const nextAvailableSeats = Math.max(0, Math.min(seatCapacity, availableSeats + reservedSeats));
         const isOnline = driverData.isOnline === true;
+
+        // Read phase: the passenger did nothing wrong when the DRIVER cancels, so
+        // their promo and loyalty points must come back. Must precede every write.
+        await restoreBenefits(
+          transaction,
+          db,
+          tripRef,
+          tripData as Record<string, unknown>,
+          'driver_cancelled'
+        );
 
         transaction.update(tripRef, {
           status: TripStatus.CANCELLED_BY_DRIVER,
@@ -120,13 +143,7 @@ export const driverCancelTrip = onCall<unknown, Promise<CancelTripResponse>>(
           { merge: true }
         );
 
-        const driverRequestRef = db
-          .collection('driverRequests')
-          .doc(driverId)
-          .collection('requests')
-          .doc(tripId);
-        const driverRequestDoc = await transaction.get(driverRequestRef);
-        if (driverRequestDoc.exists) {
+        if (shouldUpdateDriverRequest) {
           transaction.update(driverRequestRef, {
             status: 'cancelled',
             cancelledAt: FieldValue.serverTimestamp(),

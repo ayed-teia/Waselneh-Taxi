@@ -186,6 +186,9 @@ interface TripRequestDocument {
  */
 interface TripDocument {
   tripId: string;
+  /** The tripRequest this trip was dispatched from. Lets a cancelled trip be
+   *  reconciled against the request that consumed the promo/loyalty benefits. */
+  requestId: string;
   passengerId: string;
   driverId: string;
   status: string;
@@ -1067,6 +1070,7 @@ export const createTripRequest = onCall<unknown, Promise<CreateTripRequestRespon
         // Create trip document
         const tripDoc: TripDocument = {
           tripId,
+          requestId,
           passengerId,
           driverId: nearestDriver.driverId,
           status: TripStatus.PENDING,
