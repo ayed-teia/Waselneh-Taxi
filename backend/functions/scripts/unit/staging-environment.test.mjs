@@ -21,6 +21,16 @@ test('staging deploy commands cannot target production', () => {
   }
   assert.match(scripts['deploy:prod'], /confirm-production-deploy/);
   assert.match(scripts['deploy:indexes'], /confirm-production-deploy/);
+  assert.match(scripts['deploy:staging:functions'], /firebase\.staging\.json/);
+  assert.match(scripts['deploy:staging:functions'], /prepare:staging:functions/);
+});
+
+test('staging Functions deploy uses an isolated npm-compatible source', () => {
+  const config = JSON.parse(read('firebase.staging.json'));
+  assert.equal(config.functions.source, '.firebase/functions-deploy');
+  const prepare = read('scripts/prepare-functions-deploy.mjs');
+  assert.match(prepare, /file:vendor\/shared/);
+  assert.match(prepare, /workspace:\*/);
 });
 
 test('production deployment is refused without the exact project confirmation', () => {

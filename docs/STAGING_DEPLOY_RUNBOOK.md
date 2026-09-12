@@ -68,6 +68,10 @@ corepack pnpm deploy:staging:indexes
 corepack pnpm deploy:staging:functions
 ```
 
+The Functions command builds both workspaces and creates an ignored, isolated
+deployment source. Cloud Build uses npm, so the deployment package replaces the
+monorepo-only `workspace:*` dependency with a local `file:vendor/shared` package.
+
 There is deliberately no combined staging deploy command: the CLI returning from
 index deployment does not prove that every index has finished building, so an
 operator must verify that gate before Functions are deployed.

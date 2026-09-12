@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "source": ".firebase/functions-deploy",
+    "runtime": "nodejs20",
+    "codebase": "taxi-line-functions"
+  }
+}
