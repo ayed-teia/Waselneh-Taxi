@@ -4,6 +4,8 @@ import {
   getConnectionGuardMessage,
   checkReleasePreflight,
   formatPreflightReport,
+  describeEnvironment,
+  resolveRuntimeEnvironment,
   type AppMode,
 } from '@taxi-line/shared';
 import { initializeApp, FirebaseApp } from 'firebase/app';
@@ -65,6 +67,25 @@ if (expectedReleaseProject && firebaseConfig.projectId !== expectedReleaseProjec
 if (!preflight.safeToShip) {
   throw new Error(`[ManagerWeb] ${formatPreflightReport(preflight)}`);
 }
+
+/**
+ * Human-readable environment label for the dashboard header.
+ *
+ * The previous UI showed only "emulator" or "production", so a staging session
+ * was labelled PRODUCTION. That is not cosmetic: an operator who believes they
+ * are on production hesitates to test, and one who believes staging is
+ * production may act on what they see there.
+ */
+export const environmentLabel = describeEnvironment(
+  resolveRuntimeEnvironment({
+    appMode,
+    useEmulators,
+    firebaseProjectId: firebaseConfig.projectId,
+  })
+);
+
+/** The Firebase project this build is actually talking to. */
+export const activeProjectId = firebaseConfig.projectId;
 
 if (forceLocalDevMode && requestedMode !== 'dev') {
   console.warn(

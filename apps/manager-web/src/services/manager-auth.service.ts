@@ -1,9 +1,7 @@
 import { isManagerPasswordAuthEnabled } from '@taxi-line/shared';
 import {
   User,
-  onAuthStateChanged,
-  signInAnonymously,
-  signInWithCustomToken,
+  onAuthStateChanged,  signInWithCustomToken,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
@@ -80,8 +78,16 @@ export async function ensureSignedInManager(
       return credential.user;
     }
 
-    const credential = await signInAnonymously(auth);
-    return credential.user;
+    // NO anonymous fallback outside the emulator.
+    //
+    // An anonymous user can never be a manager: authorization comes from
+    // managerRoles/{uid}, and an anonymous uid has no such document. Signing in
+    // anonymously against a real project therefore creates a junk Auth user and
+    // then fails authorization anyway - which is what surfaced as
+    // "auth/admin-restricted-operation" instead of a sign-in prompt.
+    throw new Error(
+      'Manager sign-in is required. Anonymous access is only available against the Firebase emulator.'
+    );
   })();
 
   try {

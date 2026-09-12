@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
+import { enforceConnectionGuard, environmentLabel } from '../src/config/runtime-env';
 import { I18nProvider, useI18n } from '../src/localization';
 import {
   markUserNotificationRead,
@@ -15,6 +16,12 @@ import { onAuthStateChanged, type User } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
 // Mapbox is initialised lazily by the map components (see src/config/mapbox.init.ts).
 // It must NOT run here: a native failure at router-load time hangs the whole app.
+
+// Fail fast on a contradictory configuration (pilot + emulators, pilot + dev
+// bypass, or a mode pointing at the wrong Firebase project) BEFORE any Firebase
+// call is made. A release build throws; dev only warns.
+enforceConnectionGuard();
+console.log('[Waselneh] Environment: ' + environmentLabel);
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({

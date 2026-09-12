@@ -36,14 +36,32 @@ async function getExpoPushToken(): Promise<string | null> {
     return null;
   }
 
+  // The EAS project id is NOT the Firebase project id. Without a real one,
+  // getExpoPushTokenAsync throws ("No projectId found"), and that exception used
+  // to escape this function and abort device registration entirely.
   const projectId =
     Constants.expoConfig?.extra?.eas?.projectId ||
     Constants.easConfig?.projectId;
 
-  const result = await Notifications.getExpoPushTokenAsync(
-    projectId ? { projectId } : undefined
-  );
-  return result.data || null;
+  if (!projectId) {
+    // Skip ONLY the push token. Registration continues, so the device still
+    // appears in userDevices and everything except push delivery works.
+    console.warn(
+      '[Notifications] No EAS project id configured, so no Expo push token was requested. ' +
+        'Device registration continues; push delivery is unavailable for this build. ' +
+        'Set extra.eas.projectId in app.config.js (an EAS project id, NOT the Firebase project id).'
+    );
+    return null;
+  }
+
+  try {
+    const result = await Notifications.getExpoPushTokenAsync({ projectId });
+    return result.data || null;
+  } catch (error) {
+    // A push-service failure must not cost us the device record.
+    console.warn('[Notifications] Expo push token request failed; continuing without it', error);
+    return null;
+  }
 }
 
 export async function registerNotificationDevice(

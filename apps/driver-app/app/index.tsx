@@ -3,6 +3,7 @@ import { Redirect } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
+import { isDevAuthBypassEnabled } from '../src/config/runtime-env';
 import { LoginScreen, PhoneLoginScreen } from '../src/features/auth';
 import { useI18n } from '../src/localization';
 import {
@@ -13,8 +14,14 @@ import { signInWithDriverUidForDev } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
 import { LoadingScreen } from '../src/ui';
 
-// Dev mode - use anonymous auth for testing with emulators
-const DEV_MODE = true;
+/**
+ * The emulator-only custom-token login (devIssueDriverToken) is permitted ONLY
+ * when the environment says so: dev mode AND emulators on AND an explicit bypass
+ * flag. Previously this was `const DEV_MODE = true`, which read no environment
+ * variable - so pilot builds called an emulator-only Function against real
+ * staging and failed with "Driver login function is unavailable".
+ */
+const DEV_MODE = isDevAuthBypassEnabled;
 
 function normalizeDriverUid(value: unknown): string {
   if (typeof value !== 'string') {
