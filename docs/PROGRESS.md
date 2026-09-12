@@ -2,6 +2,30 @@
 
 Cumulative record of autonomous delivery batches. Newest first.
 
+## Batch 12 — staging environment separation
+
+- **Project:** `waselneh-staging-ayed`
+- **PR:** pending
+- **Tests added:** 9 unit (environment identity and deploy guards)
+- **Test count after:** 391 unit, 19 emulator suites
+
+Created an explicit staging boundary in repository configuration: Firebase aliases
+default to staging, preview mobile builds use `.staging` package/bundle identifiers,
+the manager web app no longer silently falls back to production, staging deployment
+commands name their target explicitly, and production deploys require the exact
+production project confirmation. Static regression tests pin these invariants.
+
+Deployment remains an operator action and follows `docs/STAGING_DEPLOY_RUNBOOK.md`.
+Rules and indexes must precede Functions; index readiness must be checked before
+Functions deploy.
+
+Local verification: shared and Functions builds passed, all six TypeScript
+projects passed, lint reported 0 errors / 152 existing warnings, all 391 unit
+tests passed, and the manager Pilot bundle built successfully. Emulator QA must
+run in CI's Java 21 environment; the local runner only provides Java 17.
+
+---
+
 ## Baseline (measured on `main` @ `8ce2bbf`, PR #45)
 
 | Check | Result |

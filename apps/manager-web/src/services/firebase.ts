@@ -2,24 +2,14 @@ import {
   parseAppMode,
   shouldAllowEmulators,
   getConnectionGuardMessage,
-  validateAppModeConfig,
+  checkReleasePreflight,
+  formatPreflightReport,
   type AppMode,
 } from '@taxi-line/shared';
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, Auth } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator, Firestore } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator, Functions } from 'firebase/functions';
-
-// Firebase configuration for manager web - Production
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBxSBX302HrkHBt-m0s6rCQDpu74L4Wld0",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "waselneh-prod-414e2.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "waselneh-prod-414e2",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "waselneh-prod-414e2.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1041356838503",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1041356838503:web:68c077c6d834057e89a6c2",
-  measurementId: "G-FNY3H394G2"
-};
 
 // ============================================================================
 // APP MODE CONFIGURATION (Step 33)
@@ -36,6 +26,45 @@ const emulatorsRequested =
   (forceLocalDevMode && import.meta.env.VITE_USE_EMULATORS !== 'false');
 const useEmulators = shouldAllowEmulators(appMode, emulatorsRequested);
 const emulatorHost = import.meta.env.VITE_EMULATOR_HOST || '127.0.0.1';
+const expectedReleaseProject =
+  appMode === 'pilot'
+    ? 'waselneh-staging-ayed'
+    : appMode === 'prod'
+      ? 'waselneh-prod-414e2'
+      : null;
+const firebaseProjectId =
+  import.meta.env.VITE_FIREBASE_PROJECT_ID || (appMode === 'dev' ? 'demo-taxi-line' : '');
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || (appMode === 'dev' ? 'demo-api-key' : ''),
+  authDomain:
+    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ||
+    (appMode === 'dev' ? 'demo-taxi-line.firebaseapp.com' : ''),
+  projectId: firebaseProjectId,
+  storageBucket:
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ||
+    (appMode === 'dev' ? 'demo-taxi-line.firebasestorage.app' : ''),
+  messagingSenderId:
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || (appMode === 'dev' ? '000000000000' : ''),
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || (appMode === 'dev' ? '1:000000000000:web:demo' : ''),
+};
+
+const preflight = checkReleasePreflight({
+  mode: appMode,
+  firebaseProjectId: firebaseConfig.projectId,
+  firebaseApiKey: firebaseConfig.apiKey,
+  emulatorsRequested,
+});
+
+if (expectedReleaseProject && firebaseConfig.projectId !== expectedReleaseProject) {
+  throw new Error(
+    `[ManagerWeb] ${appMode} must use Firebase project ${expectedReleaseProject}; received ${firebaseConfig.projectId || 'nothing'}.`
+  );
+}
+
+if (!preflight.safeToShip) {
+  throw new Error(`[ManagerWeb] ${formatPreflightReport(preflight)}`);
+}
 
 if (forceLocalDevMode && requestedMode !== 'dev') {
   console.warn(
@@ -49,9 +78,7 @@ if (connectionMessage) {
   console.log(connectionMessage);
 }
 
-// Validate config and log warnings
-const configWarnings = validateAppModeConfig(appMode, firebaseConfig.projectId);
-configWarnings.forEach(warning => console.warn(warning));
+preflight.warnings.forEach(warning => console.warn(`[ManagerWeb] ${warning.message}`));
 
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;

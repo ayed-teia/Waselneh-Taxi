@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import firebase from 'firebase/compat/app';
+import { Platform } from 'react-native';
 
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -18,14 +19,17 @@ export type Unsubscribe = () => void;
 const expoConfig = Constants.expoConfig?.extra ?? {};
 const useEmulators = expoConfig.useEmulators === true || expoConfig.useEmulators === 'true';
 const emulatorHost = getEmulatorHost();
-const defaultProjectId = 'waselneh-prod-414e2';
+// A missing local configuration must never fall through to production.
+// Pilot/prod builds are rejected earlier by app.config.js unless their exact
+// project is supplied.
+const defaultProjectId = 'demo-taxi-line';
 const defaultFirebaseConfig = {
-  apiKey: 'AIzaSyAiyhX7HdwSsEAZASVSO2IEDuudS6czDgg',
+  apiKey: 'demo-api-key',
   authDomain: `${defaultProjectId}.firebaseapp.com`,
   projectId: defaultProjectId,
   storageBucket: `${defaultProjectId}.firebasestorage.app`,
-  messagingSenderId: '474645728365',
-  appId: '1:474645728365:android:275d36b746d87f9a58c364',
+  messagingSenderId: '000000000000',
+  appId: '1:000000000000:android:demo',
 } as const;
 
 const firebaseConfig = {
@@ -46,7 +50,12 @@ const firebaseConfig = {
       process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ||
       defaultFirebaseConfig.messagingSenderId
   ),
-  appId: String(expoConfig.firebaseAppId || process.env.EXPO_PUBLIC_FIREBASE_APP_ID || defaultFirebaseConfig.appId),
+  appId: String(
+    (Platform.OS === 'ios' ? expoConfig.firebaseIosAppId : expoConfig.firebaseAndroidAppId) ||
+      expoConfig.firebaseAppId ||
+      process.env.EXPO_PUBLIC_FIREBASE_APP_ID ||
+      defaultFirebaseConfig.appId
+  ),
 };
 
 if (!firebase.apps.length) {
