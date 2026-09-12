@@ -1,3 +1,19 @@
+const appMode = process.env.EXPO_PUBLIC_APP_MODE || 'dev';
+const isStaging = appMode === 'pilot';
+const isProduction = appMode === 'prod';
+const releaseProjectId = isStaging
+  ? 'waselneh-staging-ayed'
+  : isProduction
+    ? 'waselneh-prod-414e2'
+    : undefined;
+const configuredProjectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+
+if (releaseProjectId && configuredProjectId !== releaseProjectId) {
+  throw new Error(
+    `[PassengerApp] ${appMode} builds must use Firebase project ${releaseProjectId}; received ${configuredProjectId || 'nothing'}.`
+  );
+}
+
 module.exports = {
   expo: {
     name: 'وصلني',
@@ -16,7 +32,12 @@ module.exports = {
     assetBundlePatterns: ['**/*'],
     ios: {
       supportsTablet: false,
-      bundleIdentifier: 'com.taxiline.passenger',
+      bundleIdentifier: isStaging
+        ? 'com.taxiline.passenger.staging'
+        : 'com.taxiline.passenger',
+      googleServicesFile:
+        process.env.GOOGLE_SERVICE_INFO_PLIST ||
+        (isStaging ? './.firebase/staging/GoogleService-Info.plist' : './GoogleService-Info.plist'),
       buildNumber: '1',
     },
     android: {
@@ -24,7 +45,12 @@ module.exports = {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',
       },
-      package: 'com.taxiline.passenger',
+      package: isStaging
+        ? 'com.taxiline.passenger.staging'
+        : 'com.taxiline.passenger',
+      googleServicesFile:
+        process.env.GOOGLE_SERVICES_JSON ||
+        (isStaging ? './.firebase/staging/google-services.json' : './google-services.json'),
       versionCode: 1,
       permissions: [
         'ACCESS_COARSE_LOCATION',
@@ -63,7 +89,7 @@ module.exports = {
     },
     extra: {
       // App Mode (Step 33: Go-Live Mode)
-      appMode: process.env.EXPO_PUBLIC_APP_MODE || 'dev',
+      appMode,
       // Firebase configuration
       firebaseApiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
       firebaseAuthDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -71,6 +97,8 @@ module.exports = {
       firebaseStorageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
       firebaseMessagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
       firebaseAppId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+      firebaseAndroidAppId: process.env.EXPO_PUBLIC_FIREBASE_ANDROID_APP_ID,
+      firebaseIosAppId: process.env.EXPO_PUBLIC_FIREBASE_IOS_APP_ID,
       // Mapbox configuration
       mapboxAccessToken: process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN,
       // Emulator configuration (only used in DEV mode)

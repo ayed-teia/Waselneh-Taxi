@@ -35,7 +35,10 @@
     "qa:online-payments:e2e": "corepack pnpm --filter @taxi-line/functions qa:online-payments:e2e",
     "backfill:driver-eligibility:dry-run": "corepack pnpm --filter @taxi-line/functions backfill:driver-eligibility -- --project waselneh-prod-414e2",
     "backfill:driver-eligibility:apply": "corepack pnpm --filter @taxi-line/functions backfill:driver-eligibility:apply -- --project waselneh-prod-414e2",
-    "deploy:prod": "node ./scripts/run-firebase-node20.cjs deploy --project waselneh-prod-414e2 --only functions,firestore:rules",
+    "deploy:staging:rules": "node ./scripts/run-firebase-node20.cjs deploy --project waselneh-staging-ayed --only firestore:rules,storage",
+    "deploy:staging:indexes": "node ./scripts/run-firebase-node20.cjs deploy --project waselneh-staging-ayed --only firestore:indexes",
+    "deploy:staging:functions": "node ./scripts/run-firebase-node20.cjs deploy --project waselneh-staging-ayed --only functions",
+    "deploy:prod": "node ./scripts/confirm-production-deploy.mjs",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "qa:unit": "node scripts/run-unit-tests.mjs",
@@ -43,7 +46,7 @@
     "qa:referrals:e2e": "corepack pnpm --filter @taxi-line/functions qa:referrals:e2e",
     "qa:cancellation-benefits:e2e": "corepack pnpm --filter @taxi-line/functions qa:cancellation-benefits:e2e",
     "qa:settlement-reconciliation:e2e": "corepack pnpm --filter @taxi-line/functions qa:settlement-reconciliation:e2e",
-    "deploy:indexes": "node ./scripts/run-firebase-node20.cjs deploy --project waselneh-prod-414e2 --only firestore:indexes"
+    "deploy:indexes": "node ./scripts/confirm-production-deploy.mjs indexes"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",

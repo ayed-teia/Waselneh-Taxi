@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "waselneh-prod-414e2"
+    "default": "waselneh-staging-ayed",
+    "staging": "waselneh-staging-ayed",
+    "production": "waselneh-prod-414e2"
   }
 }
