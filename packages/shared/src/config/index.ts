@@ -6,3 +6,4 @@ export * from './rbac.config';
 export * from './auth-flags.config';
 export * from './i18n-parity.config';
 export * from './release-preflight.config';
+export * from './runtime-environment.config';

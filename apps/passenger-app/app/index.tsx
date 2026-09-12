@@ -3,6 +3,7 @@ import { Redirect } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
+import { isDevAuthBypassEnabled } from '../src/config/runtime-env';
 import { LoginScreen, PhoneLoginScreen } from '../src/features/auth';
 import { useI18n } from '../src/localization';
 import { startPhoneSignIn, type PhoneSignInSession } from '../src/services/auth/phone-auth.service';
@@ -10,8 +11,13 @@ import { signInAnonymouslyForDev } from '../src/services/firebase';
 import { useAuthStore } from '../src/store';
 import { LoadingScreen } from '../src/ui';
 
-// Dev mode - use anonymous auth for testing with emulators
-const DEV_MODE = true;
+/**
+ * The emulator-only anonymous login is permitted ONLY when the environment says
+ * so: dev mode AND emulators on AND an explicit bypass flag. Previously this was
+ * `const DEV_MODE = true`, which read no environment variable at all - so a pilot
+ * build ran an emulator login against real staging.
+ */
+const DEV_MODE = isDevAuthBypassEnabled;
 
 /**
  * PHONE AUTH IS BEHIND A FLAG, DEFAULT OFF.

@@ -47,7 +47,14 @@
     "qa:referrals:e2e": "corepack pnpm --filter @taxi-line/functions qa:referrals:e2e",
     "qa:cancellation-benefits:e2e": "corepack pnpm --filter @taxi-line/functions qa:cancellation-benefits:e2e",
     "qa:settlement-reconciliation:e2e": "corepack pnpm --filter @taxi-line/functions qa:settlement-reconciliation:e2e",
-    "deploy:indexes": "node ./scripts/confirm-production-deploy.mjs indexes"
+    "deploy:indexes": "node ./scripts/confirm-production-deploy.mjs indexes",
+    "passenger:staging:start": "node ./scripts/run-expo-staging.mjs passenger start",
+    "passenger:staging:android": "node ./scripts/run-expo-staging.mjs passenger android",
+    "driver:staging:start": "node ./scripts/run-expo-staging.mjs driver start",
+    "driver:staging:android": "node ./scripts/run-expo-staging.mjs driver android",
+    "manager:staging:dev": "corepack pnpm --filter @waselneh/manager-web dev",
+    "bootstrap:staging:admin:dry-run": "node ./scripts/bootstrap-staging-admin.mjs --project waselneh-staging-ayed --dry-run",
+    "bootstrap:staging:admin": "node ./scripts/bootstrap-staging-admin.mjs --project waselneh-staging-ayed"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",

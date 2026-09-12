@@ -3,7 +3,7 @@ import { Outlet, NavLink } from 'react-router-dom';
 
 import { useI18n } from './localization';
 import { ManagerLoginPage } from './pages/ManagerLoginPage';
-import { isUsingEmulators } from './services/firebase';
+import { environmentLabel, isUsingEmulators } from './services/firebase';
 import { MANAGER_PASSWORD_AUTH_ENABLED,
   ManagerRole,
   ManagerSession,
@@ -200,7 +200,7 @@ export function App() {
           <div className="session-toolbar">
             <div className="session-toolbar-meta">
               <strong>{txt('البيئة', 'Environment')}:</strong>{' '}
-              {emulators ? txt('محاكي', 'emulator') : txt('إنتاج', 'production')}
+              {environmentLabel}
             </div>
             <div className="session-actions">
               {emulators ? (
