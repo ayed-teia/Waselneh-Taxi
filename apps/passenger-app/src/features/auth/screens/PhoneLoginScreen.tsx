@@ -1,6 +1,14 @@
-import { Button, Card, ScreenContainer, Text } from '@waselneh/ui';
+import { Button, Card, PhoneNumberField, ScreenContainer, Text } from '@waselneh/ui';
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { useI18n } from '../../../localization';
 import {
@@ -46,7 +54,7 @@ export function PhoneLoginScreen({
   onUseDevLogin,
   loading = false,
 }: PhoneLoginScreenProps) {
-  const { t, isRTL } = useI18n();
+  const { t } = useI18n();
   const [step, setStep] = useState<Step>('phone');
   const [countryCode, setCountryCode] = useState<string>(ALLOWED_COUNTRY_CODES[0]);
   const [nationalNumber, setNationalNumber] = useState('');
@@ -122,103 +130,102 @@ export function PhoneLoginScreen({
 
   return (
     <ScreenContainer style={styles.container}>
-      <View style={styles.header}>
-        <LanguageToggle />
-        <Text variant="h1" style={styles.title}>
-          {t('auth.phone_title')}
-        </Text>
-        <Text muted style={styles.subtitle}>
-          {step === 'phone' ? t('auth.phone_subtitle') : t('auth.code_subtitle')}
-        </Text>
-      </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.flex}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <LanguageToggle />
+            <Text variant="h1" style={styles.title}>
+              {t('auth.phone_title')}
+            </Text>
+            <Text muted style={styles.subtitle}>
+              {step === 'phone' ? t('auth.phone_subtitle') : t('auth.code_subtitle')}
+            </Text>
+          </View>
 
-      <Card elevated style={styles.card}>
-        {step === 'phone' ? (
-          <>
-            <Text style={styles.label}>{t('auth.phone_label')}</Text>
-            <View style={[styles.row, isRTL && styles.rowReverse]}>
-              <View style={styles.codePicker}>
-                {ALLOWED_COUNTRY_CODES.map((cc) => (
-                  <Button
-                    key={cc}
-                    title={cc}
-                    variant={cc === countryCode ? 'primary' : 'secondary'}
-                    onPress={() => setCountryCode(cc)}
-                    disabled={disabled}
-                  />
-                ))}
-              </View>
-              <TextInput
-                style={[styles.input, isRTL && styles.inputRtl]}
-                value={nationalNumber}
-                onChangeText={setNationalNumber}
-                keyboardType="phone-pad"
-                autoComplete="tel"
-                placeholder={t('auth.phone_placeholder')}
-                editable={!disabled}
-                maxLength={15}
-              />
-            </View>
-            <Button
-              title={busy ? t('auth.sending') : t('auth.send_code')}
-              onPress={() => void handleSendCode()}
-              disabled={disabled || !phoneValid}
-              loading={busy}
-            />
-          </>
-        ) : (
-          <>
-            <Text style={styles.label}>{t('auth.code_label')}</Text>
-            <TextInput
-              style={[styles.input, styles.codeInput]}
-              value={code}
-              onChangeText={setCode}
-              keyboardType="number-pad"
-              autoComplete="sms-otp"
-              placeholder="------"
-              editable={!disabled}
-              maxLength={8}
-            />
-            <Button
-              title={busy ? t('auth.verifying') : t('auth.verify_code')}
-              onPress={() => void handleVerify()}
-              disabled={disabled || code.trim().length < 4}
-              loading={busy}
-            />
-            <Button
-              title={t('auth.change_number')}
-              variant="secondary"
-              onPress={() => {
-                setStep('phone');
-                setCode('');
-                setError(null);
-              }}
-              disabled={disabled}
-            />
-          </>
-        )}
+          <Card elevated style={styles.card}>
+            {step === 'phone' ? (
+              <>
+                <Text style={styles.label}>{t('auth.phone_label')}</Text>
+                <PhoneNumberField
+                  countryCodes={ALLOWED_COUNTRY_CODES}
+                  selectedCountryCode={countryCode}
+                  onSelectCountryCode={setCountryCode}
+                  value={nationalNumber}
+                  onChangeText={setNationalNumber}
+                  placeholder={t('auth.phone_placeholder')}
+                  disabled={disabled}
+                  accessibilityLabel={t('auth.phone_label')}
+                />
+                <Button
+                  title={busy ? t('auth.sending') : t('auth.send_code')}
+                  onPress={() => void handleSendCode()}
+                  disabled={disabled || !phoneValid}
+                  loading={busy}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>{t('auth.code_label')}</Text>
+                <TextInput
+                  style={[styles.input, styles.codeInput]}
+                  value={code}
+                  onChangeText={setCode}
+                  keyboardType="number-pad"
+                  autoComplete="sms-otp"
+                  placeholder="------"
+                  editable={!disabled}
+                  maxLength={8}
+                />
+                <Button
+                  title={busy ? t('auth.verifying') : t('auth.verify_code')}
+                  onPress={() => void handleVerify()}
+                  disabled={disabled || code.trim().length < 4}
+                  loading={busy}
+                />
+                <Button
+                  title={t('auth.change_number')}
+                  variant="secondary"
+                  onPress={() => {
+                    setStep('phone');
+                    setCode('');
+                    setError(null);
+                  }}
+                  disabled={disabled}
+                />
+              </>
+            )}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {loading ? <ActivityIndicator style={styles.spinner} /> : null}
-      </Card>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {loading ? <ActivityIndicator style={styles.spinner} /> : null}
+          </Card>
 
-      {onUseDevLogin ? (
-        <Button title={t('auth.use_dev_login')} variant="secondary" onPress={onUseDevLogin} />
-      ) : null}
+          {onUseDevLogin ? (
+            <Button title={t('auth.use_dev_login')} variant="secondary" onPress={onUseDevLogin} />
+          ) : null}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center' },
+  container: { flex: 1 },
+  flex: { flex: 1 },
+  // flexGrow (not flex: 1) lets the content centre when short and scroll
+  // when the keyboard shrinks the viewport.
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingBottom: 24 },
   header: { marginBottom: 24, alignItems: 'center' },
   title: { textAlign: 'center', marginTop: 12 },
   subtitle: { textAlign: 'center', marginTop: 8 },
-  card: { padding: 16, gap: 12 },
+  card: { padding: 16, gap: 12, width: '100%', alignSelf: 'stretch' },
   label: { marginBottom: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  rowReverse: { flexDirection: 'row-reverse' },
-  codePicker: { flexDirection: 'row', gap: 4 },
   input: {
     flex: 1,
     borderWidth: 1,
@@ -228,8 +235,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16,
   },
-  inputRtl: { textAlign: 'right' },
   codeInput: { letterSpacing: 8, textAlign: 'center', fontSize: 22 },
-  error: { color: '#dc2626', marginTop: 8 },
+  // flexShrink + full width keeps a long error inside the card rather than
+  // stretching it past the screen edge.
+  error: { color: '#dc2626', marginTop: 8, width: '100%', flexShrink: 1 },
   spinner: { marginTop: 8 },
 });
