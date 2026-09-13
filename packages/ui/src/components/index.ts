@@ -7,6 +7,7 @@ export * from './ErrorState';
 export * from './Header';
 export * from './Input';
 export * from './LoadingState';
+export * from './PhoneNumberField';
 export * from './ScreenContainer';
 export * from './SectionHeader';
 export * from './StatusChip';
